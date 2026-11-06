@@ -1,0 +1,31 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "agenticaiuw-hub",
+	"main": "src/index.tsx",
+	"compatibility_date": "2026-10-01",
+	// worker-mailer talks SMTP to Gmail over Cloudflare TCP sockets and needs Node's Buffer.
+	"compatibility_flags": ["nodejs_compat"],
+	"assets": { "directory": "./public" },
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "agenticaiuw-hub",
+			"database_id": "0d0c3273-d265-4b03-950b-c3a24f17034a",
+			"migrations_dir": "migrations"
+		}
+	],
+	// Every hour. The code checks the hour in club time: daily reminders at 9 AM, meeting reminders
+	// at 9 AM and 6 PM, urgent tasks every run.
+	"triggers": { "crons": ["0 * * * *"] },
+	"vars": {
+		"APP_URL": "https://hub.agenticaiuw.com",
+		"MAIL_FROM": "team@agenticaiuw.com",
+		"MAIL_FROM_NAME": "Agentic AI UW",
+		// Anyone listed here can always sign in and is an exec. Add the rest from the People page.
+		"ADMIN_EMAILS": "eliu59@wisc.edu,team@agenticaiuw.com",
+		"TIMEZONE": "America/Chicago"
+	},
+	"routes": [{ "pattern": "hub.agenticaiuw.com", "custom_domain": true }],
+	"observability": { "enabled": true }
+	// Secrets (wrangler secret put): SMTP_PASSWORD (Google app password for MAIL_FROM), APP_SECRET.
+}
