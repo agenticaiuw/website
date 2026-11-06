@@ -1,0 +1,24 @@
+# Search engines and AI assistants are welcome to read, index and cite this site.
+# A plain-text summary for AI assistants is at https://agenticaiuw.com/llms.txt
+
+User-agent: *
+Allow: /
+
+# Named explicitly so the intent is clear even if a host adds its own rules.
+User-agent: Googlebot
+User-agent: Bingbot
+User-agent: Google-Extended
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: GPTBot
+User-agent: Claude-SearchBot
+User-agent: Claude-User
+User-agent: ClaudeBot
+User-agent: PerplexityBot
+User-agent: Perplexity-User
+User-agent: Applebot
+User-agent: Applebot-Extended
+User-agent: DuckAssistBot
+Allow: /
+
+Sitemap: https://agenticaiuw.com/sitemap.xml

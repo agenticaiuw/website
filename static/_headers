@@ -1,0 +1,4 @@
+# The pages.dev address serves the same site; keep it out of search results
+# so agenticaiuw.com is the only copy that ranks.
+https://agenticaiuw.pages.dev/*
+  X-Robots-Tag: noindex

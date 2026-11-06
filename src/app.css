@@ -1,0 +1,155 @@
+@import 'tailwindcss';
+
+/* ==========================================================================
+   AGENTIC AI UW — DESIGN TOKENS
+   Palette: UW Badger red on near-black. All pairs verified ≥4.5:1.
+   ========================================================================== */
+
+@theme {
+	--font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+	--font-mono: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+	--color-bg: #0a0b0d;
+	--color-surface: #121317;
+	--color-surface-2: #191b20;
+	--color-fg: #edeef0;
+	--color-muted: #9ca3ac;
+	--color-accent: #ff4a3d;
+	--color-accent-ink: #0a0b0d;
+	--color-line: #25272d;
+	--color-line-strong: #4a4e57;
+
+	--ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+	--ease-in-out-expo: cubic-bezier(0.87, 0, 0.13, 1);
+}
+
+:root {
+	color-scheme: dark;
+	--bg: #0a0b0d;
+	--surface: #121317;
+	--surface-2: #191b20;
+	--fg: #edeef0;
+	--muted: #9ca3ac;
+	--accent: #ff4a3d;
+	--accent-ink: #0a0b0d;
+	--line: #25272d;
+	--line-strong: #4a4e57;
+	--glow: 255 74 61;
+	--accent-bright: #ff8b83;
+	--accent-deep: #9e1c20;
+	--accent-surface: #1b1012;
+	--accent-border: #593035;
+}
+
+:root[data-theme='light'] {
+	color-scheme: light;
+	--bg: #fbfaf9;
+	--surface: #ffffff;
+	--surface-2: #f4f2f0;
+	--fg: #111317;
+	--muted: #585f69;
+	--accent: #c5050c;
+	--accent-ink: #ffffff;
+	--line: #e3e1de;
+	--line-strong: #b8b4ae;
+	--glow: 197 5 12;
+	--accent-bright: #8f0710;
+	--accent-deep: #82030b;
+	--accent-surface: #fff3f3;
+	--accent-border: #eac2c4;
+}
+
+/* ---------- base ---------- */
+
+* { border-color: var(--line); }
+
+html {
+	scroll-behavior: smooth;
+	-webkit-text-size-adjust: 100%;
+}
+
+body {
+	background: var(--bg);
+	color: var(--fg);
+	font-family: var(--font-sans);
+	font-size: 16px;
+	line-height: 1.6;
+	-webkit-font-smoothing: antialiased;
+	text-rendering: optimizeLegibility;
+	overflow-x: hidden;
+}
+
+::selection { background: var(--accent); color: var(--accent-ink); }
+
+:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 3px;
+	border-radius: 2px;
+}
+
+a, button { cursor: pointer; }
+
+h1, h2, h3, h4 {
+	font-weight: 600;
+	letter-spacing: -0.025em;
+	line-height: 1.08;
+	text-wrap: balance;
+}
+
+p { text-wrap: pretty; }
+
+/* ---------- reusable primitives ---------- */
+
+.shell {
+	width: 100%;
+	max-width: 78rem;
+	margin-inline: auto;
+	padding-inline: clamp(1.25rem, 5vw, 4rem);
+}
+
+.eyebrow {
+	font-family: var(--font-mono);
+	font-size: 0.72rem;
+	font-weight: 500;
+	letter-spacing: 0.18em;
+	text-transform: uppercase;
+	color: var(--muted);
+}
+
+.rule {
+	height: 1px;
+	background: linear-gradient(90deg, var(--line-strong), transparent);
+}
+
+/* Section index numeral — the "00 / 01 / 02" spine */
+.index-numeral {
+	font-family: var(--font-mono);
+	font-variant-numeric: tabular-nums;
+	color: var(--accent);
+	font-size: 0.72rem;
+	letter-spacing: 0.18em;
+}
+
+/* ---------- scroll-reveal: visible by default, JS opts in ---------- */
+/* Critical: content is NEVER invisible without JS (SEO + no-JS fallback). */
+
+.js [data-reveal] {
+	opacity: 0;
+	transform: translate3d(0, 14px, 0);
+	will-change: opacity, transform;
+}
+
+/* ---------- reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+	html { scroll-behavior: auto; }
+	.js [data-reveal] {
+		opacity: 1 !important;
+		transform: none !important;
+	}
+	*, *::before, *::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+	}
+}
