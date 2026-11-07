@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { addDays, formatDate, formatTimeRange, todayIn } from '../dates';
-import { all, first, groupStats, MEETING_SELECT, MEETING_VISIBLE, TASK_SELECT, visible } from '../db';
+import { all, first, groupStats, MEETING_SELECT, MEETING_VISIBLE, TASK_SELECT, teamNames, visible } from '../db';
 import { canAssign, isExec } from '../perm';
 import type { AppEnv, MeetingRow, TaskRow } from '../types';
 import { page } from '../views/layout';
@@ -22,7 +22,7 @@ export function MeetingList({ meetings, today }: { meetings: MeetingRow[]; today
 						<span class="m-body">
 							<span class="m-title">{m.title}</span>
 							<span class="m-meta">
-								{m.kind === 'event' ? 'Club event' : m.team_name}
+								{m.kind === 'event' ? 'Club event' : teamNames(m)}
 								{m.time && ` · ${formatTimeRange(m.time, m.end_time)}`}
 								{m.location && ` · ${m.location}`}
 							</span>

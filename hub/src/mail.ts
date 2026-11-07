@@ -7,6 +7,8 @@ export type Recipient = { name: string; email: string };
 export type Mail = {
 	to: Recipient;
 	cc?: Recipient[];
+	/** Hidden recipients, for one email to a whole list. */
+	bcc?: Recipient[];
 	subject: string;
 	text: string;
 	html: string;
@@ -30,6 +32,7 @@ const envelope = (env: Env, mail: Mail) => ({
 	from: { name: env.MAIL_FROM_NAME, email: env.MAIL_FROM },
 	to: mail.to,
 	cc: mail.cc?.length ? mail.cc : undefined,
+	bcc: mail.bcc?.length ? mail.bcc : undefined,
 	reply: { name: env.MAIL_FROM_NAME, email: env.MAIL_FROM },
 	subject: mail.subject,
 	text: mail.text,
@@ -37,7 +40,8 @@ const envelope = (env: Env, mail: Mail) => ({
 });
 
 async function record(env: Env, mail: Mail, status: 'sent' | 'failed' | 'logged', error: string): Promise<SendResult> {
-	const to = [mail.to, ...(mail.cc ?? [])].map((r) => r.email).join(', ');
+	const bcc = mail.bcc?.length ? ` (bcc ${mail.bcc.length} ${mail.bcc.length === 1 ? 'person' : 'people'})` : '';
+	const to = [mail.to, ...(mail.cc ?? [])].map((r) => r.email).join(', ') + bcc;
 	await run(env.DB, 'INSERT INTO email_log (to_email, subject, kind, status, error) VALUES (?, ?, ?, ?, ?)', to, mail.subject, mail.kind, status, error.slice(0, 500));
 	if (status === 'failed') console.error(`[mail] failed to ${mail.to.email}: ${error}`);
 	return status === 'failed' ? { ok: false, error } : { ok: true };
@@ -48,7 +52,9 @@ const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 /** Without a password (or in DEV_MODE) nothing is sent; returns how to record the attempt instead. */
 function unsendable(env: Env, mail: Mail): ['logged' | 'failed', string] | null {
 	if (env.DEV_MODE) {
-		console.log(`[mail] to ${mail.to.email}${mail.cc?.length ? ` cc ${mail.cc.map((r) => r.email).join(', ')}` : ''}: ${mail.subject}\n${mail.text}`);
+		console.log(
+			`[mail] to ${mail.to.email}${mail.cc?.length ? ` cc ${mail.cc.map((r) => r.email).join(', ')}` : ''}${mail.bcc?.length ? ` bcc ${mail.bcc.map((r) => r.email).join(', ')}` : ''}: ${mail.subject}\n${mail.text}`
+		);
 		return ['logged', ''];
 	}
 	if (!env.SMTP_PASSWORD) return ['failed', 'SMTP_PASSWORD is not set, so the hub cannot send email yet.'];

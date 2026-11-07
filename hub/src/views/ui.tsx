@@ -200,6 +200,57 @@ export function MemberSelect({ name, members, selected, required, blank, id, lab
 	);
 }
 
+/**
+ * One panel for picking people. Ticking a team chip ticks everyone on it and unticking it unticks
+ * them; anyone can also be ticked on their own. Chips post as `team` (Whole club as `club`), people
+ * as `personName`. Without JavaScript the chips and people are simply independent checkboxes.
+ */
+export function PeoplePicker({ label, hint, teams, club, pickedTeams, people, picked, teamsOf, personName }: { label: string; hint?: Child; teams: Pick<Team, 'id' | 'name'>[]; club?: boolean; pickedTeams: Set<number>; people: Pick<Member, 'id' | 'name'>[]; picked: Set<number>; teamsOf: Map<number, number[]>; personName: string }) {
+	return (
+		<fieldset class="field wide">
+			<legend class="label">{label}</legend>
+			<div class="picker">
+				{(teams.length > 0 || club !== undefined) && (
+					<div class="picker-teams chips">
+						{club !== undefined && (
+							<label>
+								<input type="checkbox" name="team" value="club" checked={club} />
+								<span>Whole club</span>
+							</label>
+						)}
+						{teams.map((t) => (
+							<label>
+								<input type="checkbox" name="team" value={String(t.id)} checked={pickedTeams.has(t.id)} />
+								<span>{t.name}</span>
+							</label>
+						))}
+					</div>
+				)}
+				<div class="picker-search js-only">
+					<input type="search" placeholder="Find a person" aria-label="Find a person" data-picker-filter />
+					<span class="picker-count">
+						<span data-picker-count></span> ·{' '}
+						<button type="button" class="link-btn" data-picker-clear>
+							Clear
+						</button>
+					</span>
+				</div>
+				<div class="picker-list">
+					{[...people]
+						.sort((a, b) => Number(picked.has(b.id)) - Number(picked.has(a.id)))
+						.map((p) => (
+							<label data-teams={(teamsOf.get(p.id) ?? []).join(' ')}>
+								<input type="checkbox" name={personName} value={String(p.id)} checked={picked.has(p.id)} />
+								{p.name}
+							</label>
+						))}
+				</div>
+			</div>
+			{hint && <span class="hint">{hint}</span>}
+		</fieldset>
+	);
+}
+
 export function TeamSelect({ name, teams, selected, required, blank, id, label }: { name: string; teams: Pick<Team, 'id' | 'name'>[]; selected?: number | null; required?: boolean; blank?: string; id?: string; label?: string }) {
 	return (
 		<select name={name} id={id} required={required} aria-label={label}>

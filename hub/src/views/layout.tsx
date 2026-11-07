@@ -9,6 +9,8 @@ const FLASH: Record<string, string> = {
 	saved: 'Saved.',
 	created: 'Created.',
 	scheduled: 'Scheduled. The repeats are on the Meetings page, each with its own notes and attendance.',
+	emailed: 'Created, and everyone on it was emailed.',
+	'scheduled-emailed': 'Scheduled, and everyone on it was emailed. The repeats are on the Meetings page.',
 	done: 'Marked done. Reminders for it have stopped.',
 	reopened: 'Reopened.',
 	dropped: 'Dropped. No more reminders for it.',
@@ -25,12 +27,14 @@ const FLASH: Record<string, string> = {
 
 const ERRORS: Record<string, string> = {
 	missing: 'Fill in the required fields.',
+	team: 'Pick at least one team, or Whole club.',
 	date: 'Use a valid date.',
 	until: 'Pick an end date for the repeats that comes after the first date.',
 	time: 'The end time should be after the start time.',
 	email: 'That email address looks wrong.',
 	exists: 'Someone with that email is already on the roster.',
 	forbidden: "You don't have permission to do that.",
+	unsent: "It's saved, but the email to everyone didn't go out. They'll still get the usual reminder before it.",
 	self: "You can't remove your own exec access."
 };
 

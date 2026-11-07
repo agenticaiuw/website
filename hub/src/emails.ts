@@ -222,11 +222,17 @@ export function digestEmail(name: string, d: DigestData, today: string, appUrl: 
 
 // ---------- meeting reminders ----------
 
+/** "A", "A and B", "A, B and C". */
+export function andList(items: string[]) {
+	return items.length < 3 ? items.join(' and ') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
 type EmailMeeting = {
 	id: number;
 	kind: 'meeting' | 'event';
 	title: string;
-	team_name: string;
+	/** Every team it's for, main team first. */
+	team_names: string[];
 	date: string;
 	time: string;
 	end_time: string;
@@ -235,17 +241,30 @@ type EmailMeeting = {
 	agenda: string;
 };
 
-/** `today` is the day it's sent, which makes the meeting "Today" or "Tomorrow". */
-export function meetingEmail(name: string, m: EmailMeeting, today: string, appUrl: string) {
-	const first = name.split(' ')[0];
+/**
+ * `today` is the day it's sent, which makes the meeting "Today" or "Tomorrow". A null `name` greets
+ * everyone, for one email to the whole list. `announce`: sent as soon as it's scheduled, instead of
+ * as the reminder before it; `repeats` then says how often it happens.
+ */
+export function meetingEmail(name: string | null, m: EmailMeeting, today: string, appUrl: string, opts: { announce?: boolean; repeats?: string } = {}) {
+	const first = name ? name.split(' ')[0] : 'everyone';
 	const day = m.date === today ? 'Today' : m.date === addDays(today, 1) ? 'Tomorrow' : formatDate(m.date, today);
+	const on = m.date === today || m.date === addDays(today, 1) ? day.toLowerCase() : `on ${day}`;
 	const when = [day, m.time && formatTimeRange(m.time, m.end_time), m.location].filter(Boolean).join(' · ');
-	const intro = m.kind === 'event' ? `There’s a club event ${day.toLowerCase()}. It’s open to everyone.` : `${m.team_name} meets ${day.toLowerCase()}.`;
+	const teams = andList(m.team_names);
+	const several = m.team_names.length > 1;
+	const intro =
+		m.kind === 'event'
+			? `There’s ${opts.announce ? 'a new' : 'a'} club event ${on}. It’s open to everyone.`
+			: opts.announce
+				? `${teams} ${several ? 'have' : 'has'} a new meeting ${on}.`
+				: `${teams} ${several ? 'meet' : 'meets'} ${on}.`;
+	const repeats = opts.repeats ? ` ${opts.repeats}` : '';
 	const url = `${appUrl}/meetings/${m.id}`;
 	const agenda = m.agenda.trim();
 	const html =
 		p(`Hi ${esc(first)},`) +
-		p(esc(intro)) +
+		p(esc(intro + repeats)) +
 		`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${LINE};border-radius:10px;margin:0 0 10px;">
 <tr><td style="padding:14px 16px;">
 <div style="font-weight:600;font-size:16px;"><a href="${esc(url)}" style="color:${INK};text-decoration:none;">${esc(m.title)}</a></div>
@@ -254,13 +273,14 @@ ${agenda ? `<div style="font-size:14px;margin-top:12px;"><div style="font-size:1
 <div style="margin-top:14px;">${m.doc_url ? `${button(m.doc_url, 'Open the meeting doc')}&nbsp; ` : ''}${button(url, 'Meeting page', !m.doc_url)}</div>
 </td></tr></table>`;
 	const text =
-		`Hi ${first},\n\n${intro}\n\n${m.title}\n${when}` +
+		`Hi ${first},\n\n${intro}${repeats}\n\n${m.title}\n${when}` +
 		(agenda ? `\n\nAgenda\n${agenda}` : '') +
 		(m.doc_url ? `\n\nMeeting doc: ${m.doc_url}` : '') +
 		`\nMeeting page: ${url}`;
-	const to = m.kind === 'event' ? 'everyone in the club' : `everyone on ${esc(m.team_name)}`;
+	const to = m.kind === 'event' ? 'everyone in the club' : `everyone on ${esc(teams)}`;
+	const at = `${day}${m.time ? `, ${formatTimeRange(m.time, m.end_time)}` : ''}`;
 	return {
-		subject: `${day}: ${m.title}${m.time ? `, ${formatTimeRange(m.time, m.end_time)}` : ''}`,
+		subject: opts.announce ? `New ${m.kind === 'event' ? 'club event' : 'meeting'}: ${m.title}, ${at}` : `${day}: ${m.title}${m.time ? `, ${formatTimeRange(m.time, m.end_time)}` : ''}`,
 		text,
 		html: layout(html, `Sent by the club hub at <a href="${esc(appUrl)}" style="color:${MUTED};">${esc(appUrl.replace(/^https?:\/\//, ''))}</a> to ${to}. Questions? Reply to this email.`)
 	};

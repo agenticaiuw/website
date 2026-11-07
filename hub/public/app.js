@@ -59,39 +59,53 @@ for (const input of document.querySelectorAll('[data-picker-filter]')) {
 	});
 }
 
-// Assign picker: a team button ticks everyone on that team, or unticks them if they're all ticked.
+// People pickers (assign a task, who a meeting is for): ticking a team ticks everyone on it, and
+// unticking it unticks them unless another ticked team still has them. Unticking the last person
+// on a team unticks the team. Whole club ticks everyone and locks the list, since a club event is
+// open to all.
 for (const picker of document.querySelectorAll('.picker')) {
-	const boxes = [...picker.querySelectorAll('input[type=checkbox]')];
-	const chips = picker.querySelectorAll('[data-pick-team]');
+	const boxes = [...picker.querySelectorAll('.picker-list input[type=checkbox]')];
+	const teams = [...picker.querySelectorAll('.picker-teams input[type=checkbox]')];
+	const club = teams.find((t) => t.value === 'club');
 	const count = picker.querySelector('[data-picker-count]');
-	const team = picker.closest('form').querySelector('select[name=team]');
-	const members = (id) => boxes.filter((b) => b.closest('label').dataset.teams?.split(' ').includes(id));
+	const on = (box, team) => team === club || !!box.closest('label').dataset.teams?.split(' ').includes(team.value);
+	const members = (team) => boxes.filter((b) => on(b, team));
 	const sync = () => {
-		for (const chip of chips) {
-			const on = members(chip.dataset.pickTeam);
-			chip.setAttribute('aria-pressed', String(on.length > 0 && on.every((b) => b.checked)));
-		}
+		for (const b of boxes) b.disabled = !!club?.checked;
 		if (count) {
 			const n = boxes.filter((b) => b.checked).length;
 			count.textContent = n === 1 ? '1 person' : `${n} people`;
 		}
 	};
-	for (const chip of chips) {
-		chip.addEventListener('click', () => {
-			const id = chip.dataset.pickTeam;
-			const on = members(id);
-			const all = on.every((b) => b.checked);
-			for (const b of on) b.checked = !all;
-			// File it under that team unless one is already chosen.
-			if (!all && team && !team.value && [...team.options].some((o) => o.value === id)) team.value = id;
+	if (teams.length) {
+		// Tells the server the people list matches the teams, so anyone unticked was left out on purpose.
+		const synced = Object.assign(document.createElement('input'), { type: 'hidden', name: 'people_synced', value: '1' });
+		picker.append(synced);
+	}
+	for (const team of teams) {
+		team.addEventListener('change', () => {
+			if (team === club) {
+				for (const t of teams) if (t !== club) t.checked = false;
+			} else if (club?.checked) {
+				// Switching from the whole club to a team: start from just that team.
+				club.checked = false;
+				for (const b of boxes) b.checked = false;
+			}
+			if (team.checked) for (const b of members(team)) b.checked = true;
+			else for (const b of members(team)) b.checked = teams.some((t) => t.checked && on(b, t));
+			sync();
+		});
+	}
+	for (const b of boxes) {
+		b.addEventListener('change', () => {
+			if (!b.checked) for (const t of teams) if (t.checked && on(b, t) && !members(t).some((x) => x.checked)) t.checked = false;
 			sync();
 		});
 	}
 	picker.querySelector('[data-picker-clear]')?.addEventListener('click', () => {
-		for (const b of boxes) b.checked = false;
+		for (const x of [...boxes, ...teams]) x.checked = false;
 		sync();
 	});
-	picker.addEventListener('change', sync);
 	sync();
 }
 

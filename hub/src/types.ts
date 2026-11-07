@@ -95,7 +95,14 @@ export type Meeting = {
 	reminded_on: string | null;
 };
 
-export type MeetingRow = Meeting & { team_name: string; team_kind: 'exec' | 'project' };
+/** One of the teams a meeting is for. */
+export type MeetingTeam = { id: number; name: string; kind: 'exec' | 'project' };
+
+/**
+ * A meeting joined with its main team, plus `teams_json`: every team it's for, as a JSON list of
+ * MeetingTeam. Read it with meetingTeams().
+ */
+export type MeetingRow = Meeting & { team_name: string; team_kind: 'exec' | 'project'; teams_json?: string | null };
 
 export type FormQuestion = { id: string; label: string; kind: 'rating' | 'text' };
 

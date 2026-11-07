@@ -1,14 +1,14 @@
 import { Hono } from 'hono';
 import { addDays, formatDate, formatTime, formatTimeRange, hourIn, isDate, isTime, todayIn } from '../dates';
-import { activeMembers, all, first, MEETING_SELECT, MEETING_VISIBLE, meetingById, nowIso, run, TASK_SELECT, teams, visible } from '../db';
+import { activeMembers, all, first, MEETING_EXPECTED, MEETING_TEAMS_JSON, MEETING_VISIBLE, meetingById, meetingTeams, nowIso, TASK_SELECT, teamNames, teams, teamsByMember, visible } from '../db';
 import { meetingEmail } from '../emails';
 import { id, isHttpUrl, list, readForm, str } from '../form';
 import { canAssign, canEditMeeting, canSeeMeeting, isExec, teamsFor } from '../perm';
-import { meetingPeople, notifyAssigned } from '../reminders';
+import { announceMeeting, emailMeeting, meetingPeople, notifyAssigned } from '../reminders';
 import { meetingReminderAt } from '../schedule';
 import type { AppEnv, AttendanceStatus, Member, MeetingKind, MeetingRow, TaskRow, Viewer } from '../types';
 import { page } from '../views/layout';
-import { Choice, Empty, Field, Markdown, MemberSelect, PageHead, Tabs, TaskList } from '../views/ui';
+import { Choice, Empty, Field, Markdown, MemberSelect, PageHead, PeoplePicker, Tabs, TaskList } from '../views/ui';
 import { FormSection, formForMeeting } from './forms';
 import { createTasks } from './tasks';
 
@@ -24,7 +24,7 @@ const STATUSES: [AttendanceStatus, string][] = [
 type MeetingListRow = MeetingRow & { present: number; marked: number; actions: number; open_actions: number };
 
 const LIST_SELECT = `
-	SELECT m.*, tm.name AS team_name, tm.kind AS team_kind,
+	SELECT m.*, tm.name AS team_name, tm.kind AS team_kind, ${MEETING_TEAMS_JSON},
 		(SELECT COUNT(*) FROM attendance x WHERE x.meeting_id = m.id AND x.status IN ('present', 'late')) AS present,
 		(SELECT COUNT(*) FROM attendance x WHERE x.meeting_id = m.id) AS marked,
 		(SELECT COUNT(*) FROM tasks t WHERE t.meeting_id = m.id) AS actions,
@@ -42,7 +42,7 @@ meetingRoutes.get('/meetings', async (c) => {
 	const where = [visible(v, MEETING_VISIBLE)];
 	const params: (string | number)[] = [v.id, today];
 	if (events) where.push("m.kind = 'event'");
-	if (team) where.push(`m.team_id = ?${params.push(team)}`);
+	if (team) where.push(`m.id IN (SELECT meeting_id FROM meeting_teams WHERE team_id = ?${params.push(team)})`);
 	const [upcoming, past, teamList] = await Promise.all([
 		all<MeetingListRow>(c.env.DB, `${LIST_SELECT} WHERE ${where.join(' AND ')} AND m.date >= ?2 ORDER BY m.date, m.time LIMIT 300`, ...params),
 		all<MeetingListRow>(c.env.DB, `${LIST_SELECT} WHERE ${where.join(' AND ')} AND m.date < ?2 ORDER BY m.date DESC, m.time DESC LIMIT 300`, ...params),
@@ -87,8 +87,10 @@ meetingRoutes.get('/meetings', async (c) => {
 								<a href={`/meetings/${m.id}`}>{m.title}</a>
 								{m.kind === 'event' && <span class="tag event">Club event</span>}
 							</td>
-							<td>
-								<span class={`tag ${m.team_kind}`}>{m.team_name}</span>
+							<td class="team-tags">
+								{meetingTeams(m).map((t) => (
+									<span class={`tag ${t.kind}`}>{t.name}</span>
+								))}
 							</td>
 							{ahead ? (
 								<td class="clip">{m.location || <span class="muted">—</span>}</td>
@@ -159,22 +161,22 @@ const REPEATS: [string, string][] = [
 /** Most dates one repeating meeting can create, so a typo in the end date can't make hundreds. */
 const MAX_REPEATS = 30;
 
-function MeetingForm({ v, teamList, people, invited = new Set(), m, kind, action, today, later = 0 }: { v: Viewer; teamList: { id: number; name: string }[]; people: Member[]; invited?: Set<number>; m?: MeetingRow; kind: MeetingKind; action: string; today: string; later?: number }) {
-	const team = (m?.kind ?? kind) === 'event' ? 'club' : String(m?.team_id ?? teamList[0]?.id);
+function MeetingForm({ v, teamList, people, picked, teamsOf, m, kind, action, today, later = 0 }: { v: Viewer; teamList: { id: number; name: string }[]; people: Member[]; picked: Set<number>; teamsOf: Map<number, number[]>; m?: MeetingRow; kind: MeetingKind; action: string; today: string; later?: number }) {
+	const club = (m?.kind ?? kind) === 'event';
+	const pickedTeams = new Set(club ? [] : m ? meetingTeams(m).map((t) => t.id) : [teamList[0]?.id]);
 	return (
 		<form method="post" action={action} class="card form-grid">
-			<Field label="Team" hint="Whole club: everyone sees it and gets the reminder email.">
-				<select name="team" required>
-					<option value="club" selected={team === 'club'}>
-						Whole club
-					</option>
-					{teamList.map((t) => (
-						<option value={String(t.id)} selected={String(t.id) === team}>
-							{t.name}
-						</option>
-					))}
-				</select>
-			</Field>
+			<PeoplePicker
+				label="Who’s it for"
+				hint="Tick a team to add everyone on it, then untick anyone who doesn’t need to come. Everyone ticked sees it, is on its attendance and gets the reminder. Pick more than one team for a joint meeting. Whole club makes it a club event open to everyone."
+				teams={teamList}
+				club={club}
+				pickedTeams={pickedTeams}
+				people={people}
+				picked={picked}
+				teamsOf={teamsOf}
+				personName="person"
+			/>
 			<Field label="Title" wide>
 				<input name="title" required maxlength={200} value={m?.title ?? ''} placeholder={kind === 'event' ? 'e.g. General meeting' : 'e.g. Weekly standup'} />
 			</Field>
@@ -206,31 +208,6 @@ function MeetingForm({ v, teamList, people, invited = new Set(), m, kind, action
 			<Field label="Meeting doc" hint="Optional link to the Google Doc">
 				<input type="url" name="doc_url" maxlength={500} value={m?.doc_url ?? ''} placeholder="https://docs.google.com/…" />
 			</Field>
-			<div class="field wide">
-				<span class="label">Also invite</span>
-				<div class="picker">
-					<div class="picker-search js-only">
-						<input type="search" placeholder="Find a person" aria-label="Find a person to invite" data-picker-filter />
-						<span class="picker-count">
-							<span data-picker-count></span> ·{' '}
-							<button type="button" class="link-btn" data-picker-clear>
-								Clear
-							</button>
-						</span>
-					</div>
-					<div class="picker-list">
-						{[...people]
-							.sort((a, b) => Number(invited.has(b.id)) - Number(invited.has(a.id)))
-							.map((p) => (
-								<label>
-									<input type="checkbox" name="invite" value={String(p.id)} checked={invited.has(p.id)} />
-									{p.name}
-								</label>
-							))}
-					</div>
-				</div>
-				<span class="hint">People outside the team. They see the meeting, are on its attendance list and get the reminder email.</span>
-			</div>
 			<Field label="Agenda" hint="Markdown works: - bullets, **bold**, links." wide>
 				<textarea name="agenda" rows={6}>
 					{m?.agenda ?? ''}
@@ -241,6 +218,15 @@ function MeetingForm({ v, teamList, people, invited = new Set(), m, kind, action
 					{m?.notes ?? ''}
 				</textarea>
 			</Field>
+			{!m && (
+				<div class="field wide">
+					<label class="check">
+						<input type="checkbox" name="notify" value="1" />
+						Email everyone about it now
+					</label>
+					<span class="hint">One email to everyone ticked above (the whole club for a club event). The usual reminder still goes out before it.</span>
+				</div>
+			)}
 			{later > 0 && (
 				<label class="check wide">
 					<input type="checkbox" name="series" value="1" />
@@ -274,10 +260,12 @@ function readMeeting(form: Record<string, unknown>) {
 	const docUrl = str(form.doc_url, 500);
 	const time = str(form.time);
 	const end = str(form.end_time);
+	const picked = list(form.team);
 	return {
-		kind: (str(form.team) === 'club' ? 'event' : 'meeting') as MeetingKind,
-		// Whole club comes in as 'club'; runnerFor fills in the team.
-		teamId: id(form.team),
+		kind: (picked.includes('club') ? 'event' : 'meeting') as MeetingKind,
+		// In the order the form lists them, so the first is the main team. Whole club comes in as
+		// 'club'; runnerFor fills in the team.
+		teamIds: [...new Set(picked.map(Number))].filter((n) => Number.isInteger(n) && n > 0),
 		title: str(form.title, 200),
 		date: str(form.date),
 		time: isTime(time) ? time : '',
@@ -288,20 +276,72 @@ function readMeeting(form: Record<string, unknown>) {
 		docUrl: docUrl && isHttpUrl(docUrl) ? docUrl : '',
 		agenda: str(form.agenda, 50_000),
 		notes: str(form.notes, 100_000),
-		invites: [...new Set(list(form.invite).map(Number))].filter((n) => Number.isInteger(n) && n > 0)
+		people: [...new Set(list(form.person).map(Number))].filter((n) => Number.isInteger(n) && n > 0),
+		// Set by app.js once team chips tick their people, so unticked team members can be skipped.
+		synced: str(form.people_synced) === '1'
 	};
 }
 
-/** Replaces who's invited to the meetings `ids` selects. `ids` uses ?1…?n for `params`. */
-function setInvites(db: D1Database, invites: number[], ids: string, ...params: (string | number)[]) {
+type MeetingInput = ReturnType<typeof readMeeting>;
+
+/**
+ * Splits who's ticked into invites (not on its teams) and skips (on its teams but unticked).
+ * Club events are open to everyone, so neither.
+ */
+async function invitesAndSkips(db: D1Database, m: MeetingInput, teamIds: number[]) {
+	if (m.kind === 'event') return { invites: [], skips: [] };
+	const teamsOf = await teamsByMember(db);
+	const onTeams = (memberId: number) => teamsOf.get(memberId)?.some((t) => teamIds.includes(t)) ?? false;
+	const ticked = new Set(m.people);
+	return {
+		invites: m.people.filter((p) => !onTeams(p)),
+		skips: m.synced ? [...teamsOf.keys()].filter((p) => onTeams(p) && !ticked.has(p)) : []
+	};
+}
+
+/** Who to tick on the form: everyone for a club event, else its teams minus skips plus invites. */
+async function pickedFor(db: D1Database, m: MeetingRow, teamsOf: Map<number, number[]>, people: Member[]) {
+	if (m.kind === 'event') return new Set(people.map((p) => p.id));
+	const [invites, skips] = await Promise.all([
+		all<{ member_id: number }>(db, 'SELECT member_id FROM meeting_invites WHERE meeting_id = ?', m.id),
+		all<{ member_id: number }>(db, 'SELECT member_id FROM meeting_skips WHERE meeting_id = ?', m.id)
+	]);
+	const teamIds = meetingTeams(m).map((t) => t.id);
+	const skipped = new Set(skips.map((r) => r.member_id));
+	const picked = new Set(invites.map((r) => r.member_id));
+	for (const p of people) if (!skipped.has(p.id) && teamsOf.get(p.id)?.some((t) => teamIds.includes(t))) picked.add(p.id);
+	return picked;
+}
+
+/** Replaces who's invited to, or skipped for, the meetings `ids` selects. `ids` uses ?1…?n for `params`. */
+function setPeople(db: D1Database, table: 'meeting_invites' | 'meeting_skips', people: number[], ids: string, ...params: (string | number)[]) {
 	return [
-		db.prepare(`DELETE FROM meeting_invites WHERE meeting_id IN (${ids})`).bind(...params),
+		db.prepare(`DELETE FROM ${table} WHERE meeting_id IN (${ids})`).bind(...params),
 		db
 			.prepare(
-				`INSERT INTO meeting_invites (meeting_id, member_id) SELECT mt.id, j.value FROM meetings mt, json_each(?${params.length + 1}) j
+				`INSERT INTO ${table} (meeting_id, member_id) SELECT mt.id, j.value FROM meetings mt, json_each(?${params.length + 1}) j
 				 WHERE mt.id IN (${ids}) AND j.value IN (SELECT id FROM members)`
 			)
-			.bind(...params, JSON.stringify(invites))
+			.bind(...params, JSON.stringify(people))
+	];
+}
+
+/** Invites and skips together, for the meetings `ids` selects. */
+const setWho = (db: D1Database, who: { invites: number[]; skips: number[] }, ids: string, ...params: (string | number)[]) => [
+	...setPeople(db, 'meeting_invites', who.invites, ids, ...params),
+	...setPeople(db, 'meeting_skips', who.skips, ids, ...params)
+];
+
+/** Replaces the teams of the meetings `ids` selects. `ids` uses ?1…?n for `params`. */
+function setTeams(db: D1Database, teamIds: number[], ids: string, ...params: (string | number)[]) {
+	return [
+		db.prepare(`DELETE FROM meeting_teams WHERE meeting_id IN (${ids})`).bind(...params),
+		db
+			.prepare(
+				`INSERT INTO meeting_teams (meeting_id, team_id) SELECT mt.id, j.value FROM meetings mt, json_each(?${params.length + 1}) j
+				 WHERE mt.id IN (${ids}) AND j.value IN (SELECT id FROM teams)`
+			)
+			.bind(...params, JSON.stringify(teamIds))
 	];
 }
 
@@ -324,15 +364,17 @@ meetingRoutes.get('/meetings/new', async (c) => {
 	const v = c.get('viewer');
 	if (!canAssign(v)) return c.redirect('/meetings?error=forbidden');
 	const kind: MeetingKind = c.req.query('kind') === 'event' ? 'event' : 'meeting';
-	const [allTeams, people] = await Promise.all([teams(c.env.DB), activeMembers(c.env.DB)]);
+	const [allTeams, people, teamsOf] = await Promise.all([teams(c.env.DB), activeMembers(c.env.DB), teamsByMember(c.env.DB)]);
 	const teamList = teamsFor(v, allTeams);
+	const firstTeam = teamList[0]?.id;
+	const picked = new Set(people.filter((p) => kind === 'event' || (firstTeam !== undefined && teamsOf.get(p.id)?.includes(firstTeam))).map((p) => p.id));
 	const title = kind === 'event' ? 'New club event' : 'New meeting';
 	return page(
 		c,
 		{ title, active: 'meetings' },
 		<>
 			<PageHead eyebrow="Meetings" title={title} sub="Set it up ahead of time or after it happens. Attendance and action items go on its page." />
-			<MeetingForm v={v} teamList={teamList} people={people} kind={kind} action="/meetings" today={todayIn(c.env.TIMEZONE)} />
+			<MeetingForm v={v} teamList={teamList} people={people} picked={picked} teamsOf={teamsOf} kind={kind} action="/meetings" today={todayIn(c.env.TIMEZONE)} />
 		</>
 	);
 });
@@ -341,27 +383,42 @@ meetingRoutes.post('/meetings', async (c) => {
 	const v = c.get('viewer');
 	const form = await readForm(c);
 	const m = readMeeting(form);
-	if (m.kind === 'event') m.teamId = await runnerFor(c.env.DB, v);
+	if (m.kind === 'event') m.teamIds = [await runnerFor(c.env.DB, v)].filter((t) => t !== null);
+	const teamId = m.teamIds[0];
 	const back = `/meetings/new${m.kind === 'event' ? '?kind=event&' : '?'}error=`;
-	if (!m.teamId || !m.title) return c.redirect(back + 'missing');
+	if (!m.title) return c.redirect(back + 'missing');
+	if (!teamId) return c.redirect(back + 'team');
 	if (!isDate(m.date)) return c.redirect(back + 'date');
 	if (m.badTime) return c.redirect(back + 'time');
-	if (!isExec(v) && !v.leadOf.has(m.teamId)) return c.redirect(back + 'forbidden');
+	if (!isExec(v) && m.teamIds.some((t) => !v.leadOf.has(t))) return c.redirect(back + 'forbidden');
 	const every = Number(str(form.repeat));
 	const until = str(form.until);
 	if (every && (!isDate(until) || until < m.date)) return c.redirect(back + 'until');
 	const dates = repeatDates(m.date, every, until);
 
 	const db = c.env.DB;
+	const who = await invitesAndSkips(db, m, m.teamIds);
 	const insert = (date: string, notes: string, seriesId: number | null) =>
 		db
 			.prepare('INSERT INTO meetings (team_id, kind, series_id, title, date, time, end_time, location, doc_url, agenda, notes, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-			.bind(m.teamId, m.kind, seriesId, m.title, date, m.time, m.endTime, m.location, m.docUrl, m.agenda, notes, v.id);
+			.bind(teamId, m.kind, seriesId, m.title, date, m.time, m.endTime, m.location, m.docUrl, m.agenda, notes, v.id);
 	const firstId = Number((await insert(m.date, m.notes, null).run()).meta.last_row_id);
-	// Repeats copy everything but the notes, and share the first one's id.
-	if (dates.length > 1) await db.batch([db.prepare('UPDATE meetings SET series_id = ?1 WHERE id = ?1').bind(firstId), ...dates.slice(1).map((d) => insert(d, '', firstId))]);
-	if (m.invites.length) await db.batch(setInvites(db, m.invites, 'SELECT id FROM meetings WHERE id = ?1 OR series_id = ?1', firstId));
-	return c.redirect(`/meetings/${firstId}?ok=${dates.length > 1 ? 'scheduled' : 'created'}`);
+	const created = 'SELECT id FROM meetings WHERE id = ?1 OR series_id = ?1';
+	await db.batch([
+		// Repeats copy everything but the notes, and share the first one's id.
+		...(dates.length > 1 ? [db.prepare('UPDATE meetings SET series_id = ?1 WHERE id = ?1').bind(firstId), ...dates.slice(1).map((d) => insert(d, '', firstId))] : []),
+		...setTeams(db, m.teamIds, created, firstId),
+		...setWho(db, who, created, firstId)
+	]);
+	const ok = dates.length > 1 ? 'scheduled' : 'created';
+	if (str(form.notify) !== '1') return c.redirect(`/meetings/${firstId}?ok=${ok}`);
+
+	const meeting = await meetingById(db, firstId);
+	const today = todayIn(c.env.TIMEZONE);
+	const repeats = dates.length > 1 ? `It repeats every ${every === 7 ? 'week' : '2 weeks'} until ${formatDate(dates[dates.length - 1], today)}.` : undefined;
+	const result = meeting ? await announceMeeting(c.env, meeting, v.id, repeats) : { sent: 0, error: 'not found' };
+	if (result.error) return c.redirect(`/meetings/${firstId}?error=unsent`);
+	return c.redirect(`/meetings/${firstId}?ok=${!result.sent ? ok : ok === 'scheduled' ? 'scheduled-emailed' : 'emailed'}`);
 });
 
 /** Every quarter hour from 7 AM to 11:45 PM, plus a saved time that falls between them. */
@@ -408,20 +465,18 @@ meetingRoutes.get('/meetings/:id/edit', async (c) => {
 	const v = c.get('viewer');
 	const m = await loadMeeting(c, v, c.req.param('id'));
 	if (!m || !canEditMeeting(v, m)) return c.notFound();
-	const [allTeams, later, people, invites] = await Promise.all([
-		teams(c.env.DB),
-		laterInSeries(c.env.DB, m),
-		activeMembers(c.env.DB),
-		all<{ member_id: number }>(c.env.DB, 'SELECT member_id FROM meeting_invites WHERE meeting_id = ?', m.id)
-	]);
-	const teamList = teamsFor(v, allTeams);
-	if (!teamList.some((t) => t.id === m.team_id)) teamList.unshift(allTeams.find((t) => t.id === m.team_id) ?? { id: m.team_id, name: m.team_name, kind: m.team_kind, description: '', archived: 0 });
+	const [allTeams, later, people, teamsOf] = await Promise.all([teams(c.env.DB), laterInSeries(c.env.DB, m), activeMembers(c.env.DB), teamsByMember(c.env.DB)]);
+	const picked = await pickedFor(c.env.DB, m, teamsOf, people);
+	// The meeting's own teams stay on the list, even ones this person couldn't pick for a new one.
+	const teamList = [...teamsFor(v, allTeams)];
+	for (const t of meetingTeams(m)) if (!teamList.some((x) => x.id === t.id)) teamList.push(allTeams.find((x) => x.id === t.id) ?? { ...t, description: '', archived: 0 });
+	teamList.sort((a, b) => Number(a.kind === 'project') - Number(b.kind === 'project') || a.name.localeCompare(b.name));
 	return page(
 		c,
 		{ title: `Edit: ${m.title}`, active: 'meetings' },
 		<>
 			<PageHead eyebrow={m.kind === 'event' ? 'Edit club event' : 'Edit meeting'} title={m.title} />
-			<MeetingForm v={v} teamList={teamList} people={people} invited={new Set(invites.map((r) => r.member_id))} m={m} kind={m.kind} action={`/meetings/${m.id}`} today={todayIn(c.env.TIMEZONE)} later={later} />
+			<MeetingForm v={v} teamList={teamList} people={people} picked={picked} teamsOf={teamsOf} m={m} kind={m.kind} action={`/meetings/${m.id}`} today={todayIn(c.env.TIMEZONE)} later={later} />
 		</>
 	);
 });
@@ -432,26 +487,35 @@ meetingRoutes.post('/meetings/:id', async (c) => {
 	if (!existing || !canEditMeeting(v, existing)) return c.notFound();
 	const form = await readForm(c);
 	const m = readMeeting(form);
-	if (m.kind === 'event') m.teamId = await runnerFor(c.env.DB, v, existing);
-	if (!m.teamId || !m.title) return c.redirect(`/meetings/${existing.id}/edit?error=missing`);
+	if (m.kind === 'event') m.teamIds = [await runnerFor(c.env.DB, v, existing)].filter((t) => t !== null);
+	// The main team stays the same while it's still picked.
+	const teamId = m.teamIds.includes(existing.team_id) ? existing.team_id : m.teamIds[0];
+	if (!m.title) return c.redirect(`/meetings/${existing.id}/edit?error=missing`);
+	if (!teamId) return c.redirect(`/meetings/${existing.id}/edit?error=team`);
 	if (!isDate(m.date)) return c.redirect(`/meetings/${existing.id}/edit?error=date`);
 	if (m.badTime) return c.redirect(`/meetings/${existing.id}/edit?error=time`);
-	if (!isExec(v) && m.teamId !== existing.team_id && !v.leadOf.has(m.teamId)) return c.redirect(`/meetings/${existing.id}/edit?error=forbidden`);
+	// Leads can add only teams they lead; teams already on it can stay.
+	const before = new Set(meetingTeams(existing).map((t) => t.id));
+	if (!isExec(v) && m.teamIds.some((t) => !before.has(t) && !v.leadOf.has(t))) return c.redirect(`/meetings/${existing.id}/edit?error=forbidden`);
 	const db = c.env.DB;
 	const now = nowIso();
+	const who = await invitesAndSkips(db, m, m.teamIds);
 	const stmts = [
 		db
 			.prepare('UPDATE meetings SET kind = ?, team_id = ?, title = ?, date = ?, time = ?, end_time = ?, location = ?, doc_url = ?, agenda = ?, notes = ?, updated_at = ? WHERE id = ?')
-			.bind(m.kind, m.teamId, m.title, m.date, m.time, m.endTime, m.location, m.docUrl, m.agenda, m.notes, now, existing.id),
-		...setInvites(db, m.invites, '?1', existing.id)
+			.bind(m.kind, teamId, m.title, m.date, m.time, m.endTime, m.location, m.docUrl, m.agenda, m.notes, now, existing.id),
+		...setTeams(db, m.teamIds, '?1', existing.id),
+		...setWho(db, who, '?1', existing.id)
 	];
 	if (str(form.series) === '1' && existing.series_id) {
+		const later = [`SELECT id ${LATER_IN_SERIES}`, existing.series_id, existing.date, existing.team_id] as const;
 		stmts.push(
-			// Before the update below, while the later ones still have the old team.
-			...setInvites(db, m.invites, `SELECT id ${LATER_IN_SERIES}`, existing.series_id, existing.date, existing.team_id),
+			// Before the update below, while the later ones still have the old main team.
+			...setTeams(db, m.teamIds, ...later),
+			...setWho(db, who, ...later),
 			db
 				.prepare(`UPDATE meetings SET kind = ?4, team_id = ?5, title = ?6, time = ?7, end_time = ?8, location = ?9, doc_url = ?10, updated_at = ?11 WHERE id IN (SELECT id ${LATER_IN_SERIES})`)
-				.bind(existing.series_id, existing.date, existing.team_id, m.kind, m.teamId, m.title, m.time, m.endTime, m.location, m.docUrl, now)
+				.bind(existing.series_id, existing.date, existing.team_id, m.kind, teamId, m.title, m.time, m.endTime, m.location, m.docUrl, now)
 		);
 	}
 	await db.batch(stmts);
@@ -472,22 +536,17 @@ meetingRoutes.post('/meetings/:id/delete', async (c) => {
 // ---------- the meeting record ----------
 
 /**
- * Who's expected: the team (all execs for exec meetings), anyone invited, and anyone already marked.
- * Club events are open to everyone, so only the people marked as there.
+ * Who's expected: everyone on its teams (all execs for exec meetings), anyone invited, and anyone
+ * already marked. Club events are open to everyone, so only the people marked as there.
  */
 async function rosterFor(db: D1Database, m: MeetingRow) {
 	return all<Member & { status: AttendanceStatus | null }>(
 		db,
 		`SELECT mb.*, a.status FROM members mb
 		 LEFT JOIN attendance a ON a.member_id = mb.id AND a.meeting_id = ?1
-		 WHERE a.status IS NOT NULL OR (?4 = 'meeting' AND mb.active = 1 AND (
-			mb.id IN (SELECT member_id FROM team_members WHERE team_id = ?2)
-			OR (?3 = 'exec' AND mb.role = 'exec')
-			OR mb.id IN (SELECT member_id FROM meeting_invites WHERE meeting_id = ?1)))
+		 WHERE a.status IS NOT NULL OR (?2 = 'meeting' AND mb.active = 1 AND ${MEETING_EXPECTED})
 		 ORDER BY mb.name COLLATE NOCASE`,
 		m.id,
-		m.team_id,
-		m.team_kind,
 		m.kind
 	);
 }
@@ -533,7 +592,7 @@ meetingRoutes.get('/meetings/:id/reminder', async (c) => {
 	const v = c.get('viewer');
 	const m = await loadMeeting(c, v, c.req.param('id'));
 	if (!m || !canEditMeeting(v, m)) return c.notFound();
-	return c.html(meetingEmail(v.name, m, meetingReminderAt(m).date, c.env.APP_URL).html);
+	return c.html(meetingEmail(v.name, emailMeeting(m), meetingReminderAt(m).date, c.env.APP_URL).html);
 });
 
 meetingRoutes.get('/meetings/:id', async (c) => {
@@ -556,13 +615,14 @@ meetingRoutes.get('/meetings/:id', async (c) => {
 	const present = marked.filter((r) => r.status === 'present' || r.status === 'late').length;
 	const others = people.filter((p) => !roster.some((r) => r.id === p.id));
 	const defaultDue = addDays(m.date > today ? m.date : today, 7);
+	const joint = m.kind === 'meeting' && meetingTeams(m).length > 1;
 
 	return page(
 		c,
 		{ title: m.title, active: 'meetings' },
 		<>
 			<PageHead
-				eyebrow={`${m.kind === 'event' ? 'Club event' : m.team_kind === 'exec' ? 'Exec meeting' : 'Project meeting'} · ${m.team_name}`}
+				eyebrow={`${m.kind === 'event' ? 'Club event' : joint ? 'Joint meeting' : m.team_kind === 'exec' ? 'Exec meeting' : 'Project meeting'} · ${teamNames(m)}`}
 				title={m.title}
 				sub={
 					<>
@@ -601,7 +661,9 @@ meetingRoutes.get('/meetings/:id', async (c) => {
 					<TaskList tasks={actions} today={today} viewer={v} show={['assignee']} back={`/meetings/${m.id}#actions`} empty="No action items yet." />
 					{editable && (
 						<form method="post" action={`/meetings/${m.id}/actions`} class="card action-form">
-							<p class="hint">Each action item becomes a {m.team_name} task: the person is emailed now and reminded until it's done.</p>
+							<p class="hint">
+								{joint ? `Each action item becomes a task on the person's team (${teamNames(m)})` : `Each action item becomes a ${m.team_name} task`}: the person is emailed now and reminded until it's done.
+							</p>
 							<div class="action-rows" data-rows>
 								<div class="action-row" data-row>
 									<input name="title" placeholder="What needs to happen" maxlength={200} aria-label="Action item" />
@@ -740,9 +802,19 @@ meetingRoutes.post('/meetings/:id/actions', async (c) => {
 		rows.push({ title: titles[i].slice(0, 200), assignee, due: dues[i] });
 	}
 	if (!rows.length) return c.redirect(`/meetings/${m.id}?error=missing#actions`);
+	// A joint meeting files each task under whichever of its teams the person is on (and this
+	// person may file under), falling back to the main team.
+	const teamIds = meetingTeams(m).map((t) => t.id);
+	const onTeams = await all<{ team_id: number; member_id: number }>(
+		c.env.DB,
+		'SELECT team_id, member_id FROM team_members WHERE member_id IN (SELECT value FROM json_each(?))',
+		JSON.stringify(rows.map((r) => r.assignee))
+	);
+	const mayFile = (t: number) => isExec(v) || v.leadOf.has(t);
+	const teamFor = (who: number) => teamIds.find((t) => mayFile(t) && onTeams.some((x) => x.member_id === who && x.team_id === t)) ?? teamIds.find(mayFile) ?? m.team_id;
 	const ids: number[] = [];
 	for (const row of rows) {
-		const result = await createTasks(c.env, v, { title: row.title, details: '', assignees: [row.assignee], due: row.due, teamId: m.team_id, meetingId: m.id });
+		const result = await createTasks(c.env, v, { title: row.title, details: '', assignees: [row.assignee], due: row.due, teamId: teamFor(row.assignee), meetingId: m.id });
 		if ('error' in result) return c.redirect(`/meetings/${m.id}?error=${result.error}#actions`);
 		ids.push(...result.ids);
 	}

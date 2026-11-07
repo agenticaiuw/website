@@ -1,4 +1,5 @@
-import type { Member, MeetingRow, TaskRow, TaskStatus, Team, Viewer } from './types';
+import { andList } from './emails';
+import type { Member, MeetingRow, MeetingTeam, TaskRow, TaskStatus, Team, Viewer } from './types';
 
 type Param = string | number | null;
 
@@ -106,17 +107,67 @@ export function setTaskStatus(db: D1Database, taskId: number, status: TaskStatus
 
 // ---------- meetings ----------
 
+/** Every team meeting `m` is for, as JSON. Read it with meetingTeams(). */
+export const MEETING_TEAMS_JSON = `(
+	SELECT json_group_array(json_object('id', mt_t.id, 'name', mt_t.name, 'kind', mt_t.kind))
+	FROM meeting_teams mt_x JOIN teams mt_t ON mt_t.id = mt_x.team_id WHERE mt_x.meeting_id = m.id
+) AS teams_json`;
+
 export const MEETING_SELECT = `
-	SELECT m.*, tm.name AS team_name, tm.kind AS team_kind
+	SELECT m.*, tm.name AS team_name, tm.kind AS team_kind, ${MEETING_TEAMS_JSON}
 	FROM meetings m JOIN teams tm ON tm.id = m.team_id`;
+
+/** Every team a meeting is for, main team first. */
+export function meetingTeams(m: Pick<MeetingRow, 'team_id' | 'team_name' | 'team_kind' | 'teams_json'>): MeetingTeam[] {
+	let list: MeetingTeam[] = [];
+	try {
+		list = JSON.parse(m.teams_json ?? '[]');
+	} catch {}
+	if (!list.some((t) => t.id === m.team_id)) list.push({ id: m.team_id, name: m.team_name, kind: m.team_kind });
+	return list.sort((a, b) => Number(b.id === m.team_id) - Number(a.id === m.team_id) || a.name.localeCompare(b.name));
+}
+
+/** "Browser", "Browser and PC", "Browser, Cloud and PC". */
+export const teamNames = (m: Parameters<typeof meetingTeams>[0]) => andList(meetingTeams(m).map((t) => t.name));
 
 /** Same idea as TASK_VISIBLE, for meetings; club events are open to everyone. `?1` is the viewer's id. */
 export const MEETING_VISIBLE = `(
 	m.kind = 'event'
-	OR (tm.kind = 'project' AND m.team_id IN (SELECT team_id FROM team_members WHERE member_id = ?1))
+	OR m.id IN (
+		SELECT mv.meeting_id FROM meeting_teams mv JOIN teams tv ON tv.id = mv.team_id
+		JOIN team_members xv ON xv.team_id = mv.team_id WHERE xv.member_id = ?1 AND tv.kind = 'project'
+	)
 	OR m.id IN (SELECT meeting_id FROM attendance WHERE member_id = ?1)
 	OR m.id IN (SELECT meeting_id FROM meeting_invites WHERE member_id = ?1)
 )`;
+
+/**
+ * Members (`mb`) a meeting is for: everyone on any of its teams, every exec if one of them is the
+ * exec team, and anyone invited. `?1` is the meeting's id.
+ */
+export const MEETING_EXPECTED = `(
+	(mb.id NOT IN (SELECT member_id FROM meeting_skips WHERE meeting_id = ?1) AND (
+		mb.id IN (SELECT xe.member_id FROM team_members xe JOIN meeting_teams me ON me.team_id = xe.team_id WHERE me.meeting_id = ?1)
+		OR (mb.role = 'exec' AND EXISTS (SELECT 1 FROM meeting_teams me JOIN teams te ON te.id = me.team_id WHERE me.meeting_id = ?1 AND te.kind = 'exec'))
+	))
+	OR mb.id IN (SELECT member_id FROM meeting_invites WHERE meeting_id = ?1)
+)`;
+
+/**
+ * Team ids for each active member, counting every exec as on the exec team the way meetings do.
+ * Pickers use it to tick a whole team at once.
+ */
+export async function teamsByMember(db: D1Database) {
+	const rows = await all<{ member_id: number; team_id: number }>(
+		db,
+		`SELECT x.member_id, x.team_id FROM team_members x JOIN teams t ON t.id = x.team_id JOIN members mb ON mb.id = x.member_id
+		 WHERE t.archived = 0 AND mb.active = 1
+		 UNION SELECT mb.id, t.id FROM members mb JOIN teams t ON t.kind = 'exec' AND t.archived = 0 WHERE mb.role = 'exec' AND mb.active = 1`
+	);
+	const map = new Map<number, number[]>();
+	for (const r of rows) map.set(r.member_id, [...(map.get(r.member_id) ?? []), r.team_id]);
+	return map;
+}
 
 export function meetingById(db: D1Database, id: number) {
 	return first<MeetingRow>(db, `${MEETING_SELECT} WHERE m.id = ?`, id);

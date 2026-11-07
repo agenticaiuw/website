@@ -1,13 +1,13 @@
 import { Hono } from 'hono';
 import { safeRedirect } from '../auth';
 import { addDays, formatDate, formatTimestamp, isDate, todayIn } from '../dates';
-import { activeMembers, all, first, groupStats, logTask, memberById, nowIso, run, setTaskStatus, TASK_SELECT, TASK_VISIBLE, taskById, teams, visible } from '../db';
+import { activeMembers, all, first, groupStats, logTask, memberById, nowIso, run, setTaskStatus, TASK_SELECT, TASK_VISIBLE, taskById, teams, teamsByMember, visible } from '../db';
 import { id, list, readForm, str, withNotice } from '../form';
 import { canAssign, canCompleteTask, canManageTask, canSeeTask, isExec, teamsFor } from '../perm';
 import { notifyAssigned } from '../reminders';
 import type { AppEnv, Member, Task, TaskRow, TaskStatus, Team, Viewer } from '../types';
 import { page } from '../views/layout';
-import { Due, Field, Markdown, MemberSelect, PageHead, PostButton, Tabs, TaskList, TeamSelect } from '../views/ui';
+import { Due, Field, Markdown, MemberSelect, PageHead, PeoplePicker, PostButton, Tabs, TaskList, TeamSelect } from '../views/ui';
 
 export const taskRoutes = new Hono<AppEnv>();
 
@@ -94,16 +94,12 @@ function assignableTeams(v: Viewer, all: Team[]) {
 taskRoutes.get('/tasks/new', async (c) => {
 	const v = c.get('viewer');
 	const today = todayIn(c.env.TIMEZONE);
-	const [people, teamList, memberships] = await Promise.all([
-		activeMembers(c.env.DB),
-		teams(c.env.DB),
-		all<{ team_id: number; member_id: number }>(c.env.DB, 'SELECT x.team_id, x.member_id FROM team_members x JOIN teams t ON t.id = x.team_id WHERE t.archived = 0')
-	]);
-	const teamsOf = new Map<number, number[]>();
-	for (const r of memberships) teamsOf.set(r.member_id, [...(teamsOf.get(r.member_id) ?? []), r.team_id]);
-	const pickTeams = teamsFor(v, teamList).filter((t) => memberships.some((r) => r.team_id === t.id));
+	const [people, teamList, teamsOf] = await Promise.all([activeMembers(c.env.DB), teams(c.env.DB), teamsByMember(c.env.DB)]);
+	const onTeam = (memberId: number, teamId: number) => teamsOf.get(memberId)?.includes(teamId) ?? false;
+	const pickTeams = teamsFor(v, teamList).filter((t) => people.some((p) => onTeam(p.id, t.id)));
 	const preTeam = id(c.req.query('team'));
 	const preAssignee = id(c.req.query('assignee'));
+	const picked = new Set(preTeam ? people.filter((p) => onTeam(p.id, preTeam)).map((p) => p.id) : [preAssignee ?? v.id]);
 	return page(
 		c,
 		{ title: 'New task', active: 'tasks' },
@@ -117,42 +113,27 @@ taskRoutes.get('/tasks/new', async (c) => {
 					<textarea name="details" rows={4}></textarea>
 				</Field>
 				{canAssign(v) ? (
-					<div class="field wide">
-						<span class="label">Assign to</span>
-						<div class="picker">
-							<div class="picker-teams js-only">
-								{pickTeams.map((t) => (
-									<button type="button" class="chip" data-pick-team={String(t.id)} aria-pressed="false">
-										{t.name}
-									</button>
-								))}
-								<span class="picker-count">
-									<span data-picker-count></span> ·{' '}
-									<button type="button" class="link-btn" data-picker-clear>
-										Clear
-									</button>
-								</span>
-							</div>
-							<input type="search" placeholder="Find a person" aria-label="Find a person" data-picker-filter class="js-only" />
-							<div class="picker-list">
-								{people.map((m) => (
-									<label data-teams={(teamsOf.get(m.id) ?? []).join(' ')}>
-										<input type="checkbox" name="assignee" value={String(m.id)} checked={preAssignee ? m.id === preAssignee : m.id === v.id} />
-										{m.name}
-									</label>
-								))}
-							</div>
-						</div>
-					</div>
+					<PeoplePicker
+						label="Assign to"
+						hint={`Tick a team to add everyone on it, then untick anyone who isn’t needed. Each person’s task goes under their team.${isExec(v) ? '' : ' You can assign people on the teams you lead.'}`}
+						teams={pickTeams}
+						pickedTeams={new Set(preTeam ? [preTeam] : [])}
+						people={people}
+						picked={picked}
+						teamsOf={teamsOf}
+						personName="assignee"
+					/>
 				) : (
 					<input type="hidden" name="assignee" value={String(v.id)} />
 				)}
 				<Field label="Due date">
 					<input type="date" name="due_date" required value={addDays(today, 7)} min={addDays(today, -365)} />
 				</Field>
-				<Field label="Team" hint={isExec(v) ? undefined : 'Tasks for other people must belong to a team you lead.'}>
-					<TeamSelect name="team" teams={assignableTeams(v, teamList)} selected={preTeam} blank="No team" />
-				</Field>
+				{!canAssign(v) && (
+					<Field label="Team">
+						<TeamSelect name="team" teams={assignableTeams(v, teamList)} selected={preTeam} blank="No team" />
+					</Field>
+				)}
 				<label class="check wide">
 					<input type="checkbox" name="urgent" value="1" />
 					Urgent: extra reminders the evening it’s due, then every 2 hours while overdue
@@ -175,17 +156,21 @@ taskRoutes.get('/tasks/new', async (c) => {
 export async function createTasks(
 	env: AppEnv['Bindings'],
 	v: Viewer,
-	input: { title: string; details: string; assignees: number[]; due: string; teamId: number | null; meetingId: number | null; urgent?: boolean }
+	input: { title: string; details: string; assignees: number[]; due: string; teamId: number | null; teamOf?: (assignee: number) => number | null; meetingId: number | null; urgent?: boolean }
 ): Promise<{ ids: number[] } | { error: string }> {
 	if (!input.title || !input.assignees.length) return { error: 'missing' };
 	if (!isDate(input.due)) return { error: 'date' };
-	const others = input.assignees.some((a) => a !== v.id);
+	const teamOf = input.teamOf ?? (() => input.teamId);
+	const assignees = [...new Set(input.assignees)];
+	// Others' tasks go under a team you lead; your own under no team or one you're on.
 	if (!isExec(v)) {
-		if (others && !(input.teamId && v.leadOf.has(input.teamId))) return { error: 'forbidden' };
-		if (!others && input.teamId && !v.teamIds.has(input.teamId)) return { error: 'forbidden' };
+		for (const a of assignees) {
+			const team = teamOf(a);
+			if (a !== v.id ? !(team && v.leadOf.has(team)) : team !== null && !v.teamIds.has(team)) return { error: 'forbidden' };
+		}
 	}
 	const ids: number[] = [];
-	for (const assignee of [...new Set(input.assignees)]) {
+	for (const assignee of assignees) {
 		const person = await memberById(env.DB, assignee);
 		if (!person || !person.active) continue;
 		const res = await run(
@@ -195,7 +180,7 @@ export async function createTasks(
 			input.details,
 			assignee,
 			v.id,
-			input.teamId,
+			teamOf(assignee),
 			input.meetingId,
 			input.due,
 			input.urgent ? 1 : 0
@@ -212,12 +197,19 @@ taskRoutes.post('/tasks', async (c) => {
 	const v = c.get('viewer');
 	const form = await readForm(c);
 	const assignees = list(form.assignee).map(Number).filter((n) => Number.isInteger(n) && n > 0);
+	// The teams ticked, in form order. Each person's task goes under the first one they're on.
+	const picked = [...new Set(list(form.team).map(Number))].filter((n) => Number.isInteger(n) && n > 0);
+	// A lead who ticked people one by one files them under a team they lead.
+	const led = isExec(v) ? [] : [...v.leadOf];
+	const teamsOf = picked.length > 1 || (!picked.length && led.length) ? await teamsByMember(c.env.DB) : new Map<number, number[]>();
+	const on = (a: number) => (t: number) => teamsOf.get(a)?.includes(t) ?? false;
 	const result = await createTasks(c.env, v, {
 		title: str(form.title, 200),
 		details: str(form.details, 10_000),
 		assignees: canAssign(v) ? assignees : [v.id],
 		due: str(form.due_date),
-		teamId: id(form.team),
+		teamId: picked[0] ?? null,
+		teamOf: (a) => picked.find(on(a)) ?? picked[0] ?? (a === v.id ? null : (led.find(on(a)) ?? led[0] ?? null)),
 		meetingId: null,
 		urgent: str(form.urgent) === '1'
 	});

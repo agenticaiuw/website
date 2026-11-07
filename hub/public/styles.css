@@ -263,6 +263,17 @@ input[type='checkbox'], input[type='radio'] { width: 16px; height: 16px; min-hei
 .seg > label > input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -2px; }
 .seg.full { display: flex; }
 
+/* Checkbox chips: several can be on at once, like the teams a meeting is for. */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips > label { position: relative; }
+.chips > label > input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.chips > label > span { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--muted); font: 500 13.5px/1 var(--sans); white-space: nowrap; cursor: pointer; }
+.chips > label:hover > span { color: var(--fg); border-color: var(--faint); }
+.chips > label > input:checked + span { color: var(--accent); border-color: var(--accent-border); background: var(--accent-surface); }
+.chips > label > input:checked + span::before { content: '✓'; font-weight: 700; }
+.chips > label > input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.team-tags .tag { margin: 0 4px 2px 0; }
+
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 16px; }
 .toolbar select, .toolbar input { width: auto; flex: 0 1 180px; min-width: 0; }
 .toolbar input[type='search'] { flex: 1 1 200px; }
@@ -275,13 +286,13 @@ input[type='checkbox'], input[type='radio'] { width: 16px; height: 16px; min-hei
 .picker-list label { display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: 6px; font-size: 14px; cursor: pointer; }
 .picker-list label:hover { background: var(--surface-2); }
 .picker-list label[hidden] { display: none; }
-/* Team shortcuts above the checklist: one click ticks (or unticks) everyone on a team. */
-.picker-teams { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; border-bottom: 1px solid var(--line); }
-.chip { height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line-strong); background: transparent; color: var(--muted); font: 500 13px/1 var(--sans); cursor: pointer; white-space: nowrap; }
-.chip:hover { color: var(--fg); border-color: var(--faint); }
-.chip[aria-pressed='true'] { color: var(--accent); border-color: var(--accent-border); background: var(--accent-surface); }
+/* Team chips above the checklist: ticking one ticks (or unticks) everyone on that team. */
+.picker-teams { padding: 8px; border-bottom: 1px solid var(--line); }
+/* Whole club ticks everyone and locks the list. */
+.picker-list label:has(input:disabled) { opacity: 0.6; cursor: default; }
+.picker-list label:has(input:disabled):hover { background: none; }
 .picker-count { margin-left: auto; font-size: 13px; color: var(--muted); white-space: nowrap; }
-/* Search and count on one row, for pickers without team shortcuts. */
+/* Search and count on one row. */
 .picker-search { display: flex; align-items: center; border-bottom: 1px solid var(--line); }
 .picker-search input[type='search'] { flex: 1; min-width: 0; border-bottom: 0; }
 .picker-search .picker-count { padding: 0 10px; }
