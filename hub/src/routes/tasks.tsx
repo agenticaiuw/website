@@ -106,10 +106,22 @@ taskRoutes.get('/tasks/new', async (c) => {
 		<>
 			<PageHead eyebrow="Tasks" title="New task" sub={canAssign(v) ? 'Give it to one person or a whole team. Each person is emailed and reminded until they’re done, and you see everyone’s progress on one task.' : 'Track something you committed to. You’ll get reminders before it’s due.'} />
 			<form method="post" action="/tasks" class="card form-grid">
-				<Field label="What needs to happen" wide>
-					<input name="title" required maxlength={200} placeholder="e.g. Order the nRF52 dev boards" />
-				</Field>
-				<Field label="Details" hint="Optional. Links, context, what “done” looks like." wide>
+				<div class="field wide">
+					<span class="label">What needs to happen</span>
+					<div class="action-rows" data-rows>
+						<div class="task-row" data-row>
+							<input name="title" required maxlength={200} placeholder="e.g. Order the nRF52 dev boards" aria-label="Task" />
+							<input type="date" name="due_date" required value={addDays(today, 7)} min={addDays(today, -365)} aria-label="Due date" />
+						</div>
+					</div>
+					<div>
+						<button type="button" class="btn ghost small js-only" data-add-row>
+							+ Another task
+						</button>
+					</div>
+					<span class="hint">Each line is its own task with its own due date. Everyone you pick gets every task, in one email.</span>
+				</div>
+				<Field label="Details" hint="Optional. Links, context, what “done” looks like. With several tasks, each one gets these details." wide>
 					<textarea name="details" rows={4}></textarea>
 				</Field>
 				{canAssign(v) ? (
@@ -126,9 +138,6 @@ taskRoutes.get('/tasks/new', async (c) => {
 				) : (
 					<input type="hidden" name="assignee" value={String(v.id)} />
 				)}
-				<Field label="Due date">
-					<input type="date" name="due_date" required value={addDays(today, 7)} min={addDays(today, -365)} />
-				</Field>
 				{!canAssign(v) && (
 					<Field label="Team">
 						<TeamSelect name="team" teams={assignableTeams(v, teamList)} selected={preTeam} blank="No team" />
@@ -203,22 +212,38 @@ taskRoutes.post('/tasks', async (c) => {
 	const led = isExec(v) ? [] : [...v.leadOf];
 	const teamsOf = picked.length > 1 || (!picked.length && led.length) ? await teamsByMember(c.env.DB) : new Map<number, number[]>();
 	const on = (a: number) => (t: number) => teamsOf.get(a)?.includes(t) ?? false;
-	const result = await createTasks(c.env, v, {
-		title: str(form.title, 200),
-		details: str(form.details, 10_000),
-		assignees: canAssign(v) ? assignees : [v.id],
-		due: str(form.due_date),
-		teamId: picked[0] ?? null,
-		teamOf: (a) => picked.find(on(a)) ?? picked[0] ?? (a === v.id ? null : (led.find(on(a)) ?? led[0] ?? null)),
-		meetingId: null,
-		urgent: str(form.urgent) === '1'
-	});
-	if ('error' in result) return c.redirect(`/tasks/new?error=${result.error}`);
-	await notifyAssigned(c.env, v, result.ids);
-	if (result.ids.length === 1) return c.redirect(`/tasks/${result.ids[0]}?ok=created`);
+	// One task per line that has a title, each with its own due date.
+	const dues = list(form.due_date);
+	const rows = list(form.title)
+		.map((title, i) => ({ title: title.slice(0, 200), due: dues[i] ?? '' }))
+		.filter((r) => r.title);
+	if (!rows.length) return c.redirect('/tasks/new?error=missing');
+	if (rows.some((r) => !isDate(r.due))) return c.redirect('/tasks/new?error=date');
+	const ids: number[] = [];
+	for (const row of rows) {
+		const result = await createTasks(c.env, v, {
+			title: row.title,
+			details: str(form.details, 10_000),
+			assignees: canAssign(v) ? assignees : [v.id],
+			due: row.due,
+			teamId: picked[0] ?? null,
+			teamOf: (a) => picked.find(on(a)) ?? picked[0] ?? (a === v.id ? null : (led.find(on(a)) ?? led[0] ?? null)),
+			meetingId: null,
+			urgent: str(form.urgent) === '1'
+		});
+		if ('error' in result) return c.redirect(ids.length ? '/tasks?error=partial' : `/tasks/new?error=${result.error}`);
+		ids.push(...result.ids);
+	}
+	// Each person gets one email listing all of their new tasks.
+	await notifyAssigned(c.env, v, ids);
+	if (rows.length > 1) {
+		const people = [...new Set(canAssign(v) ? assignees : [v.id])];
+		return c.redirect(people.length === 1 ? `/tasks?assignee=${people[0]}&ok=tasks-created` : '/tasks?ok=tasks-created');
+	}
+	if (ids.length === 1) return c.redirect(`/tasks/${ids[0]}?ok=created`);
 	// Several people: your own copy if you're one of them, otherwise the overview of everyone.
-	const own = await first<{ id: number }>(c.env.DB, 'SELECT id FROM tasks WHERE id IN (SELECT value FROM json_each(?)) AND assignee_id = ?', JSON.stringify(result.ids), v.id);
-	return c.redirect(own ? `/tasks/${own.id}?ok=assigned` : `/tasks/${result.ids[0]}?all=1&ok=assigned`);
+	const own = await first<{ id: number }>(c.env.DB, 'SELECT id FROM tasks WHERE id IN (SELECT value FROM json_each(?)) AND assignee_id = ?', JSON.stringify(ids), v.id);
+	return c.redirect(own ? `/tasks/${own.id}?ok=assigned` : `/tasks/${ids[0]}?all=1&ok=assigned`);
 });
 
 // ---------- detail ----------
@@ -233,7 +258,8 @@ const ACTIVITY_VERB: Record<string, string> = {
 	dropped: 'dropped it',
 	edited: 'edited it',
 	due_changed: 'changed the due date',
-	reassigned: 'reassigned it'
+	reassigned: 'reassigned it',
+	unassigned: 'took someone off it'
 };
 
 async function loadTask(c: { env: AppEnv['Bindings'] }, v: Viewer, raw: string) {
@@ -274,7 +300,7 @@ taskRoutes.get('/tasks/:id', async (c) => {
 					{done} of {total} done
 				</span>
 			</h2>
-			<TaskList tasks={everyone} today={today} viewer={v} show={[]} by="assignee" back={overview ? `${back}?all=1` : `${back}#everyone`} />
+			<TaskList tasks={everyone} today={today} viewer={v} show={[]} by="assignee" back={overview ? `${back}?all=1` : `${back}#everyone`} removable={copies.length > 1} />
 		</>
 	);
 	return page(
@@ -397,6 +423,23 @@ taskRoutes.post('/tasks/:id/comment', async (c) => {
 	return c.redirect(`/tasks/${task.id}?ok=commented`);
 });
 
+/** Takes one person off a shared task: their copy and its history go, the others stay. */
+taskRoutes.post('/tasks/:id/remove', async (c) => {
+	const v = c.get('viewer');
+	const task = await loadTask(c, v, c.req.param('id'));
+	if (!task) return c.notFound();
+	if (!canManageTask(v, task)) return c.redirect(`/tasks/${task.id}?error=forbidden`);
+	const others = task.group_id ? await all<{ id: number }>(c.env.DB, 'SELECT id FROM tasks WHERE group_id = ? AND id != ? ORDER BY id', task.group_id, task.id) : [];
+	// Someone has to be on a task: with just one person, reassign or drop it instead.
+	if (!others.length) return c.redirect(`/tasks/${task.id}?error=last`);
+	const db = c.env.DB;
+	await db.batch([db.prepare('DELETE FROM tasks WHERE id = ?').bind(task.id), ...others.map((o) => logTask(db, o.id, v.id, 'unassigned', `${task.assignee_name} is no longer on this task.`))]);
+	// Back where they were, unless that was the page of the copy that's now gone.
+	const back = safeRedirect(str((await readForm(c)).back) || '/');
+	const gone = new RegExp(`^/tasks/${task.id}(?![0-9])`).test(back) || back === '/';
+	return c.redirect(withNotice(gone ? `/tasks/${others[0].id}?all=1` : back, 'ok', 'removed'));
+});
+
 // ---------- edit ----------
 
 taskRoutes.get('/tasks/:id/edit', async (c) => {
@@ -450,6 +493,11 @@ taskRoutes.get('/tasks/:id/edit', async (c) => {
 						Cancel
 					</a>
 					<span class="spacer"></span>
+					{copies > 1 && (
+						<button class="btn danger" formaction={`/tasks/${task.id}/remove`} formnovalidate data-confirm={`Take ${task.assignee_name} off this task? Their copy and its history are deleted; everyone else keeps theirs.`}>
+							Remove {task.assignee_name}
+						</button>
+					)}
 					{task.status === 'open' && (
 						<button class="btn danger" formaction={`/tasks/${task.id}/status`} name="status" value="dropped" data-confirm="Drop this task? Reminders stop and it’s marked as not happening.">
 							Drop task

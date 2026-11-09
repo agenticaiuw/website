@@ -16,6 +16,8 @@ const FLASH: Record<string, string> = {
 	dropped: 'Dropped. No more reminders for it.',
 	commented: 'Comment added.',
 	assigned: 'Assigned. Everyone on it was emailed.',
+	'tasks-created': 'Tasks created. Each person got one email listing their new tasks.',
+	removed: 'Taken off the task. Their reminders have stopped.',
 	attendance: 'Attendance saved.',
 	deleted: 'Deleted.',
 	imported: 'Roster updated.',
@@ -35,7 +37,9 @@ const ERRORS: Record<string, string> = {
 	exists: 'Someone with that email is already on the roster.',
 	forbidden: "You don't have permission to do that.",
 	unsent: "It's saved, but the email to everyone didn't go out. They'll still get the usual reminder before it.",
-	self: "You can't remove your own exec access."
+	self: "You can't remove your own exec access.",
+	last: "They're the only one on it. Reassign the task to someone else, or drop it.",
+	partial: 'Some of the tasks were created, but not all. Check the list below.'
 };
 
 type NavKey = 'home' | 'tasks' | 'meetings' | 'people' | 'teams' | 'email';

@@ -20,7 +20,10 @@ for (const btn of document.querySelectorAll('[data-add-row]')) {
 		const rows = btn.closest('form').querySelector('[data-rows]');
 		const last = rows.querySelector('[data-row]:last-child');
 		const row = last.cloneNode(true);
-		for (const input of row.querySelectorAll('input:not([type=date]), select')) input.value = '';
+		for (const input of row.querySelectorAll('input:not([type=date]), select')) {
+			input.value = '';
+			input.required = false; // Extra lines are optional; blank ones are skipped.
+		}
 		rows.append(row);
 		row.querySelector('input:not([type=hidden])').focus();
 	});

@@ -49,17 +49,20 @@ export type EmailTask = {
 function taskBlock(t: EmailTask, today: string) {
 	const due = dueLabel(t.due_date, today);
 	const where = [t.assignee_name, t.team_name, t.meeting_title && `from “${t.meeting_title}”`].filter(Boolean).map((s) => esc(s!)).join(' · ');
+	// "Due Fri, Nov 20" already has the date; "Due tomorrow" needs it after.
+	const rest = [due.tone === 'later' ? '' : esc(formatDate(t.due_date, today)), where].filter(Boolean).join(' · ');
 	return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${LINE};border-radius:10px;margin:0 0 10px;">
 <tr><td style="padding:14px 16px;">
 <div style="font-weight:600;font-size:15px;"><a href="${esc(t.url)}" style="color:${INK};text-decoration:none;">${esc(t.title)}</a></div>
-<div style="font-size:13px;margin-top:2px;"><span style="color:${toneColor[due.tone]};font-weight:600;">${esc(due.text)}</span><span style="color:${MUTED};"> · ${esc(formatDate(t.due_date, today))}${where ? ' · ' + where : ''}</span></div>
+<div style="font-size:13px;margin-top:2px;"><span style="color:${toneColor[due.tone]};font-weight:600;">${esc(due.text)}</span>${rest ? `<span style="color:${MUTED};"> · ${rest}</span>` : ''}</div>
 ${t.doneUrl ? `<div style="margin-top:12px;">${button(t.doneUrl, 'Mark done')}&nbsp; ${button(t.url, 'Open', false)}</div>` : ''}
 </td></tr></table>`;
 }
 
 function taskText(t: EmailTask, today: string) {
 	const due = dueLabel(t.due_date, today);
-	return `- ${t.title} (${due.text}, ${formatDate(t.due_date, today)}${t.assignee_name ? `, ${t.assignee_name}` : ''})\n  ${t.doneUrl ? `Mark done: ${t.doneUrl}\n  ` : ''}Open: ${t.url}`;
+	const info = [due.text, due.tone === 'later' ? '' : formatDate(t.due_date, today), t.assignee_name].filter(Boolean).join(', ');
+	return `- ${t.title} (${info})\n  ${t.doneUrl ? `Mark done: ${t.doneUrl}\n  ` : ''}Open: ${t.url}`;
 }
 
 const footerFor = (appUrl: string) =>

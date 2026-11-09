@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { andList, meetingEmail } from '../src/emails.ts';
+import { andList, assignedEmail, meetingEmail } from '../src/emails.ts';
 
 const joint = {
 	id: 7,
@@ -38,4 +38,13 @@ test('the day-of reminder for one team reads as before', () => {
 	const e = meetingEmail('Ava Chen', { ...joint, team_names: ['Browser'] }, '2026-11-12', 'https://hub.example');
 	assert.match(e.subject, /^Today: Joint sync/);
 	assert.match(e.text, /^Hi Ava,\n\nBrowser meets today\./);
+});
+
+test('several tasks for one person go in one email, each date said once', () => {
+	const task = (id: number, title: string, due_date: string) => ({ id, title, due_date, team_name: 'PC', meeting_title: null, url: `https://hub.example/tasks/${id}` });
+	const e = assignedEmail('Ife', 'Evan Liu', [task(1, 'Order boards', '2026-11-09'), task(2, 'Draft spec', '2026-11-20')], '2026-11-08', 'https://hub.example');
+	assert.equal(e.subject, '2 new tasks assigned to you');
+	assert.match(e.text, /- Order boards \(Due tomorrow, Mon, Nov 9\)/);
+	assert.match(e.text, /- Draft spec \(Due Fri, Nov 20\)/);
+	assert.doesNotMatch(e.html, /Fri, Nov 20<\/span><span[^>]*> · Fri, Nov 20/);
 });

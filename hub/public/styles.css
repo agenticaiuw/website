@@ -300,6 +300,11 @@ input[type='checkbox'], input[type='radio'] { width: 16px; height: 16px; min-hei
 .action-form { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
 .action-form .label, .action-form .hint { margin: 0; }
 .action-rows { display: flex; flex-direction: column; gap: 8px; }
+/* New task: one line per task, title and due date. */
+.task-row { display: grid; grid-template-columns: minmax(0, 1fr) 160px; gap: 8px; }
+@media (max-width: 480px) { .task-row { grid-template-columns: minmax(0, 1fr) 132px; } }
+.task .remove { flex: none; margin-left: 4px; }
+.task .remove:hover { color: var(--accent); }
 .action-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) 150px; gap: 8px; }
 @media (max-width: 640px) { .action-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .action-row input:first-child { grid-column: 1 / -1; } }
 

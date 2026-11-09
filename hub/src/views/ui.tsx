@@ -1,7 +1,7 @@
 import type { Child } from 'hono/jsx';
 import { dueLabel, formatDate } from '../dates';
 import { renderMarkdown } from '../markdown';
-import { canCompleteTask } from '../perm';
+import { canCompleteTask, canManageTask } from '../perm';
 import type { Member, TaskRow, Team, Viewer } from '../types';
 
 export function PageHead({ eyebrow, title, sub, actions }: { eyebrow?: string; title: Child; sub?: Child; actions?: Child }) {
@@ -77,7 +77,8 @@ export function TaskList({
 	back,
 	empty,
 	groups,
-	by = 'title'
+	by = 'title',
+	removable = false
 }: {
 	tasks: TaskRow[];
 	today: string;
@@ -89,6 +90,8 @@ export function TaskList({
 	groups?: GroupStats;
 	/** 'assignee' names each row by person, for the copies of one shared task. */
 	by?: 'title' | 'assignee';
+	/** With by="assignee": a button to take each person off the shared task, for those who manage it. */
+	removable?: boolean;
 }) {
 	if (!tasks.length) return <Empty>{empty ?? 'Nothing here.'}</Empty>;
 	const rows = groups ? collapseTasks(tasks, viewer.id) : tasks.map((t) => ({ task: t, copies: [t] }));
@@ -119,6 +122,14 @@ export function TaskList({
 							)}
 						</div>
 						{open && <Due task={open} today={today} />}
+						{removable && by === 'assignee' && canManageTask(viewer, t) && (
+							<form method="post" action={`/tasks/${t.id}/remove`} class="inline" data-confirm={`Take ${t.assignee_name} off this task? Their copy and its history are deleted; everyone else keeps theirs.`}>
+								<input type="hidden" name="back" value={back} />
+								<button class="icon-btn remove" title={`Take ${t.assignee_name} off this task`} aria-label={`Take ${t.assignee_name} off this task`}>
+									×
+								</button>
+							</form>
+						)}
 					</li>
 				);
 			})}
