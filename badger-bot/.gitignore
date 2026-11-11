@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.cloudflare/
+.wrangler/
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
+*.log
+.DS_Store
+
+# Secrets never belong in the repo
+*.env
+secrets*
+# ...except this source file, which only derives keys and holds none
+!src/secrets.ts

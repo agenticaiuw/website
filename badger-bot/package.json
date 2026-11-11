@@ -1,0 +1,25 @@
+{
+	"name": "badger-bot",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "cf dev",
+		"build": "cf build",
+		"deploy": "cf deploy",
+		"typecheck": "cf workers types && tsc",
+		"signin": "node scripts/chatgpt-signin.mjs"
+	},
+	"devDependencies": {
+		"@cloudflare/vite-plugin": "beta",
+		"cf": "^1.0.0-beta.12",
+		"jose": "^6.2.12",
+		"typescript": "^7.0.2",
+		"vite": "^8.3.0"
+	},
+	"dependencies": {
+		"@cloudflare/sandbox": "^0.12.10",
+		"croner": "^10.0.1",
+		"discord-gateway-cloudflare-do": "0.1.2",
+		"fflate": "^0.8.3"
+	}
+}
