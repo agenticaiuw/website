@@ -11,6 +11,11 @@ export type Env = {
 	APP_SECRET: string;
 	/** Local development only: show sign-in codes on screen and log emails instead of sending. */
 	DEV_MODE?: string;
+	/** Private HTTPS tunnel and server-only bridge credential; both opt-in. */
+	COLLAB_ORIGIN?: string;
+	COLLAB_SERVICE_TOKEN?: string;
+	COLLAB_ACCESS_CLIENT_ID?: string;
+	COLLAB_ACCESS_CLIENT_SECRET?: string;
 };
 
 export type Role = 'exec' | 'member';

@@ -126,6 +126,19 @@ for (const start of document.querySelectorAll('select[name=time]')) {
 	});
 }
 
+// Meeting form: Sunday meetings are at the Wisconsin Entrepreneurship Hub, so a Sunday date fills in
+// the location when it's empty.
+const SUNDAY_ROOM = 'Wisconsin Entrepreneurship Hub 2nd floor (1403 University Ave)';
+for (const date of document.querySelectorAll('form input[type=date][name=date]')) {
+	const where = date.form.querySelector('input[name=location]');
+	if (!where) continue;
+	const fill = () => {
+		if (!where.value.trim() && date.value && new Date(`${date.value}T12:00`).getDay() === 0) where.value = SUNDAY_ROOM;
+	};
+	date.addEventListener('change', fill);
+	fill();
+}
+
 // Form screen: the response count refreshes every few seconds. "People here" makes it "12 of 40".
 for (const count of document.querySelectorAll('[data-live-count]')) {
 	const total = document.querySelector('[data-live-total]');

@@ -46,3 +46,9 @@ Schema changes go in a new file in `migrations/`, applied with `npm run db:migra
 ```
 npx wrangler d1 execute agenticaiuw-hub --remote --file import/fall-2026-exec-history.sql
 ```
+
+## Collaboration workspace (local preparation)
+
+The exec-only Collaboration page is integrated into the Hub's normal roster session and supports sessions, Codex thread bindings, task queuing, dispatch, stop controls, and run output. It is disabled until a dedicated HTTPS endpoint, backend bridge secret, and Cloudflare Access service-token pair are configured in Worker secrets (`COLLAB_ORIGIN`, `COLLAB_SERVICE_TOKEN`, `COLLAB_ACCESS_CLIENT_ID`, `COLLAB_ACCESS_CLIENT_SECRET`). The bridge is server-side; the browser never receives these credentials. The backend also needs a matching dedicated bridge token and a protected tunnel configured to preserve its loopback Host header. No tunnel, Access policy or Worker secrets are created by this code.
+
+The backend is a local prototype, not a production-ready multi-tenant system. Exec access shares the workspace data; broader member/team isolation, recovery operations, operational backups, resource limits and an independent security review are needed before production. Run `npm test`, `npm run typecheck`, and, after building the separate local portal binary, `node test/hub-collaboration-integration.mjs` for a fixture-D1, locally intercepted bridge test. This test does not exercise a real Access policy or production sign-in.

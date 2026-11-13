@@ -127,6 +127,26 @@ export function assignedEmail(name: string, assigner: string | null, tasks: Emai
 
 export type ReminderGroups = { overdue: EmailTask[]; today: EmailTask[]; soon: EmailTask[]; followUp: EmailTask[] };
 
+/** Sent to people already on a task when someone else moves its due date. */
+export function dueChangedEmail(name: string, changer: string, task: EmailTask, oldDue: string, today: string, appUrl: string) {
+	const was = formatDate(oldDue, today);
+	const now = formatDate(task.due_date, today);
+	return {
+		subject: `New due date: ${task.title} (now ${now})`,
+		text: `Hi ${name},\n\n${changer} moved the due date of a task you're on from ${was} to ${now}:\n\n${taskText(task, today)}`,
+		html: layout(p(`Hi ${esc(name)},`) + p(`${esc(changer)} moved the due date of a task you’re on from <b>${esc(was)}</b> to <b>${esc(now)}</b>.`) + taskBlock(task, today), footerFor(appUrl))
+	};
+}
+
+/** A short heads-up about one task: someone took you off it, or dropped it. */
+export function taskNoticeEmail(name: string, subject: string, line: string, task: EmailTask, today: string, appUrl: string, link = true) {
+	return {
+		subject,
+		text: `Hi ${name},\n\n${line}\n\n- ${task.title} (was due ${formatDate(task.due_date, today)})${link ? `\n  Open: ${task.url}` : ''}`,
+		html: layout(p(`Hi ${esc(name)},`) + p(esc(line)) + p(`<b>${link ? `<a href="${esc(task.url)}" style="color:${INK};">${esc(task.title)}</a>` : esc(task.title)}</b> <span style="color:${MUTED};">· was due ${esc(formatDate(task.due_date, today))}</span>`), footerFor(appUrl))
+	};
+}
+
 export function reminderEmail(name: string, g: ReminderGroups, today: string, appUrl: string) {
 	const mine = g.overdue.length + g.today.length + g.soon.length;
 	const first = g.overdue[0] ?? g.today[0] ?? g.soon[0];
@@ -249,15 +269,19 @@ type EmailMeeting = {
  * everyone, for one email to the whole list. `announce`: sent as soon as it's scheduled, instead of
  * as the reminder before it; `repeats` then says how often it happens.
  */
-export function meetingEmail(name: string | null, m: EmailMeeting, today: string, appUrl: string, opts: { announce?: boolean; repeats?: string } = {}) {
+export function meetingEmail(name: string | null, m: EmailMeeting, today: string, appUrl: string, opts: { announce?: boolean; changed?: boolean; added?: boolean; repeats?: string } = {}) {
 	const first = name ? name.split(' ')[0] : 'everyone';
 	const day = m.date === today ? 'Today' : m.date === addDays(today, 1) ? 'Tomorrow' : formatDate(m.date, today);
 	const on = m.date === today || m.date === addDays(today, 1) ? day.toLowerCase() : `on ${day}`;
 	const when = [day, m.time && formatTimeRange(m.time, m.end_time), m.location].filter(Boolean).join(' · ');
 	const teams = andList(m.team_names);
 	const several = m.team_names.length > 1;
-	const intro =
-		m.kind === 'event'
+	const which = m.kind === 'event' ? 'a club event' : `the ${teams} meeting`;
+	const intro = opts.added
+		? `You’ve been added to ${which} ${on}.`
+		: opts.changed
+		? `${which[0].toUpperCase()}${which.slice(1)} has changed. It’s now ${on}.`
+		: m.kind === 'event'
 			? `There’s ${opts.announce ? 'a new' : 'a'} club event ${on}. It’s open to everyone.`
 			: opts.announce
 				? `${teams} ${several ? 'have' : 'has'} a new meeting ${on}.`
@@ -283,7 +307,7 @@ ${agenda ? `<div style="font-size:14px;margin-top:12px;"><div style="font-size:1
 	const to = m.kind === 'event' ? 'everyone in the club' : `everyone on ${esc(teams)}`;
 	const at = `${day}${m.time ? `, ${formatTimeRange(m.time, m.end_time)}` : ''}`;
 	return {
-		subject: opts.announce ? `New ${m.kind === 'event' ? 'club event' : 'meeting'}: ${m.title}, ${at}` : `${day}: ${m.title}${m.time ? `, ${formatTimeRange(m.time, m.end_time)}` : ''}`,
+		subject: opts.added ? `Added: ${m.title}, ${at}` : opts.changed ? `Updated: ${m.title}, ${at}` : opts.announce ? `New ${m.kind === 'event' ? 'club event' : 'meeting'}: ${m.title}, ${at}` : `${day}: ${m.title}${m.time ? `, ${formatTimeRange(m.time, m.end_time)}` : ''}`,
 		text,
 		html: layout(html, `Sent by the club hub at <a href="${esc(appUrl)}" style="color:${MUTED};">${esc(appUrl.replace(/^https?:\/\//, ''))}</a> to ${to}. Questions? Reply to this email.`)
 	};

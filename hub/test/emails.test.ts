@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { andList, assignedEmail, meetingEmail } from '../src/emails.ts';
+import { andList, assignedEmail, dueChangedEmail, meetingEmail } from '../src/emails.ts';
 
 const joint = {
 	id: 7,
@@ -47,4 +47,16 @@ test('several tasks for one person go in one email, each date said once', () => 
 	assert.match(e.text, /- Order boards \(Due tomorrow, Mon, Nov 9\)/);
 	assert.match(e.text, /- Draft spec \(Due Fri, Nov 20\)/);
 	assert.doesNotMatch(e.html, /Fri, Nov 20<\/span><span[^>]*> · Fri, Nov 20/);
+});
+
+test('a moved due date says the old and new dates', () => {
+	const e = dueChangedEmail('Ife', 'Evan Liu', { id: 3, title: 'Draft spec', due_date: '2026-11-20', team_name: 'PC', meeting_title: null, url: 'https://hub.example/tasks/3' }, '2026-11-13', '2026-11-08', 'https://hub.example');
+	assert.equal(e.subject, 'New due date: Draft spec (now Fri, Nov 20)');
+	assert.match(e.text, /Evan Liu moved the due date of a task you're on from Fri, Nov 13 to Fri, Nov 20/);
+});
+
+test('a changed meeting says it changed', () => {
+	const e = meetingEmail(null, { ...joint, team_names: ['Business'], date: '2026-11-15' }, '2026-11-12', 'https://hub.example', { announce: true, changed: true });
+	assert.match(e.subject, /^Updated: Joint sync, Sun, Nov 15/);
+	assert.match(e.text, /The Business meeting has changed\. It’s now on Sun, Nov 15\./);
 });

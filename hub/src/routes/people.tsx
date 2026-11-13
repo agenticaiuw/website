@@ -1,10 +1,11 @@
 import { Hono } from 'hono';
-import { formatDate, todayIn } from '../dates';
-import { activeMembers, all, memberByEmail, memberById, MEETING_VISIBLE, run, TASK_SELECT, TASK_VISIBLE, teams, visible } from '../db';
+import { addDays, formatDate, todayIn } from '../dates';
+import { activeMembers, all, groupStats, MEETING_SELECT, memberByEmail, memberById, MEETING_VISIBLE, run, TASK_ON_TEAM, TASK_SELECT, TASK_VISIBLE, teams, visible } from '../db';
 import { id, isEmail, readForm, str } from '../form';
 import { isExec } from '../perm';
 import type { AppEnv, AttendanceStatus, Member, MeetingRow, Role, Team, TaskRow } from '../types';
 import { page } from '../views/layout';
+import { MeetingList } from './home';
 import { Choice, Empty, Field, Menu, PageHead, pct, PostButton, Stat, TaskList } from '../views/ui';
 
 export const peopleRoutes = new Hono<AppEnv>();
@@ -309,83 +310,109 @@ peopleRoutes.post('/people/:id', async (c) => {
 
 type TeamMemberRow = { team_id: number; member_id: number; is_lead: number; name: string; role: Role };
 
+/** A team's members, its settings menu and "Add someone…", shared by the Teams page and each team's page. */
+function TeamCard({ t, links, people, teamList, open }: { t: Team; links: TeamMemberRow[]; people: Member[]; teamList: Team[]; open?: number }) {
+	const members = links.filter((l) => l.team_id === t.id);
+	const others = people.filter((p) => !members.some((m) => m.member_id === p.id));
+	const targets = teamList.filter((x) => x.id !== t.id && !x.archived && x.kind === t.kind);
+	return (
+		<section class={`card team${t.archived ? ' inactive' : ''}`} id={`team-${t.id}`}>
+			<header class="team-head">
+				<div>
+					<h2>
+						<a href={`/teams/${t.id}`}>{t.name}</a>
+					</h2>
+					<p>
+						{members.length} {members.length === 1 ? 'person' : 'people'}
+						{open !== undefined && ` · ${open} open ${open === 1 ? 'task' : 'tasks'}`}
+						{t.kind === 'exec' && ' · Execs only'}
+					</p>
+				</div>
+				<Menu label={`${t.name} settings`} form>
+					<form method="post" action={`/teams/${t.id}`} class="stack">
+						<Field label="Name">
+							<input name="name" value={t.name} required maxlength={100} />
+						</Field>
+						<Choice
+							name="kind"
+							label="Who sees its meetings and tasks"
+							selected={t.kind}
+							options={[
+								['project', 'Its members'],
+								['exec', 'Execs only']
+							]}
+						/>
+						<label class="check">
+							<input type="checkbox" name="archived" value="1" checked={!!t.archived} /> Archived
+						</label>
+						<div>
+							<button class="btn primary small">Save</button>
+						</div>
+					</form>
+					{targets.length > 0 && (
+						<form method="post" action={`/teams/${t.id}/merge`} class="stack" data-confirm={`Combine ${t.name} into the team you picked? Its people, open tasks and upcoming meetings move over, and ${t.name} is archived.`}>
+							<Field label="Combine into" hint="Moves its people, open tasks and upcoming meetings, then archives it.">
+								<select name="into" required>
+									<option value="">Pick a team…</option>
+									{targets.map((x) => (
+										<option value={String(x.id)}>{x.name}</option>
+									))}
+								</select>
+							</Field>
+							<div>
+								<button class="btn small">Combine</button>
+							</div>
+						</form>
+					)}
+				</Menu>
+			</header>
+			<ul class="team-members">
+				{members.map((m) => (
+					<li>
+						<a href={`/people/${m.member_id}`}>{m.name}</a>
+						{/* The exec board has execs, not leads. */}
+						{t.kind === 'exec' ? m.role === 'exec' && <span class="tag exec">Exec</span> : m.is_lead ? <span class="tag lead">Lead</span> : null}
+						<Menu label={`Options for ${m.name}`}>
+							{t.kind !== 'exec' && <PostButton action={`/teams/${t.id}/members/${m.member_id}/lead`} label={m.is_lead ? 'Remove as lead' : 'Make lead'} cls="item" />}
+							<PostButton action={`/teams/${t.id}/members/${m.member_id}/remove`} label={`Remove from ${t.name}`} cls="item danger" />
+						</Menu>
+					</li>
+				))}
+			</ul>
+			{others.length > 0 && (
+				<form method="post" action={`/teams/${t.id}/members`} class="team-add" data-autosubmit>
+					<select name="member" required aria-label={`Add someone to ${t.name}`}>
+						<option value="">Add someone…</option>
+						{others.map((p) => (
+							<option value={String(p.id)}>{p.name}</option>
+						))}
+					</select>
+					<button class="btn small js-hide">Add</button>
+				</form>
+			)}
+		</section>
+	);
+}
+
+const TEAM_LINKS = 'SELECT x.team_id, x.member_id, x.is_lead, m.name, m.role FROM team_members x JOIN members m ON m.id = x.member_id WHERE m.active = 1 ORDER BY x.is_lead DESC, m.name COLLATE NOCASE';
+
 peopleRoutes.get('/teams', async (c) => {
 	const v = c.get('viewer');
 	if (!isExec(v)) return forbidden(c);
-	const [teamList, links, people] = await Promise.all([
+	const [teamList, links, people, counts] = await Promise.all([
 		teams(c.env.DB, true),
-		all<TeamMemberRow>(c.env.DB, 'SELECT x.team_id, x.member_id, x.is_lead, m.name, m.role FROM team_members x JOIN members m ON m.id = x.member_id WHERE m.active = 1 ORDER BY x.is_lead DESC, m.name COLLATE NOCASE'),
-		activeMembers(c.env.DB)
+		all<TeamMemberRow>(c.env.DB, TEAM_LINKS),
+		activeMembers(c.env.DB),
+		all<{ team_id: number; n: number }>(c.env.DB, `SELECT tt.id AS team_id, (SELECT COUNT(*) FROM tasks t WHERE t.status = 'open' AND ${TASK_ON_TEAM(1).replaceAll('?1', 'tt.id')}) AS n FROM teams tt`)
 	]);
-	const card = (t: Team) => {
-		const members = links.filter((l) => l.team_id === t.id);
-		const others = people.filter((p) => !members.some((m) => m.member_id === p.id));
-		return (
-			<section class={`card team${t.archived ? ' inactive' : ''}`} id={`team-${t.id}`}>
-				<header class="team-head">
-					<div>
-						<h2>{t.name}</h2>
-						<p>
-							{members.length} {members.length === 1 ? 'person' : 'people'}
-							{t.kind === 'exec' && ' · Execs only'}
-						</p>
-					</div>
-					<Menu label={`${t.name} settings`} form>
-						<form method="post" action={`/teams/${t.id}`} class="stack">
-							<Field label="Name">
-								<input name="name" value={t.name} required maxlength={100} />
-							</Field>
-							<Choice
-								name="kind"
-								label="Who sees its meetings and tasks"
-								selected={t.kind}
-								options={[
-									['project', 'Its members'],
-									['exec', 'Execs only']
-								]}
-							/>
-							<label class="check">
-								<input type="checkbox" name="archived" value="1" checked={!!t.archived} /> Archived
-							</label>
-							<div>
-								<button class="btn primary small">Save</button>
-							</div>
-						</form>
-					</Menu>
-				</header>
-				<ul class="team-members">
-					{members.map((m) => (
-						<li>
-							<a href={`/people/${m.member_id}`}>{m.name}</a>
-							{/* The exec board has execs, not leads. */}
-							{t.kind === 'exec' ? m.role === 'exec' && <span class="tag exec">Exec</span> : m.is_lead ? <span class="tag lead">Lead</span> : null}
-							<Menu label={`Options for ${m.name}`}>
-								{t.kind !== 'exec' && <PostButton action={`/teams/${t.id}/members/${m.member_id}/lead`} label={m.is_lead ? 'Remove as lead' : 'Make lead'} cls="item" />}
-								<PostButton action={`/teams/${t.id}/members/${m.member_id}/remove`} label={`Remove from ${t.name}`} cls="item danger" />
-							</Menu>
-						</li>
-					))}
-				</ul>
-				{others.length > 0 && (
-					<form method="post" action={`/teams/${t.id}/members`} class="team-add" data-autosubmit>
-						<select name="member" required aria-label={`Add someone to ${t.name}`}>
-							<option value="">Add someone…</option>
-							{others.map((p) => (
-								<option value={String(p.id)}>{p.name}</option>
-							))}
-						</select>
-						<button class="btn small js-hide">Add</button>
-					</form>
-				)}
-			</section>
-		);
-	};
+	const open = new Map(counts.map((r) => [r.team_id, r.n]));
+	const card = (t: Team) => <TeamCard t={t} links={links} people={people} teamList={teamList} open={open.get(t.id) ?? 0} />;
 	const archived = teamList.filter((t) => t.archived);
 	return page(
 		c,
 		{ title: 'Teams', active: 'teams' },
 		<>
-			<PageHead title="Teams" sub="Leads can record their team’s meetings and assign its tasks." />
+			<PageHead title="Teams" sub="Leads can record their team’s meetings and assign its tasks. Open a team to see its tasks and meetings." />
 			<div class="teams">{teamList.filter((t) => !t.archived).map(card)}</div>
 			<form method="post" action="/teams" class="new-team">
 				<input name="name" required maxlength={100} placeholder="New team name" aria-label="New team name" />
@@ -400,6 +427,113 @@ peopleRoutes.get('/teams', async (c) => {
 		</>
 	);
 });
+
+peopleRoutes.get('/teams/:id', async (c) => {
+	const v = c.get('viewer');
+	const teamId = id(c.req.param('id'));
+	const db = c.env.DB;
+	const teamList = await teams(db, true);
+	const t = teamList.find((x) => x.id === teamId);
+	if (!t || !(isExec(v) || v.teamIds.has(t.id))) return c.notFound();
+	const today = todayIn(c.env.TIMEZONE);
+	const [links, people, tasks, upcoming, recent] = await Promise.all([
+		all<TeamMemberRow>(db, TEAM_LINKS),
+		activeMembers(db),
+		all<TaskRow>(db, `${TASK_SELECT} WHERE ${TASK_ON_TEAM(2)} AND ${visible(v, TASK_VISIBLE)} AND (t.status = 'open' OR t.completed_at >= ?3) ORDER BY t.status != 'open', t.due_date, t.id LIMIT 300`, v.id, t.id, addDays(today, -30)),
+		all<MeetingRow>(db, `${MEETING_SELECT} WHERE m.id IN (SELECT meeting_id FROM meeting_teams WHERE team_id = ?2) AND ${visible(v, MEETING_VISIBLE)} AND m.date >= ?3 ORDER BY m.date, m.time LIMIT 10`, v.id, t.id, today),
+		all<MeetingRow>(db, `${MEETING_SELECT} WHERE m.id IN (SELECT meeting_id FROM meeting_teams WHERE team_id = ?2) AND ${visible(v, MEETING_VISIBLE)} AND m.date < ?3 ORDER BY m.date DESC, m.time DESC LIMIT 5`, v.id, t.id, today)
+	]);
+	const groups = await groupStats(db, tasks);
+	const open = tasks.filter((x) => x.status === 'open');
+	const closed = tasks.filter((x) => x.status !== 'open');
+	const members = links.filter((l) => l.team_id === t.id);
+	const leads = isExec(v) || v.leadOf.has(t.id);
+	const back = `/teams/${t.id}`;
+	return page(
+		c,
+		{ title: t.name, active: 'teams' },
+		<>
+			<PageHead
+				eyebrow={t.archived ? 'Archived team' : t.kind === 'exec' ? 'Exec team' : 'Team'}
+				title={t.name}
+				sub={`${members.length} ${members.length === 1 ? 'person' : 'people'} · ${open.length} open ${open.length === 1 ? 'task' : 'tasks'}`}
+				actions={
+					leads && (
+						<>
+							<a class="btn primary" href={`/tasks/new?team=${t.id}`}>
+								New task
+							</a>
+							<a class="btn" href="/meetings/new">
+								New meeting
+							</a>
+						</>
+					)
+				}
+			/>
+			<div class="grid-2 wide-left">
+				<section>
+					<h2 class="section-title">Open tasks</h2>
+					<TaskList tasks={open} today={today} viewer={v} show={['assignee', 'meeting']} back={back} empty="No open tasks." groups={groups} />
+					{closed.length > 0 && (
+						<>
+							<h2 class="section-title">Finished in the last 30 days</h2>
+							<TaskList tasks={closed} today={today} viewer={v} show={['assignee']} back={back} groups={groups} />
+						</>
+					)}
+				</section>
+				<aside>
+					<h2 class="section-title">Upcoming meetings</h2>
+					<MeetingList meetings={upcoming} today={today} />
+					{recent.length > 0 && (
+						<>
+							<h2 class="section-title">Recent meetings</h2>
+							<MeetingList meetings={recent} today={today} />
+						</>
+					)}
+					<h2 class="section-title">People</h2>
+					{isExec(v) ? (
+						<TeamCard t={t} links={links} people={people} teamList={teamList} />
+					) : (
+						<ul class="team-members card">
+							{members.map((m) => (
+								<li>
+									<a href={`/people/${m.member_id}`}>{m.name}</a>
+									{m.is_lead ? <span class="tag lead">Lead</span> : null}
+								</li>
+							))}
+						</ul>
+					)}
+				</aside>
+			</div>
+		</>
+	);
+});
+
+/** Moves a team's people, open tasks and upcoming meetings into another team, then archives it. */
+peopleRoutes.post('/teams/:id/merge', async (c) => {
+	if (!isExec(c.get('viewer'))) return forbidden(c);
+	const from = id(c.req.param('id'));
+	const into = id((await readForm(c)).into);
+	if (!from || !into || from === into) return c.redirect(`/teams/${from}?error=missing`);
+	const db = c.env.DB;
+	const today = todayIn(c.env.TIMEZONE);
+	const upcoming = 'SELECT meeting_id FROM meeting_teams WHERE team_id = ?1 AND meeting_id IN (SELECT id FROM meetings WHERE date >= ?3)';
+	await db.batch([
+		db.prepare('INSERT INTO team_members (team_id, member_id, is_lead) SELECT ?2, member_id, is_lead FROM team_members WHERE team_id = ?1 ON CONFLICT(team_id, member_id) DO UPDATE SET is_lead = MAX(is_lead, excluded.is_lead)').bind(from, into),
+		db.prepare("UPDATE tasks SET team_id = ?2 WHERE team_id = ?1 AND status = 'open'").bind(from, into),
+		db.prepare(`UPDATE meetings SET team_id = ?2 WHERE team_id = ?1 AND date >= ?3`).bind(from, into, today),
+		db.prepare(`INSERT OR IGNORE INTO meeting_teams (meeting_id, team_id) SELECT meeting_id, ?2 FROM meeting_teams WHERE team_id = ?1 AND meeting_id IN (SELECT id FROM meetings WHERE date >= ?3)`).bind(from, into, today),
+		db.prepare(`DELETE FROM meeting_teams WHERE team_id = ?1 AND meeting_id IN (${upcoming})`).bind(from, into, today),
+		db.prepare('UPDATE teams SET archived = 1 WHERE id = ?').bind(from)
+	]);
+	return c.redirect(`/teams/${into}?ok=saved`);
+});
+
+/** Back to the team's own page when that's where the change was made, else the Teams page. */
+function teamBack(c: { req: { header: (n: string) => string | undefined } }, teamId: number | null) {
+	const ref = c.req.header('referer') ?? '';
+	return ref.includes(`/teams/${teamId}`) && !ref.includes(`/teams/${teamId}/`) ? `/teams/${teamId}?ok=saved` : `/teams?ok=saved#team-${teamId}`;
+}
 
 peopleRoutes.post('/teams', async (c) => {
 	if (!isExec(c.get('viewer'))) return forbidden(c);
@@ -417,7 +551,7 @@ peopleRoutes.post('/teams/:id', async (c) => {
 	const name = str(form.name, 100);
 	if (!teamId || !name) return c.redirect('/teams?error=missing');
 	await run(c.env.DB, 'UPDATE teams SET name = ?, kind = ?, archived = ? WHERE id = ?', name, str(form.kind) === 'exec' ? 'exec' : 'project', str(form.archived) === '1' ? 1 : 0, teamId);
-	return c.redirect(`/teams?ok=saved#team-${teamId}`);
+	return c.redirect(teamBack(c, teamId));
 });
 
 peopleRoutes.post('/teams/:id/members', async (c) => {
@@ -427,19 +561,19 @@ peopleRoutes.post('/teams/:id/members', async (c) => {
 	const memberId = id(form.member);
 	if (!teamId || !memberId) return c.redirect('/teams?error=missing');
 	await run(c.env.DB, 'INSERT INTO team_members (team_id, member_id, is_lead) VALUES (?, ?, ?) ON CONFLICT(team_id, member_id) DO UPDATE SET is_lead = excluded.is_lead', teamId, memberId, str(form.lead) === '1' ? 1 : 0);
-	return c.redirect(`/teams?ok=saved#team-${teamId}`);
+	return c.redirect(teamBack(c, teamId));
 });
 
 peopleRoutes.post('/teams/:id/members/:member/lead', async (c) => {
 	if (!isExec(c.get('viewer'))) return forbidden(c);
 	const teamId = id(c.req.param('id'));
 	await run(c.env.DB, 'UPDATE team_members SET is_lead = 1 - is_lead WHERE team_id = ? AND member_id = ?', teamId ?? 0, id(c.req.param('member')) ?? 0);
-	return c.redirect(`/teams?ok=saved#team-${teamId}`);
+	return c.redirect(teamBack(c, teamId));
 });
 
 peopleRoutes.post('/teams/:id/members/:member/remove', async (c) => {
 	if (!isExec(c.get('viewer'))) return forbidden(c);
 	const teamId = id(c.req.param('id'));
 	await run(c.env.DB, 'DELETE FROM team_members WHERE team_id = ? AND member_id = ?', teamId ?? 0, id(c.req.param('member')) ?? 0);
-	return c.redirect(`/teams?ok=saved#team-${teamId}`);
+	return c.redirect(teamBack(c, teamId));
 });

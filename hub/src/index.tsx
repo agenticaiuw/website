@@ -4,6 +4,7 @@ import { loadViewer } from './db';
 import { scheduled } from './reminders';
 import { adminRoutes } from './routes/admin';
 import { authRoutes } from './routes/auth';
+import { collaborationRoutes } from './routes/collaboration';
 import { formRoutes, publicFormRoutes } from './routes/forms';
 import { homeRoutes } from './routes/home';
 import { meetingRoutes } from './routes/meetings';
@@ -51,6 +52,7 @@ app.use('*', async (c, next) => {
 	await next();
 });
 
+app.route('/', collaborationRoutes);
 app.route('/', homeRoutes);
 app.route('/', taskRoutes);
 app.route('/', meetingRoutes);

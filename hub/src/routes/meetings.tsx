@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { addDays, formatDate, formatTime, formatTimeRange, hourIn, isDate, isTime, todayIn } from '../dates';
+import { addDays, daysBetween, formatDate, formatTime, formatTimeRange, hourIn, isDate, isTime, todayIn } from '../dates';
 import { activeMembers, all, first, MEETING_EXPECTED, MEETING_TEAMS_JSON, MEETING_VISIBLE, meetingById, meetingTeams, nowIso, TASK_SELECT, teamNames, teams, teamsByMember, visible } from '../db';
 import { meetingEmail } from '../emails';
 import { id, isHttpUrl, list, readForm, str } from '../form';
@@ -161,7 +161,8 @@ const REPEATS: [string, string][] = [
 /** Most dates one repeating meeting can create, so a typo in the end date can't make hundreds. */
 const MAX_REPEATS = 30;
 
-function MeetingForm({ v, teamList, people, picked, teamsOf, m, kind, action, today, later = 0 }: { v: Viewer; teamList: { id: number; name: string }[]; people: Member[]; picked: Set<number>; teamsOf: Map<number, number[]>; m?: MeetingRow; kind: MeetingKind; action: string; today: string; later?: number }) {
+function MeetingForm({ v, teamList, people, picked, teamsOf, m, kind, action, today, later = 0, every = 7, last }: { v: Viewer; teamList: { id: number; name: string }[]; people: Member[]; picked: Set<number>; teamsOf: Map<number, number[]>; m?: MeetingRow; kind: MeetingKind; action: string; today: string; later?: number; every?: number; last?: string }) {
+	const until = last ?? addDays(m?.date ?? today, 63);
 	const club = (m?.kind ?? kind) === 'event';
 	const pickedTeams = new Set(club ? [] : m ? meetingTeams(m).map((t) => t.id) : [teamList[0]?.id]);
 	return (
@@ -192,16 +193,25 @@ function MeetingForm({ v, teamList, people, picked, teamsOf, m, kind, action, to
 				</div>
 				<span class="hint">Optional</span>
 			</div>
-			{!m && (
-				<>
-					<Choice name="repeat" label="Repeats" selected="0" options={REPEATS} />
-					<label class="field until">
-						<span class="label">Until</span>
-						<input type="date" name="until" value={addDays(today, 63)} />
-						<span class="hint">Up to {MAX_REPEATS} dates. Each one gets its own page for notes and attendance.</span>
-					</label>
-				</>
+			{later > 0 && (
+				<Choice
+					name="series"
+					label="Change"
+					selected="1"
+					options={[
+						['1', `This and the ${later} later ${later === 1 ? 'one' : 'ones'}`],
+						['0', 'Only this one']
+					]}
+					hint="Later ones move with this one and take its time, place, title and people. Their agendas and notes stay."
+				/>
 			)}
+			<Choice name="repeat" label="Repeats" selected={later > 0 ? String(every) : '0'} options={later > 0 ? REPEATS.slice(1) : REPEATS} />
+			<label class="field until">
+				<span class="label">Until</span>
+				<input type="date" name="until" value={until} />
+				<input type="hidden" name="until_was" value={until} />
+				<span class="hint">Up to {MAX_REPEATS} dates. Each one gets its own page for notes and attendance.</span>
+			</label>
 			<Field label="Location" hint="Room, Discord channel or Zoom link">
 				<input name="location" maxlength={200} value={m?.location ?? ''} />
 			</Field>
@@ -218,21 +228,17 @@ function MeetingForm({ v, teamList, people, picked, teamsOf, m, kind, action, to
 					{m?.notes ?? ''}
 				</textarea>
 			</Field>
-			{!m && (
-				<div class="field wide">
-					<label class="check">
-						<input type="checkbox" name="notify" value="1" />
-						Email everyone about it now
-					</label>
-					<span class="hint">One email to everyone ticked above (the whole club for a club event). The usual reminder still goes out before it.</span>
-				</div>
-			)}
-			{later > 0 && (
-				<label class="check wide">
-					<input type="checkbox" name="series" value="1" />
-					Also change the {later} later {later === 1 ? 'one' : 'ones'} in this series (everything but the date, agenda and notes)
+			<div class="field wide">
+				<label class="check">
+					<input type="checkbox" name="notify" value="1" checked />
+					{m ? 'Email people about the change' : 'Email everyone about it now'}
 				</label>
-			)}
+				<span class="hint">
+					{m
+						? 'Everyone on it hears about a new date, time, place or series; otherwise just anyone you added. Nothing is sent for agenda or notes edits.'
+						: 'One email to everyone ticked above (the whole club for a club event). The usual reminder still goes out before it.'}
+				</span>
+			</div>
 			<div class="form-actions wide">
 				<button class="btn primary">{m ? 'Save' : 'Create'}</button>
 				<a class="btn ghost" href={m ? `/meetings/${m.id}` : '/meetings'}>
@@ -416,7 +422,7 @@ meetingRoutes.post('/meetings', async (c) => {
 	const meeting = await meetingById(db, firstId);
 	const today = todayIn(c.env.TIMEZONE);
 	const repeats = dates.length > 1 ? `It repeats every ${every === 7 ? 'week' : '2 weeks'} until ${formatDate(dates[dates.length - 1], today)}.` : undefined;
-	const result = meeting ? await announceMeeting(c.env, meeting, v.id, repeats) : { sent: 0, error: 'not found' };
+	const result = meeting ? await announceMeeting(c.env, meeting, { repeats }) : { sent: 0, error: 'not found' };
 	if (result.error) return c.redirect(`/meetings/${firstId}?error=unsent`);
 	return c.redirect(`/meetings/${firstId}?ok=${!result.sent ? ok : ok === 'scheduled' ? 'scheduled-emailed' : 'emailed'}`);
 });
@@ -457,15 +463,19 @@ async function loadMeeting(c: { env: AppEnv['Bindings'] }, v: Viewer, raw: strin
 const LATER_IN_SERIES = 'FROM meetings WHERE series_id = ?1 AND date > ?2 AND team_id = ?3';
 
 async function laterInSeries(db: D1Database, m: MeetingRow) {
-	if (!m.series_id) return 0;
-	return (await first<{ n: number }>(db, `SELECT COUNT(*) AS n ${LATER_IN_SERIES}`, m.series_id, m.date, m.team_id))?.n ?? 0;
+	if (!m.series_id) return [];
+	return all<{ id: number; date: string }>(db, `SELECT id, date ${LATER_IN_SERIES} ORDER BY date, id`, m.series_id, m.date, m.team_id);
 }
+
+/** How often a series repeats, from the gap to the next one: weekly unless it's two weeks. */
+const cadence = (date: string, later: { date: string }[]) => (later[0] && daysBetween(date, later[0].date) === 14 ? 14 : 7);
 
 meetingRoutes.get('/meetings/:id/edit', async (c) => {
 	const v = c.get('viewer');
 	const m = await loadMeeting(c, v, c.req.param('id'));
 	if (!m || !canEditMeeting(v, m)) return c.notFound();
-	const [allTeams, later, people, teamsOf] = await Promise.all([teams(c.env.DB), laterInSeries(c.env.DB, m), activeMembers(c.env.DB), teamsByMember(c.env.DB)]);
+	const [allTeams, series, people, teamsOf] = await Promise.all([teams(c.env.DB), laterInSeries(c.env.DB, m), activeMembers(c.env.DB), teamsByMember(c.env.DB)]);
+	const later = series.length;
 	const picked = await pickedFor(c.env.DB, m, teamsOf, people);
 	// The meeting's own teams stay on the list, even ones this person couldn't pick for a new one.
 	const teamList = [...teamsFor(v, allTeams)];
@@ -476,7 +486,7 @@ meetingRoutes.get('/meetings/:id/edit', async (c) => {
 		{ title: `Edit: ${m.title}`, active: 'meetings' },
 		<>
 			<PageHead eyebrow={m.kind === 'event' ? 'Edit club event' : 'Edit meeting'} title={m.title} />
-			<MeetingForm v={v} teamList={teamList} people={people} picked={picked} teamsOf={teamsOf} m={m} kind={m.kind} action={`/meetings/${m.id}`} today={todayIn(c.env.TIMEZONE)} later={later} />
+			<MeetingForm v={v} teamList={teamList} people={people} picked={picked} teamsOf={teamsOf} m={m} kind={m.kind} action={`/meetings/${m.id}`} today={todayIn(c.env.TIMEZONE)} later={later} every={cadence(m.date, series)} last={series.at(-1)?.date} />
 		</>
 	);
 });
@@ -500,6 +510,7 @@ meetingRoutes.post('/meetings/:id', async (c) => {
 	const db = c.env.DB;
 	const now = nowIso();
 	const who = await invitesAndSkips(db, m, m.teamIds);
+	const wasOn = new Set((await meetingPeople(db, existing)).map((p) => p.id));
 	const stmts = [
 		db
 			.prepare('UPDATE meetings SET kind = ?, team_id = ?, title = ?, date = ?, time = ?, end_time = ?, location = ?, doc_url = ?, agenda = ?, notes = ?, updated_at = ? WHERE id = ?')
@@ -507,19 +518,47 @@ meetingRoutes.post('/meetings/:id', async (c) => {
 		...setTeams(db, m.teamIds, '?1', existing.id),
 		...setWho(db, who, '?1', existing.id)
 	];
-	if (str(form.series) === '1' && existing.series_id) {
-		const later = [`SELECT id ${LATER_IN_SERIES}`, existing.series_id, existing.date, existing.team_id] as const;
-		stmts.push(
-			// Before the update below, while the later ones still have the old main team.
-			...setTeams(db, m.teamIds, ...later),
-			...setWho(db, who, ...later),
-			db
-				.prepare(`UPDATE meetings SET kind = ?4, team_id = ?5, title = ?6, time = ?7, end_time = ?8, location = ?9, doc_url = ?10, updated_at = ?11 WHERE id IN (SELECT id ${LATER_IN_SERIES})`)
-				.bind(existing.series_id, existing.date, existing.team_id, m.kind, teamId, m.title, m.time, m.endTime, m.location, m.docUrl, now)
-		);
+	// "This and later" (or a one-off that now repeats): the later dates follow this one's new date,
+	// cadence and end. Existing later meetings keep their pages, agendas and notes and are re-dated in
+	// order; extra dates get new meetings, and ones past the new end are deleted.
+	const later = await laterInSeries(db, existing);
+	const every = Number(str(form.repeat));
+	const scope = later.length ? str(form.series) === '1' : every > 0;
+	let dates: string[] = [];
+	if (scope) {
+		let until = str(form.until);
+		// An untouched end date moves with the meeting, so moving Thursdays to Sundays keeps them all.
+		if (until && until === str(form.until_was)) until = addDays(until, daysBetween(existing.date, m.date));
+		if (!isDate(until) || until < m.date) return c.redirect(`/meetings/${existing.id}/edit?error=until`);
+		dates = repeatDates(m.date, every || cadence(existing.date, later), until).slice(1);
+		const seriesId = existing.series_id ?? existing.id;
+		if (!existing.series_id) stmts.push(db.prepare('UPDATE meetings SET series_id = ?1 WHERE id = ?1').bind(existing.id));
+		const update = db.prepare('UPDATE meetings SET kind = ?, team_id = ?, title = ?, date = ?, time = ?, end_time = ?, location = ?, doc_url = ?, updated_at = ? WHERE id = ?');
+		later.forEach((o, i) => {
+			if (i < dates.length) stmts.push(update.bind(m.kind, teamId, m.title, dates[i], m.time, m.endTime, m.location, m.docUrl, now, o.id));
+			else stmts.push(db.prepare('DELETE FROM meetings WHERE id = ?').bind(o.id));
+		});
+		const insert = db.prepare('INSERT INTO meetings (team_id, kind, series_id, title, date, time, end_time, location, doc_url, agenda, notes, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+		for (const d of dates.slice(later.length)) stmts.push(insert.bind(teamId, m.kind, seriesId, m.title, d, m.time, m.endTime, m.location, m.docUrl, m.agenda, '', v.id));
+		// Teams and people for every later one, old and new, once they're all in place.
+		await db.batch(stmts);
+		stmts.length = 0;
+		const rest = [`SELECT id ${LATER_IN_SERIES}`, seriesId, m.date, teamId] as const;
+		stmts.push(...setTeams(db, m.teamIds, ...rest), ...setWho(db, who, ...rest));
 	}
 	await db.batch(stmts);
-	return c.redirect(`/meetings/${existing.id}?ok=saved`);
+	if (str(form.notify) !== '1') return c.redirect(`/meetings/${existing.id}?ok=saved`);
+	const meeting = await meetingById(db, existing.id);
+	if (!meeting) return c.redirect(`/meetings/${existing.id}?ok=saved`);
+	// A new date, time, place or series goes to everyone on it; otherwise only people just added hear about it.
+	const moved = m.date !== existing.date || m.time !== existing.time || m.endTime !== existing.end_time || m.location !== existing.location || (scope && dates.length > 0 && !later.length);
+	const reDated = scope && later.length > 0 && (dates.length !== later.length || dates.some((d, i) => d !== later[i].date));
+	const added = (await meetingPeople(db, meeting)).map((p) => p.id).filter((p) => !wasOn.has(p));
+	const today = todayIn(c.env.TIMEZONE);
+	const repeats = scope && dates.length ? `It repeats every ${(every || cadence(existing.date, later)) === 14 ? '2 weeks' : 'week'} until ${formatDate(dates[dates.length - 1], today)}.` : undefined;
+	const result = moved || reDated ? await announceMeeting(c.env, meeting, { mode: 'changed', repeats }) : added.length ? await announceMeeting(c.env, meeting, { mode: 'added', repeats, only: added }) : { sent: 0, error: '' };
+	if (result.error) return c.redirect(`/meetings/${existing.id}?error=unsent`);
+	return c.redirect(`/meetings/${existing.id}?ok=${result.sent ? 'saved-emailed' : 'saved'}`);
 });
 
 meetingRoutes.post('/meetings/:id/delete', async (c) => {

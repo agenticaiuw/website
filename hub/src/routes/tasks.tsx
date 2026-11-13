@@ -1,10 +1,10 @@
 import { Hono } from 'hono';
 import { safeRedirect } from '../auth';
 import { addDays, formatDate, formatTimestamp, isDate, todayIn } from '../dates';
-import { activeMembers, all, first, groupStats, logTask, memberById, nowIso, run, setTaskStatus, TASK_SELECT, TASK_VISIBLE, taskById, teams, teamsByMember, visible } from '../db';
+import { activeMembers, all, first, groupStats, logTask, memberById, nowIso, run, setTaskStatus, TASK_ON_TEAM, TASK_SELECT, TASK_VISIBLE, taskById, teams, teamsByMember, visible } from '../db';
 import { id, list, readForm, str, withNotice } from '../form';
 import { canAssign, canCompleteTask, canManageTask, canSeeTask, isExec, teamsFor } from '../perm';
-import { notifyAssigned } from '../reminders';
+import { notifyAssigned, notifyDueChanged, notifyTaskEnded } from '../reminders';
 import type { AppEnv, Member, Task, TaskRow, TaskStatus, Team, Viewer } from '../types';
 import { page } from '../views/layout';
 import { Due, Field, Markdown, MemberSelect, PageHead, PeoplePicker, PostButton, Tabs, TaskList, TeamSelect } from '../views/ui';
@@ -29,7 +29,7 @@ taskRoutes.get('/tasks', async (c) => {
 	else if (status === 'done') where.push("t.status = 'done'");
 	else if (status === 'dropped') where.push("t.status = 'dropped'");
 	if (assignee) where.push(`t.assignee_id = ${bind(assignee)}`);
-	if (team) where.push(`t.team_id = ${bind(team)}`);
+	if (team) where.push(TASK_ON_TEAM(params.push(team)));
 	if (q) where.push(`(t.title LIKE ${bind(`%${q}%`)} OR t.details LIKE ?${params.length})`);
 	const order = status === 'done' || status === 'dropped' ? 't.completed_at DESC, t.updated_at DESC' : 't.due_date, t.id';
 
@@ -408,9 +408,13 @@ taskRoutes.post('/tasks/:id/status', async (c) => {
 	const back = safeRedirect(str(form.back) || `/tasks/${task.id}`);
 	if (!allowed) return c.redirect(withNotice(back, 'error', 'forbidden'));
 	if (status === 'dropped' && str(form.all) === '1' && task.group_id) {
-		const open = await all<{ id: number }>(c.env.DB, "SELECT id FROM tasks WHERE group_id = ? AND status = 'open'", task.group_id);
+		const open = await all<TaskRow>(c.env.DB, `${TASK_SELECT} WHERE t.group_id = ? AND t.status = 'open'`, task.group_id);
 		for (const t of open) await setTaskStatus(c.env.DB, t.id, 'dropped', v.id);
-	} else if (task.status !== status) await setTaskStatus(c.env.DB, task.id, status, v.id);
+		await notifyTaskEnded(c.env, v, open, 'dropped');
+	} else if (task.status !== status) {
+		await setTaskStatus(c.env.DB, task.id, status, v.id);
+		if (status === 'dropped') await notifyTaskEnded(c.env, v, [task], 'dropped');
+	}
 	return c.redirect(withNotice(back, 'ok', { done: 'done', open: 'reopened', dropped: 'dropped' }[status]));
 });
 
@@ -434,6 +438,7 @@ taskRoutes.post('/tasks/:id/remove', async (c) => {
 	if (!others.length) return c.redirect(`/tasks/${task.id}?error=last`);
 	const db = c.env.DB;
 	await db.batch([db.prepare('DELETE FROM tasks WHERE id = ?').bind(task.id), ...others.map((o) => logTask(db, o.id, v.id, 'unassigned', `${task.assignee_name} is no longer on this task.`))]);
+	await notifyTaskEnded(c.env, v, [task], 'removed');
 	// Back where they were, unless that was the page of the copy that's now gone.
 	const back = safeRedirect(str((await readForm(c)).back) || '/');
 	const gone = new RegExp(`^/tasks/${task.id}(?![0-9])`).test(back) || back === '/';
@@ -446,14 +451,15 @@ taskRoutes.get('/tasks/:id/edit', async (c) => {
 	const v = c.get('viewer');
 	const task = await loadTask(c, v, c.req.param('id'));
 	if (!task || !canManageTask(v, task)) return c.notFound();
-	const [people, teamList, group] = await Promise.all([
+	const [people, teamList, teamsOf, copies] = await Promise.all([
 		activeMembers(c.env.DB),
 		teams(c.env.DB),
-		task.group_id ? first<{ n: number }>(c.env.DB, 'SELECT COUNT(*) AS n FROM tasks WHERE group_id = ?', task.group_id) : Promise.resolve(null)
+		teamsByMember(c.env.DB),
+		task.group_id ? all<{ assignee_id: number }>(c.env.DB, 'SELECT assignee_id FROM tasks WHERE group_id = ?', task.group_id) : Promise.resolve([{ assignee_id: task.assignee_id }])
 	]);
-	const copies = group?.n ?? 1;
 	const teamChoices = teamsFor(v, teamList);
 	if (task.team_id && !teamChoices.some((t) => t.id === task.team_id)) teamChoices.push(teamList.find((t) => t.id === task.team_id)!);
+	const onTeam = (memberId: number, teamId: number) => teamsOf.get(memberId)?.includes(teamId) ?? false;
 	return page(
 		c,
 		{ title: `Edit: ${task.title}`, active: 'tasks' },
@@ -468,10 +474,17 @@ taskRoutes.get('/tasks/:id/edit', async (c) => {
 						{task.details}
 					</textarea>
 				</Field>
-				<Field label={copies > 1 ? 'This copy is for' : 'Assigned to'} hint="Reassigning emails the new person.">
-					<MemberSelect name="assignee" members={people} selected={task.assignee_id} required />
-				</Field>
-				<Field label="Due date" hint="Changes are recorded in the task’s history.">
+				<PeoplePicker
+					label="Assigned to"
+					hint="Everyone ticked is on this task. Tick someone to add them (they’re emailed); untick to take them off (their copy and its history are deleted)."
+					teams={teamsFor(v, teamList).filter((t) => people.some((p) => onTeam(p.id, t.id)))}
+					pickedTeams={new Set()}
+					people={people}
+					picked={new Set(copies.map((x) => x.assignee_id))}
+					teamsOf={teamsOf}
+					personName="assignee"
+				/>
+				<Field label="Due date" hint="Everyone already on the task is emailed the new date.">
 					<input type="date" name="due_date" required value={task.due_date} />
 				</Field>
 				<Field label="Team">
@@ -481,34 +494,25 @@ taskRoutes.get('/tasks/:id/edit', async (c) => {
 					<input type="checkbox" name="urgent" value="1" checked={!!task.urgent} />
 					Urgent: extra reminders the evening it’s due, then every 2 hours while overdue
 				</label>
-				{copies > 1 && (
-					<label class="check wide">
-						<input type="checkbox" name="all" value="1" checked />
-						Apply to all {copies} people’s copies: title, details, due date, team, urgent, and Drop
-					</label>
-				)}
 				<div class="form-actions wide">
 					<button class="btn primary">Save</button>
 					<a class="btn ghost" href={`/tasks/${task.id}`}>
 						Cancel
 					</a>
 					<span class="spacer"></span>
-					{copies > 1 && (
-						<button class="btn danger" formaction={`/tasks/${task.id}/remove`} formnovalidate data-confirm={`Take ${task.assignee_name} off this task? Their copy and its history are deleted; everyone else keeps theirs.`}>
-							Remove {task.assignee_name}
-						</button>
-					)}
 					{task.status === 'open' && (
-						<button class="btn danger" formaction={`/tasks/${task.id}/status`} name="status" value="dropped" data-confirm="Drop this task? Reminders stop and it’s marked as not happening.">
+						<button class="btn danger" formaction={`/tasks/${task.id}/status`} name="status" value="dropped" data-confirm="Drop this task for everyone? Reminders stop and it’s marked as not happening.">
 							Drop task
 						</button>
 					)}
+					<input type="hidden" name="all" value="1" />
 				</div>
 			</form>
 		</>
 	);
 });
 
+/** Saves a task for everyone on it: same title, details, due date, team and urgency; adds and removes people. */
 taskRoutes.post('/tasks/:id', async (c) => {
 	const v = c.get('viewer');
 	const task = await loadTask(c, v, c.req.param('id'));
@@ -517,50 +521,61 @@ taskRoutes.post('/tasks/:id', async (c) => {
 	const title = str(form.title, 200);
 	const details = str(form.details, 10_000);
 	const due = str(form.due_date);
-	const assignee = id(form.assignee);
 	const teamId = id(form.team);
 	const urgent = str(form.urgent) === '1' ? 1 : 0;
-	if (!title || !assignee) return c.redirect(`/tasks/${task.id}/edit?error=missing`);
-	if (!isDate(due)) return c.redirect(`/tasks/${task.id}/edit?error=date`);
-	if (!isExec(v) && teamId !== task.team_id && !(teamId && v.leadOf.has(teamId))) return c.redirect(`/tasks/${task.id}/edit?error=forbidden`);
-	const newPerson: Member | null = assignee !== task.assignee_id ? await memberById(c.env.DB, assignee) : null;
-	if (assignee !== task.assignee_id && !newPerson?.active) return c.redirect(`/tasks/${task.id}/edit?error=missing`);
+	const wanted = [...new Set(list(form.assignee).map(Number).filter((n) => Number.isInteger(n) && n > 0))];
+	const edit = `/tasks/${task.id}/edit`;
+	if (!title || !wanted.length) return c.redirect(`${edit}?error=missing`);
+	if (!isDate(due)) return c.redirect(`${edit}?error=date`);
+	if (!isExec(v) && teamId !== task.team_id && !(teamId && v.leadOf.has(teamId))) return c.redirect(`${edit}?error=forbidden`);
 
 	const db = c.env.DB;
-	const stmts: D1PreparedStatement[] = [];
-	const dueChanged = due !== task.due_date;
-	stmts.push(
-		db
-			.prepare(
-				`UPDATE tasks SET title = ?, details = ?, assignee_id = ?, team_id = ?, due_date = ?, urgent = ?, updated_at = ?,
-				 urgent_until = CASE WHEN ? THEN NULL ELSE urgent_until END,
-				 escalated_on = CASE WHEN ? THEN NULL ELSE escalated_on END,
-				 last_reminder_on = CASE WHEN ? THEN NULL ELSE last_reminder_on END
-				 WHERE id = ?`
-			)
-			.bind(title, details, assignee, teamId, due, urgent, nowIso(), urgent && !task.urgent ? 1 : 0, dueChanged || !!newPerson ? 1 : 0, newPerson ? 1 : 0, task.id)
-	);
-	if (dueChanged) stmts.push(logTask(db, task.id, v.id, 'due_changed', `${formatDate(task.due_date)} → ${formatDate(due)}`));
-	if (newPerson) stmts.push(logTask(db, task.id, v.id, 'reassigned', `${task.assignee_name} → ${newPerson.name}`));
-	if (title !== task.title || details !== task.details || teamId !== task.team_id || urgent !== task.urgent) stmts.push(logTask(db, task.id, v.id, 'edited'));
-	if (str(form.all) === '1' && task.group_id) {
-		const others = await all<Task>(db, 'SELECT * FROM tasks WHERE group_id = ? AND id != ?', task.group_id, task.id);
-		for (const o of others) {
-			const moved = due !== o.due_date;
-			stmts.push(
-				db
-					.prepare(
-						`UPDATE tasks SET title = ?, details = ?, team_id = ?, due_date = ?, urgent = ?, updated_at = ?,
-						 urgent_until = CASE WHEN ? THEN NULL ELSE urgent_until END,
-						 escalated_on = CASE WHEN ? THEN NULL ELSE escalated_on END WHERE id = ?`
-					)
-					.bind(title, details, teamId, due, urgent, nowIso(), urgent && !o.urgent ? 1 : 0, moved ? 1 : 0, o.id)
-			);
-			if (moved) stmts.push(logTask(db, o.id, v.id, 'due_changed', `${formatDate(o.due_date)} → ${formatDate(due)}`));
-			if (title !== o.title || details !== o.details || teamId !== o.team_id || urgent !== o.urgent) stmts.push(logTask(db, o.id, v.id, 'edited'));
-		}
+	const copies = task.group_id ? await all<TaskRow>(db, `${TASK_SELECT} WHERE t.group_id = ? ORDER BY t.id`, task.group_id) : [{ ...task }];
+	const staying = copies.filter((o) => wanted.includes(o.assignee_id));
+	const leaving = copies.filter((o) => !wanted.includes(o.assignee_id));
+	const adding = wanted.filter((a) => !copies.some((o) => o.assignee_id === a));
+
+	// New people get their own copy, filed under the task's team.
+	let newIds: number[] = [];
+	if (adding.length) {
+		const made = await createTasks(c.env, v, { title, details, assignees: adding, due, teamId, meetingId: task.meeting_id, urgent: !!urgent });
+		if ('error' in made) return c.redirect(`${edit}?error=${made.error}`);
+		newIds = made.ids;
 	}
+	const groupId = task.group_id ?? (staying[0]?.id ?? newIds[0]);
+	const stmts: D1PreparedStatement[] = [];
+	if (copies.length + newIds.length - leaving.length > 1) {
+		stmts.push(db.prepare('UPDATE tasks SET group_id = ? WHERE id IN (SELECT value FROM json_each(?))').bind(groupId, JSON.stringify([...staying.map((o) => o.id), ...newIds])));
+	}
+	const moved: number[] = [];
+	const oldDue = new Map<number, string>();
+	for (const o of staying) {
+		const dueChanged = due !== o.due_date;
+		if (dueChanged) {
+			moved.push(o.id);
+			oldDue.set(o.id, o.due_date);
+		}
+		stmts.push(
+			db
+				.prepare(
+					`UPDATE tasks SET title = ?, details = ?, team_id = ?, due_date = ?, urgent = ?, updated_at = ?,
+					 urgent_until = CASE WHEN ? THEN NULL ELSE urgent_until END,
+					 escalated_on = CASE WHEN ? THEN NULL ELSE escalated_on END,
+					 last_reminder_on = CASE WHEN ? THEN NULL ELSE last_reminder_on END WHERE id = ?`
+				)
+				.bind(title, details, teamId, due, urgent, nowIso(), urgent && !o.urgent ? 1 : 0, dueChanged ? 1 : 0, dueChanged ? 1 : 0, o.id)
+		);
+		if (dueChanged) stmts.push(logTask(db, o.id, v.id, 'due_changed', `${formatDate(o.due_date)} → ${formatDate(due)}`));
+		if (title !== o.title || details !== o.details || teamId !== o.team_id || urgent !== o.urgent) stmts.push(logTask(db, o.id, v.id, 'edited'));
+		for (const gone of leaving) stmts.push(logTask(db, o.id, v.id, 'unassigned', `${gone.assignee_name} is no longer on this task.`));
+	}
+	for (const gone of leaving) stmts.push(db.prepare('DELETE FROM tasks WHERE id = ?').bind(gone.id));
 	await db.batch(stmts);
-	if (newPerson) await notifyAssigned(c.env, v, [task.id]);
-	return c.redirect(`/tasks/${task.id}?ok=saved`);
+	await notifyAssigned(c.env, v, newIds);
+	await notifyDueChanged(c.env, v, moved, oldDue);
+	await notifyTaskEnded(c.env, v, leaving, 'removed');
+	// Stay on this copy unless its person was taken off.
+	const landing = staying.some((o) => o.id === task.id) ? task.id : (staying[0]?.id ?? newIds[0]);
+	const shared = staying.length + newIds.length > 1;
+	return c.redirect(`/tasks/${landing}?${shared && landing !== task.id ? 'all=1&' : ''}ok=saved`);
 });

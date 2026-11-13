@@ -157,6 +157,14 @@ export const MEETING_EXPECTED = `(
  * Team ids for each active member, counting every exec as on the exec team the way meetings do.
  * Pickers use it to tick a whole team at once.
  */
+/**
+ * SQL for "this task belongs to team ?N": filed under it, or filed under no team and assigned to
+ * someone on it (execs count as on the exec team).
+ */
+export const TASK_ON_TEAM = (n: number) => `(t.team_id = ?${n} OR (t.team_id IS NULL AND t.assignee_id IN (
+	SELECT member_id FROM team_members WHERE team_id = ?${n}
+	UNION SELECT mb.id FROM members mb JOIN teams te ON te.id = ?${n} AND te.kind = 'exec' WHERE mb.role = 'exec')))`;
+
 export async function teamsByMember(db: D1Database) {
 	const rows = await all<{ member_id: number; team_id: number }>(
 		db,

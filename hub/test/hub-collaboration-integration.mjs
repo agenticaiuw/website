@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';
+import { spawn, execFileSync } from 'node:child_process';
+import { mkdtemp, rm } from 'node:fs/promises';
+import net from 'node:net';
+import os from 'node:os';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+const dir=await mkdtemp(path.join(os.tmpdir(),'hub-collab-'));
+const bundle=path.join(dir,'fixture.mjs');
+execFileSync(path.resolve('node_modules/.bin/esbuild'),['src/index.tsx','--bundle','--alias:worker-mailer=./test/fixtures/worker-mailer.ts','--platform=node','--format=esm','--outfile='+bundle],{stdio:'ignore'});
+const {default:worker}=await import(pathToFileURL(bundle));
+const probe=net.createServer(); await new Promise(r=>probe.listen(0,'127.0.0.1',r)); const port=probe.address().port; await new Promise(r=>probe.close(r));
+const token='fixture-bridge-0123456789abcdef0123456789';
+const portal=spawn(process.env.CLUB_PORTAL_BIN || path.resolve('../../agentic-ai-uw-collaboration/target/debug/portal'),[path.join(dir,'state.db'),String(port)],{env:{...process.env,CLUB_HUB_BRIDGE_TOKEN:token},stdio:['ignore','pipe','pipe']});
+await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('startup timeout')),10000);portal.once('exit',()=>reject(Error('portal exited')));portal.stdout.once('data',()=>{clearTimeout(timer);resolve();});});
+const realFetch=globalThis.fetch;
+globalThis.fetch=(url,init)=>{const remote=new URL(url); if(remote.origin!=='https://fixture.example.test') throw Error('unexpected upstream'); return realFetch(`http://127.0.0.1:${port}${remote.pathname}${remote.search}`,init);};
+const hashes=Object.fromEntries(await Promise.all(['exec-fixture','member-fixture'].map(async v=>[Buffer.from(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(v))).toString('base64url'),v])));
+const DB={prepare(sql){return {bind(...args){return {async first(){if(!sql.includes('FROM sessions s JOIN members'))throw Error('unexpected query'); const session=hashes[args[0]]; if(!session)return null; return {id:42,role:session==='exec-fixture'?'exec':'member',active:1,name:'Fixture',email:'fixture@example.test',title:'',discord:''};},async all(){if(!sql.includes('team_members'))throw Error('unexpected query');return {results:[]};}}}}}};
+const env={DB,COLLAB_ORIGIN:'https://fixture.example.test',COLLAB_SERVICE_TOKEN:token,COLLAB_ACCESS_CLIENT_ID:'fixture-id',COLLAB_ACCESS_CLIENT_SECRET:'fixture-secret'};
+const req=(path,opts={})=>{const headers=new Headers(opts.headers);if(!headers.has('Cookie'))headers.set('Cookie','hub_session=exec-fixture');return worker.fetch(new Request('https://hub.example.test'+path,{...opts,headers}),env,{});};
+const form=body=>({method:'POST',headers:{Origin:'https://hub.example.test','Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams(body)});
+try {
+  assert.equal((await req('/collaboration',{headers:{Cookie:'hub_session=member-fixture'}})).status,403);
+  assert.equal((await req('/collaboration',{headers:{Cookie:'hub_session=invalid'}})).status,302);
+  assert.equal((await req('/collaboration/action',{method:'POST',body:new URLSearchParams({action:'halt_all'})})).status,403);
+  assert.equal((await req('/collaboration/action',form({action:'create',id:'fixture',title:'Fixture session'}))).status,303);
+  assert.equal((await req('/collaboration/action',form({action:'bind_codex',id:'fixture',thread_id:'01234567-89ab-cdef-0123-456789abcdef'}))).status,303);
+  assert.equal((await req('/collaboration/action',form({action:'queue_task',id:'fixture',instruction:'Visible instruction',source_id:'hub:01234567-89ab-cdef-0123-456789abcdef'}))).status,303);
+  const page=await req('/collaboration'); assert.equal(page.status,200); const html=await page.text();
+  assert.match(html,/Visible instruction/); assert.match(html,/hub:42/); assert.doesNotMatch(html,new RegExp(token));
+  assert.equal((await req('/collaboration/action',form({action:'start_run',id:'fixture'}))).status,400);
+  console.log('Hub route and real local workspace bridge passed with fixture D1 session and local-only transport.');
+} finally { globalThis.fetch=realFetch; if(portal.exitCode===null && portal.signalCode===null){portal.kill();await new Promise(r=>portal.once('exit',r));} await rm(dir,{recursive:true,force:true}); }

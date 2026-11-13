@@ -11,6 +11,7 @@ const FLASH: Record<string, string> = {
 	scheduled: 'Scheduled. The repeats are on the Meetings page, each with its own notes and attendance.',
 	emailed: 'Created, and everyone on it was emailed.',
 	'scheduled-emailed': 'Scheduled, and everyone on it was emailed. The repeats are on the Meetings page.',
+	'saved-emailed': 'Saved, and people were emailed about the change.',
 	done: 'Marked done. Reminders for it have stopped.',
 	reopened: 'Reopened.',
 	dropped: 'Dropped. No more reminders for it.',
@@ -42,7 +43,7 @@ const ERRORS: Record<string, string> = {
 	partial: 'Some of the tasks were created, but not all. Check the list below.'
 };
 
-type NavKey = 'home' | 'tasks' | 'meetings' | 'people' | 'teams' | 'email';
+type NavKey = 'home' | 'tasks' | 'meetings' | 'people' | 'teams' | 'email' | 'collaboration';
 
 function Nav({ viewer, active }: { viewer: Viewer; active?: NavKey }) {
 	const links: [NavKey, string, string][] = [
@@ -51,7 +52,7 @@ function Nav({ viewer, active }: { viewer: Viewer; active?: NavKey }) {
 		['meetings', '/meetings', 'Meetings'],
 		['people', '/people', 'People']
 	];
-	if (isExec(viewer)) links.push(['teams', '/teams', 'Teams'], ['email', '/email', 'Email']);
+	if (isExec(viewer)) links.push(['collaboration', '/collaboration', 'Collaboration'], ['teams', '/teams', 'Teams'], ['email', '/email', 'Email']);
 	return (
 		<nav class="nav" aria-label="Main">
 			{links.map(([key, href, label]) => (

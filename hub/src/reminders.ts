@@ -1,7 +1,7 @@
 import { signDoneLink } from './auth';
 import { addDays, daysBetween, hourIn, todayIn, weekday } from './dates';
 import { all, first, getMeta, logTask, MEETING_EXPECTED, MEETING_SELECT, MEETING_TEAMS_JSON, meetingTeams, setMeta, TASK_SELECT, teamNames } from './db';
-import { assignedEmail, digestEmail, meetingEmail, reminderEmail, urgentEmail, type DigestData, type EmailTask, type ReminderGroups } from './emails';
+import { assignedEmail, digestEmail, dueChangedEmail, taskNoticeEmail, meetingEmail, reminderEmail, urgentEmail, type DigestData, type EmailTask, type ReminderGroups } from './emails';
 import { sendMail, sendMails } from './mail';
 import { EVENING_HOUR, meetingReminderAt, reminderFor, SEND_HOUR, shouldEscalate, SOON_DAYS, urgentReminderFor, type ReminderKind } from './schedule';
 import type { Env, Member, MeetingRow, TaskRow } from './types';
@@ -183,14 +183,19 @@ export const emailMeeting = (m: MeetingRow) => ({ ...m, team_names: meetingTeams
  * Emails everyone a just-scheduled meeting is for (except `skipId`, who made it) right away. One
  * email with everyone in bcc, so even the whole club goes out in a few seconds.
  */
-export async function announceMeeting(env: Env, m: MeetingRow, skipId: number, repeats?: string) {
-	const people = (await meetingPeople(env.DB, m)).filter((p) => p.id !== skipId);
+/**
+ * One BCC email about a meeting: `new` when it's scheduled, `changed` when its date, time or place
+ * moves, `added` to people newly put on it. `only` limits it to those people (default: everyone on it).
+ */
+export async function announceMeeting(env: Env, m: MeetingRow, opts: { mode?: 'new' | 'changed' | 'added'; repeats?: string; only?: number[] } = {}) {
+	const mode = opts.mode ?? 'new';
+	const people = (await meetingPeople(env.DB, m)).filter((p) => !opts.only || opts.only.includes(p.id));
 	if (!people.length) return { sent: 0, error: '' };
-	const msg = meetingEmail(null, emailMeeting(m), todayIn(env.TIMEZONE), env.APP_URL, { announce: true, repeats });
+	const msg = meetingEmail(null, emailMeeting(m), todayIn(env.TIMEZONE), env.APP_URL, { announce: true, changed: mode === 'changed', added: mode === 'added', repeats: opts.repeats });
 	const res = await sendMail(env, {
 		to: { name: env.MAIL_FROM_NAME, email: env.MAIL_FROM },
 		bcc: people.map((p) => ({ name: p.name, email: p.email })),
-		kind: 'meeting-new',
+		kind: `meeting-${mode}`,
 		...msg
 	});
 	return res.ok ? { sent: people.length, error: '' } : { sent: 0, error: res.error ?? 'failed' };
@@ -267,6 +272,44 @@ export async function notifyAssigned(env: Env, assigner: { id: number; name: str
 		const res = await sendMail(env, { to: { name: list[0].assignee_name, email: list[0].assignee_email }, kind: 'assigned', ...msg });
 		if (res.ok) sent++;
 		await env.DB.batch(list.map((t) => logTask(env.DB, t.id, null, 'notified', res.ok ? `Assignment emailed to ${t.assignee_name}` : `Assignment email failed: ${res.error}`)));
+	}
+	return sent;
+}
+
+/** Tells everyone on these tasks (except whoever made the change) that the due date moved from `oldDue`. */
+export async function notifyDueChanged(env: Env, changer: { id: number; name: string }, taskIds: number[], oldDue: Map<number, string>) {
+	if (!taskIds.length) return 0;
+	const today = todayIn(env.TIMEZONE);
+	const rows = await all<TaskRow & { assignee_active: number }>(
+		env.DB,
+		TASK_SELECT.replace('b.name AS assigner_name', 'b.name AS assigner_name, a.active AS assignee_active') + ` WHERE t.id IN (${taskIds.map(() => '?').join(',')})`,
+		...taskIds
+	);
+	let sent = 0;
+	for (const t of rows) {
+		if (!t.assignee_active || t.assignee_id === changer.id || t.status !== 'open') continue;
+		const msg = dueChangedEmail(t.assignee_name, changer.name, await emailTask(env, t, { withDone: true }), oldDue.get(t.id) ?? t.due_date, today, env.APP_URL);
+		const res = await sendMail(env, { to: { name: t.assignee_name, email: t.assignee_email }, kind: 'due-changed', ...msg });
+		if (res.ok) sent++;
+		await logTask(env.DB, t.id, null, 'notified', res.ok ? `New due date emailed to ${t.assignee_name}` : `Due date email failed: ${res.error}`).run();
+	}
+	return sent;
+}
+
+/**
+ * Tells people their task was dropped, or that they were taken off it (`removed`: the copy is
+ * already deleted, so there's no link). Skips whoever made the change.
+ */
+export async function notifyTaskEnded(env: Env, changer: { id: number; name: string }, tasks: TaskRow[], how: 'dropped' | 'removed') {
+	const today = todayIn(env.TIMEZONE);
+	let sent = 0;
+	for (const t of tasks) {
+		if (t.assignee_id === changer.id || t.status !== 'open') continue;
+		const line = how === 'dropped' ? `${changer.name} dropped this task, so it’s not happening and its reminders have stopped.` : `${changer.name} took you off this task. You won’t get more reminders for it.`;
+		const msg = taskNoticeEmail(t.assignee_name, how === 'dropped' ? `Dropped: ${t.title}` : `You’re off: ${t.title}`, line, await emailTask(env, t), today, env.APP_URL, how === 'dropped');
+		const res = await sendMail(env, { to: { name: t.assignee_name, email: t.assignee_email }, kind: `task-${how}`, ...msg });
+		if (res.ok) sent++;
+		if (how === 'dropped') await logTask(env.DB, t.id, null, 'notified', res.ok ? `Drop emailed to ${t.assignee_name}` : `Drop email failed: ${res.error}`).run();
 	}
 	return sent;
 }
