@@ -94,6 +94,8 @@ export type Meeting = {
 	agenda: string;
 	notes: string;
 	created_by: number | null;
+	/** Who's responsible for running it. */
+	host_id: number | null;
 	created_at: string;
 	updated_at: string;
 	/** Club-time date the reminder email went out. */
@@ -107,7 +109,7 @@ export type MeetingTeam = { id: number; name: string; kind: 'exec' | 'project' }
  * A meeting joined with its main team, plus `teams_json`: every team it's for, as a JSON list of
  * MeetingTeam. Read it with meetingTeams().
  */
-export type MeetingRow = Meeting & { team_name: string; team_kind: 'exec' | 'project'; teams_json?: string | null };
+export type MeetingRow = Meeting & { team_name: string; team_kind: 'exec' | 'project'; teams_json?: string | null; host_name?: string | null };
 
 export type FormQuestion = { id: string; label: string; kind: 'rating' | 'text' };
 

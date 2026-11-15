@@ -311,13 +311,22 @@ export async function notifyTaskEnded(env: Env, changer: { id: number; name: str
 }
 
 /** One BCC email to `people` saying the meeting (and `later` dates of its series) is canceled. */
-export async function announceCanceled(env: Env, m: MeetingRow, people: Member[], later: string[] = []) {
+export async function announceCanceled(env: Env, m: MeetingRow, people: Member[], later: string[], why: { reason: string; by: string }) {
 	if (!people.length) return { sent: 0, error: '' };
 	const res = await sendMail(env, {
 		to: { name: env.MAIL_FROM_NAME, email: env.MAIL_FROM },
 		bcc: people.map((p) => ({ name: p.name, email: p.email })),
 		kind: 'meeting-canceled',
-		...canceledEmail(emailMeeting(m), todayIn(env.TIMEZONE), env.APP_URL, later)
+		...canceledEmail(emailMeeting(m), todayIn(env.TIMEZONE), env.APP_URL, later, why)
 	});
 	return res.ok ? { sent: people.length, error: '' } : { sent: 0, error: res.error ?? 'failed' };
+}
+
+/** Tells someone they're now hosting a meeting (skipped when they set it themselves). */
+export async function notifyHost(env: Env, m: MeetingRow, setBy: number) {
+	if (!m.host_id || m.host_id === setBy) return;
+	const host = await first<Member>(env.DB, 'SELECT * FROM members WHERE id = ? AND active = 1', m.host_id);
+	if (!host) return;
+	const msg = meetingEmail(host.name, emailMeeting(m), todayIn(env.TIMEZONE), env.APP_URL, { hosting: true });
+	await sendMail(env, { to: { name: host.name, email: host.email }, kind: 'meeting-host', ...msg });
 }

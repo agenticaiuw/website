@@ -114,8 +114,8 @@ export const MEETING_TEAMS_JSON = `(
 ) AS teams_json`;
 
 export const MEETING_SELECT = `
-	SELECT m.*, tm.name AS team_name, tm.kind AS team_kind, ${MEETING_TEAMS_JSON}
-	FROM meetings m JOIN teams tm ON tm.id = m.team_id`;
+	SELECT m.*, tm.name AS team_name, tm.kind AS team_kind, hm.name AS host_name, ${MEETING_TEAMS_JSON}
+	FROM meetings m JOIN teams tm ON tm.id = m.team_id LEFT JOIN members hm ON hm.id = m.host_id`;
 
 /** Every team a meeting is for, main team first. */
 export function meetingTeams(m: Pick<MeetingRow, 'team_id' | 'team_name' | 'team_kind' | 'teams_json'>): MeetingTeam[] {

@@ -1,5 +1,17 @@
 // Small progressive enhancements. Every page works without this file.
 
+// Buttons that need a field filled in first: <button data-needs="reason"> (canceling a meeting).
+document.addEventListener('submit', (e) => {
+	const needs = e.submitter?.dataset.needs;
+	const field = needs && e.target.querySelector(`[name=${needs}]`);
+	if (!field || field.value.trim()) return;
+	e.preventDefault();
+	e.stopImmediatePropagation();
+	field.required = true;
+	field.reportValidity();
+	field.focus();
+});
+
 // Confirm destructive actions: <form data-confirm> or <button data-confirm>.
 document.addEventListener('submit', (e) => {
 	const form = e.target;

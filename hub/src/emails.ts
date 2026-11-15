@@ -262,6 +262,7 @@ type EmailMeeting = {
 	location: string;
 	doc_url: string;
 	agenda: string;
+	host_name?: string | null;
 };
 
 /**
@@ -269,7 +270,7 @@ type EmailMeeting = {
  * everyone, for one email to the whole list. `announce`: sent as soon as it's scheduled, instead of
  * as the reminder before it; `repeats` then says how often it happens.
  */
-export function meetingEmail(name: string | null, m: EmailMeeting, today: string, appUrl: string, opts: { announce?: boolean; changed?: boolean; added?: boolean; repeats?: string } = {}) {
+export function meetingEmail(name: string | null, m: EmailMeeting, today: string, appUrl: string, opts: { announce?: boolean; changed?: boolean; added?: boolean; hosting?: boolean; repeats?: string } = {}) {
 	const first = name ? name.split(' ')[0] : 'everyone';
 	const day = m.date === today ? 'Today' : m.date === addDays(today, 1) ? 'Tomorrow' : formatDate(m.date, today);
 	const on = m.date === today || m.date === addDays(today, 1) ? day.toLowerCase() : `on ${day}`;
@@ -277,7 +278,9 @@ export function meetingEmail(name: string | null, m: EmailMeeting, today: string
 	const teams = andList(m.team_names);
 	const several = m.team_names.length > 1;
 	const which = m.kind === 'event' ? 'a club event' : `the ${teams} meeting`;
-	const intro = opts.added
+	const intro = opts.hosting
+		? `You’re hosting ${which} ${on}: you’re the one responsible for running it.`
+		: opts.added
 		? `You’ve been added to ${which} ${on}.`
 		: opts.changed
 		? `${which[0].toUpperCase()}${which.slice(1)} has changed. It’s now ${on}.`
@@ -296,25 +299,26 @@ export function meetingEmail(name: string | null, m: EmailMeeting, today: string
 <tr><td style="padding:14px 16px;">
 <div style="font-weight:600;font-size:16px;"><a href="${esc(url)}" style="color:${INK};text-decoration:none;">${esc(m.title)}</a></div>
 <div style="font-size:14px;color:${MUTED};margin-top:2px;">${esc(when)}</div>
+${m.host_name ? `<div style="font-size:14px;color:${MUTED};margin-top:2px;">Hosted by ${esc(m.host_name)}</div>` : ''}
 ${agenda ? `<div style="font-size:14px;margin-top:12px;"><div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:${MUTED};margin-bottom:4px;">Agenda</div>${esc(agenda).replace(/\n/g, '<br>')}</div>` : ''}
 <div style="margin-top:14px;">${m.doc_url ? `${button(m.doc_url, 'Open the meeting doc')}&nbsp; ` : ''}${button(url, 'Meeting page', !m.doc_url)}</div>
 </td></tr></table>`;
 	const text =
-		`Hi ${first},\n\n${intro}${repeats}\n\n${m.title}\n${when}` +
+		`Hi ${first},\n\n${intro}${repeats}\n\n${m.title}\n${when}${m.host_name ? `\nHosted by ${m.host_name}` : ''}` +
 		(agenda ? `\n\nAgenda\n${agenda}` : '') +
 		(m.doc_url ? `\n\nMeeting doc: ${m.doc_url}` : '') +
 		`\nMeeting page: ${url}`;
 	const to = m.kind === 'event' ? 'everyone in the club' : `everyone on ${esc(teams)}`;
 	const at = `${day}${m.time ? `, ${formatTimeRange(m.time, m.end_time)}` : ''}`;
 	return {
-		subject: opts.added ? `Added: ${m.title}, ${at}` : opts.changed ? `Updated: ${m.title}, ${at}` : opts.announce ? `New ${m.kind === 'event' ? 'club event' : 'meeting'}: ${m.title}, ${at}` : `${day}: ${m.title}${m.time ? `, ${formatTimeRange(m.time, m.end_time)}` : ''}`,
+		subject: opts.hosting ? `You’re hosting: ${m.title}, ${at}` : opts.added ? `Added: ${m.title}, ${at}` : opts.changed ? `Updated: ${m.title}, ${at}` : opts.announce ? `New ${m.kind === 'event' ? 'club event' : 'meeting'}: ${m.title}, ${at}` : `${day}: ${m.title}${m.time ? `, ${formatTimeRange(m.time, m.end_time)}` : ''}`,
 		text,
 		html: layout(html, `Sent by the club hub at <a href="${esc(appUrl)}" style="color:${MUTED};">${esc(appUrl.replace(/^https?:\/\//, ''))}</a> to ${to}. Questions? Reply to this email.`)
 	};
 }
 
 /** Sent to everyone on a meeting when it's canceled; `later` are the dates of later ones in its series canceled with it. */
-export function canceledEmail(m: EmailMeeting, today: string, appUrl: string, later: string[] = []) {
+export function canceledEmail(m: EmailMeeting, today: string, appUrl: string, later: string[] = [], why: { reason: string; by: string } = { reason: '', by: '' }) {
 	const day = m.date === today ? 'Today' : m.date === addDays(today, 1) ? 'Tomorrow' : formatDate(m.date, today);
 	const at = `${day}${m.time ? `, ${formatTimeRange(m.time, m.end_time)}` : ''}`;
 	const which = m.kind === 'event' ? 'The club event' : `The ${andList(m.team_names)} meeting`;
@@ -325,8 +329,8 @@ export function canceledEmail(m: EmailMeeting, today: string, appUrl: string, la
 	const what = [m.title, m.location].filter(Boolean).join(' · ');
 	return {
 		subject: `Canceled: ${m.title}, ${at}${later.length ? ` and ${later.length === 1 ? 'the next one' : `the ${later.length} after it`}` : ''}`,
-		text: `Hi everyone,\n\n${line}\n\n${what}`,
-		html: layout(p('Hi everyone,') + p(esc(line)) + p(`<span style="color:${MUTED};">${esc(what)}</span>`), `Sent by the club hub at <a href="${esc(appUrl)}" style="color:${MUTED};">${esc(appUrl.replace(/^https?:\/\//, ''))}</a>. Questions? Reply to this email.`)
+		text: `Hi everyone,\n\n${line}\n\nReason: ${why.reason}${why.by ? `\n— ${why.by}` : ''}\n\n${what}`,
+		html: layout(p('Hi everyone,') + p(esc(line)) + p(`<b>Reason:</b> ${esc(why.reason)}${why.by ? `<br><span style="color:${MUTED};">— ${esc(why.by)}</span>` : ''}`) + p(`<span style="color:${MUTED};">${esc(what)}</span>`), `Sent by the club hub at <a href="${esc(appUrl)}" style="color:${MUTED};">${esc(appUrl.replace(/^https?:\/\//, ''))}</a>. Questions? Reply to this email.`)
 	};
 }
 

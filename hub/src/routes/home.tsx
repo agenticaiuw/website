@@ -25,6 +25,7 @@ export function MeetingList({ meetings, today }: { meetings: MeetingRow[]; today
 								{m.kind === 'event' ? 'Club event' : teamNames(m)}
 								{m.time && ` · ${formatTimeRange(m.time, m.end_time)}`}
 								{m.location && ` · ${m.location}`}
+								{m.host_name && ` · Host: ${m.host_name}`}
 							</span>
 						</span>
 					</a>

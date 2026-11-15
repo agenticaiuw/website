@@ -4,7 +4,7 @@ import { activeMembers, all, first, MEETING_EXPECTED, MEETING_TEAMS_JSON, MEETIN
 import { meetingEmail } from '../emails';
 import { id, isHttpUrl, list, readForm, str } from '../form';
 import { canAssign, canEditMeeting, canSeeMeeting, isExec, teamsFor } from '../perm';
-import { announceCanceled, announceMeeting, emailMeeting, meetingPeople, notifyAssigned } from '../reminders';
+import { announceCanceled, announceMeeting, emailMeeting, meetingPeople, notifyAssigned, notifyHost } from '../reminders';
 import { meetingReminderAt } from '../schedule';
 import type { AppEnv, AttendanceStatus, Member, MeetingKind, MeetingRow, TaskRow, Viewer } from '../types';
 import { page } from '../views/layout';
@@ -24,7 +24,7 @@ const STATUSES: [AttendanceStatus, string][] = [
 type MeetingListRow = MeetingRow & { present: number; marked: number; actions: number; open_actions: number };
 
 const LIST_SELECT = `
-	SELECT m.*, tm.name AS team_name, tm.kind AS team_kind, ${MEETING_TEAMS_JSON},
+	SELECT m.*, tm.name AS team_name, tm.kind AS team_kind, (SELECT name FROM members WHERE id = m.host_id) AS host_name, ${MEETING_TEAMS_JSON},
 		(SELECT COUNT(*) FROM attendance x WHERE x.meeting_id = m.id AND x.status IN ('present', 'late')) AS present,
 		(SELECT COUNT(*) FROM attendance x WHERE x.meeting_id = m.id) AS marked,
 		(SELECT COUNT(*) FROM tasks t WHERE t.meeting_id = m.id) AS actions,
@@ -181,6 +181,9 @@ function MeetingForm({ v, teamList, people, picked, teamsOf, m, kind, action, to
 			<Field label="Title" wide>
 				<input name="title" required maxlength={200} value={m?.title ?? ''} placeholder={kind === 'event' ? 'e.g. General meeting' : 'e.g. Weekly standup'} />
 			</Field>
+			<Field label="Host" hint="Who’s responsible for running it. They’re emailed when it’s set.">
+				<MemberSelect name="host" members={people} selected={m ? m.host_id : v.id} blank="No host yet" />
+			</Field>
 			<Field label="Date">
 				<input type="date" name="date" required value={m?.date ?? today} />
 			</Field>
@@ -239,6 +242,11 @@ function MeetingForm({ v, teamList, people, picked, teamsOf, m, kind, action, to
 						: 'One email to everyone ticked above (the whole club for a club event). The usual reminder still goes out before it.'}
 				</span>
 			</div>
+			{m && m.date >= today && (isExec(v) || m.created_by === v.id) && (
+				<Field label="Reason, if you cancel" hint="Needed to cancel. It goes in the email to everyone." wide>
+					<input name="reason" maxlength={300} placeholder="e.g. Room’s booked; we’ll meet Monday instead" />
+				</Field>
+			)}
 			<div class="form-actions wide">
 				<button class="btn primary">{m ? 'Save' : 'Create'}</button>
 				<a class="btn ghost" href={m ? `/meetings/${m.id}` : '/meetings'}>
@@ -248,12 +256,12 @@ function MeetingForm({ v, teamList, people, picked, teamsOf, m, kind, action, to
 					<>
 						<span class="spacer"></span>
 						{later > 0 && (
-							<button class="btn danger" formaction={`/meetings/${m.id}/delete?following=1`} formnovalidate data-confirm={`Cancel this and the ${later} after it? Everyone on them is emailed, and their pages and attendance are deleted. Action items stay as tasks.`}>
+							<button class="btn danger" formaction={`/meetings/${m.id}/delete?following=1`} formnovalidate data-needs="reason" data-confirm={`Cancel this and the ${later} after it? Everyone on them is emailed, and their pages and attendance are deleted. Action items stay as tasks.`}>
 								Cancel this and later
 							</button>
 						)}
 						{m.date >= today ? (
-							<button class="btn danger" formaction={`/meetings/${m.id}/delete`} formnovalidate data-confirm="Cancel this meeting? Everyone on it is emailed, and its page and attendance are deleted. Action items stay as tasks.">
+							<button class="btn danger" formaction={`/meetings/${m.id}/delete`} formnovalidate data-needs="reason" data-confirm="Cancel this meeting? Everyone on it is emailed, and its page and attendance are deleted. Action items stay as tasks.">
 								Cancel meeting
 							</button>
 						) : (
@@ -288,6 +296,7 @@ function readMeeting(form: Record<string, unknown>) {
 		docUrl: docUrl && isHttpUrl(docUrl) ? docUrl : '',
 		agenda: str(form.agenda, 50_000),
 		notes: str(form.notes, 100_000),
+		host: id(form.host),
 		people: [...new Set(list(form.person).map(Number))].filter((n) => Number.isInteger(n) && n > 0),
 		// Set by app.js once team chips tick their people, so unticked team members can be skipped.
 		synced: str(form.people_synced) === '1'
@@ -412,8 +421,8 @@ meetingRoutes.post('/meetings', async (c) => {
 	const who = await invitesAndSkips(db, m, m.teamIds);
 	const insert = (date: string, notes: string, seriesId: number | null) =>
 		db
-			.prepare('INSERT INTO meetings (team_id, kind, series_id, title, date, time, end_time, location, doc_url, agenda, notes, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-			.bind(teamId, m.kind, seriesId, m.title, date, m.time, m.endTime, m.location, m.docUrl, m.agenda, notes, v.id);
+			.prepare('INSERT INTO meetings (team_id, kind, series_id, title, date, time, end_time, location, doc_url, agenda, notes, created_by, host_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+			.bind(teamId, m.kind, seriesId, m.title, date, m.time, m.endTime, m.location, m.docUrl, m.agenda, notes, v.id, m.host);
 	const firstId = Number((await insert(m.date, m.notes, null).run()).meta.last_row_id);
 	const created = 'SELECT id FROM meetings WHERE id = ?1 OR series_id = ?1';
 	await db.batch([
@@ -423,6 +432,8 @@ meetingRoutes.post('/meetings', async (c) => {
 		...setWho(db, who, created, firstId)
 	]);
 	const ok = dates.length > 1 ? 'scheduled' : 'created';
+	const made = await meetingById(db, firstId);
+	if (made) await notifyHost(c.env, made, v.id);
 	if (str(form.notify) !== '1') return c.redirect(`/meetings/${firstId}?ok=${ok}`);
 
 	const meeting = await meetingById(db, firstId);
@@ -519,8 +530,8 @@ meetingRoutes.post('/meetings/:id', async (c) => {
 	const wasOn = new Set((await meetingPeople(db, existing)).map((p) => p.id));
 	const stmts = [
 		db
-			.prepare('UPDATE meetings SET kind = ?, team_id = ?, title = ?, date = ?, time = ?, end_time = ?, location = ?, doc_url = ?, agenda = ?, notes = ?, updated_at = ? WHERE id = ?')
-			.bind(m.kind, teamId, m.title, m.date, m.time, m.endTime, m.location, m.docUrl, m.agenda, m.notes, now, existing.id),
+			.prepare('UPDATE meetings SET kind = ?, team_id = ?, title = ?, date = ?, time = ?, end_time = ?, location = ?, doc_url = ?, agenda = ?, notes = ?, host_id = ?, updated_at = ? WHERE id = ?')
+			.bind(m.kind, teamId, m.title, m.date, m.time, m.endTime, m.location, m.docUrl, m.agenda, m.notes, m.host, now, existing.id),
 		...setTeams(db, m.teamIds, '?1', existing.id),
 		...setWho(db, who, '?1', existing.id)
 	];
@@ -539,13 +550,13 @@ meetingRoutes.post('/meetings/:id', async (c) => {
 		dates = repeatDates(m.date, every || cadence(existing.date, later), until).slice(1);
 		const seriesId = existing.series_id ?? existing.id;
 		if (!existing.series_id) stmts.push(db.prepare('UPDATE meetings SET series_id = ?1 WHERE id = ?1').bind(existing.id));
-		const update = db.prepare('UPDATE meetings SET kind = ?, team_id = ?, title = ?, date = ?, time = ?, end_time = ?, location = ?, doc_url = ?, updated_at = ? WHERE id = ?');
+		const update = db.prepare('UPDATE meetings SET kind = ?, team_id = ?, title = ?, date = ?, time = ?, end_time = ?, location = ?, doc_url = ?, host_id = ?, updated_at = ? WHERE id = ?');
 		later.forEach((o, i) => {
-			if (i < dates.length) stmts.push(update.bind(m.kind, teamId, m.title, dates[i], m.time, m.endTime, m.location, m.docUrl, now, o.id));
+			if (i < dates.length) stmts.push(update.bind(m.kind, teamId, m.title, dates[i], m.time, m.endTime, m.location, m.docUrl, m.host, now, o.id));
 			else stmts.push(db.prepare('DELETE FROM meetings WHERE id = ?').bind(o.id));
 		});
-		const insert = db.prepare('INSERT INTO meetings (team_id, kind, series_id, title, date, time, end_time, location, doc_url, agenda, notes, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-		for (const d of dates.slice(later.length)) stmts.push(insert.bind(teamId, m.kind, seriesId, m.title, d, m.time, m.endTime, m.location, m.docUrl, m.agenda, '', v.id));
+		const insert = db.prepare('INSERT INTO meetings (team_id, kind, series_id, title, date, time, end_time, location, doc_url, agenda, notes, created_by, host_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+		for (const d of dates.slice(later.length)) stmts.push(insert.bind(teamId, m.kind, seriesId, m.title, d, m.time, m.endTime, m.location, m.docUrl, m.agenda, '', v.id, m.host));
 		// Teams and people for every later one, old and new, once they're all in place.
 		await db.batch(stmts);
 		stmts.length = 0;
@@ -553,9 +564,9 @@ meetingRoutes.post('/meetings/:id', async (c) => {
 		stmts.push(...setTeams(db, m.teamIds, ...rest), ...setWho(db, who, ...rest));
 	}
 	await db.batch(stmts);
-	if (str(form.notify) !== '1') return c.redirect(`/meetings/${existing.id}?ok=saved`);
 	const meeting = await meetingById(db, existing.id);
-	if (!meeting) return c.redirect(`/meetings/${existing.id}?ok=saved`);
+	if (meeting && m.host !== existing.host_id) await notifyHost(c.env, meeting, v.id);
+	if (str(form.notify) !== '1' || !meeting) return c.redirect(`/meetings/${existing.id}?ok=saved`);
 	// A new date, time, place or series goes to everyone on it; otherwise only people just added hear about it.
 	const moved = m.date !== existing.date || m.time !== existing.time || m.endTime !== existing.end_time || m.location !== existing.location || (scope && dates.length > 0 && !later.length);
 	const reDated = scope && later.length > 0 && (dates.length !== later.length || dates.some((d, i) => d !== later[i].date));
@@ -579,15 +590,17 @@ meetingRoutes.post('/meetings/:id/delete', async (c) => {
 	const today = todayIn(c.env.TIMEZONE);
 	const following = c.req.query('following') === '1' && !!m.series_id;
 	const later = following ? await laterInSeries(db, m) : [];
-	// Everyone on any of the upcoming ones hears about it, once.
+	// Everyone on any of the upcoming ones hears about it, once, with the reason.
 	const upcoming = [{ id: m.id, date: m.date }, ...later].filter((x) => x.date >= today);
+	const reason = str((await readForm(c)).reason, 300);
+	if (upcoming.length && !reason) return c.redirect(`/meetings/${m.id}/edit?error=reason`);
 	const people = new Map<number, Member>();
 	for (const x of upcoming) for (const p of await meetingPeople(db, { id: x.id, kind: m.kind })) people.set(p.id, p);
 	const stmts = [db.prepare('DELETE FROM meetings WHERE id = ?').bind(m.id)];
 	if (following) stmts.push(db.prepare(`DELETE ${LATER_IN_SERIES}`).bind(m.series_id, m.date, m.team_id));
 	await db.batch(stmts);
 	if (!upcoming.length) return c.redirect('/meetings?ok=deleted');
-	const result = await announceCanceled(c.env, { ...m, date: upcoming[0].date }, [...people.values()], upcoming.slice(1).map((x) => x.date));
+	const result = await announceCanceled(c.env, { ...m, date: upcoming[0].date }, [...people.values()], upcoming.slice(1).map((x) => x.date), { reason, by: v.name });
 	return c.redirect(`/meetings?${result.error ? 'error=unsent' : result.sent ? 'ok=canceled' : 'ok=deleted'}`);
 });
 
@@ -700,6 +713,7 @@ meetingRoutes.get('/meetings/:id', async (c) => {
 						{formatDate(m.date, today)}
 						{m.time && `, ${formatTimeRange(m.time, m.end_time)}`}
 						{m.location && ` · ${m.location}`}
+						{` · ${m.host_name ? `Hosted by ${m.host_name}` : 'No host yet'}`}
 						{m.doc_url && (
 							<>
 								{' · '}

@@ -31,6 +31,7 @@ const FLASH: Record<string, string> = {
 };
 
 const ERRORS: Record<string, string> = {
+	reason: 'Add a reason for canceling. It goes in the email to everyone.',
 	missing: 'Fill in the required fields.',
 	team: 'Pick at least one team, or Whole club.',
 	date: 'Use a valid date.',
