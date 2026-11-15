@@ -242,10 +242,13 @@ function MeetingForm({ v, teamList, people, picked, teamsOf, m, kind, action, to
 						: 'One email to everyone ticked above (the whole club for a club event). The usual reminder still goes out before it.'}
 				</span>
 			</div>
-			{m && m.date >= today && (isExec(v) || m.created_by === v.id) && (
-				<Field label="Reason, if you cancel" hint="Needed to cancel. It goes in the email to everyone." wide>
-					<input name="reason" maxlength={300} placeholder="e.g. Room’s booked; we’ll meet Monday instead" />
-				</Field>
+			{m && m.date >= today && (
+				// Hidden until it's needed: app.js shows it on Cancel or a new date or time.
+				<label class="field wide" data-reason hidden>
+					<span class="label">Reason</span>
+					<input name="reason" maxlength={300} placeholder="e.g. Room’s booked, so we’re meeting Monday instead" />
+					<span class="hint">It goes in the email to everyone.</span>
+				</label>
 			)}
 			<div class="form-actions wide">
 				<button class="btn primary">{m ? 'Save' : 'Create'}</button>
@@ -521,6 +524,10 @@ meetingRoutes.post('/meetings/:id', async (c) => {
 	if (!teamId) return c.redirect(`/meetings/${existing.id}/edit?error=team`);
 	if (!isDate(m.date)) return c.redirect(`/meetings/${existing.id}/edit?error=date`);
 	if (m.badTime) return c.redirect(`/meetings/${existing.id}/edit?error=time`);
+	// A new date or time for an upcoming meeting needs a reason, which goes in the email.
+	const retimed = m.date !== existing.date || m.time !== existing.time || m.endTime !== existing.end_time;
+	const reason = str(form.reason, 300);
+	if (retimed && existing.date >= todayIn(c.env.TIMEZONE) && !reason) return c.redirect(`/meetings/${existing.id}/edit?error=reason-change`);
 	// Leads can add only teams they lead; teams already on it can stay.
 	const before = new Set(meetingTeams(existing).map((t) => t.id));
 	if (!isExec(v) && m.teamIds.some((t) => !before.has(t) && !v.leadOf.has(t))) return c.redirect(`/meetings/${existing.id}/edit?error=forbidden`);
@@ -573,7 +580,7 @@ meetingRoutes.post('/meetings/:id', async (c) => {
 	const added = (await meetingPeople(db, meeting)).map((p) => p.id).filter((p) => !wasOn.has(p));
 	const today = todayIn(c.env.TIMEZONE);
 	const repeats = scope && dates.length ? `It repeats every ${(every || cadence(existing.date, later)) === 14 ? '2 weeks' : 'week'} until ${formatDate(dates[dates.length - 1], today)}.` : undefined;
-	const result = moved || reDated ? await announceMeeting(c.env, meeting, { mode: 'changed', repeats }) : added.length ? await announceMeeting(c.env, meeting, { mode: 'added', repeats, only: added }) : { sent: 0, error: '' };
+	const result = moved || reDated ? await announceMeeting(c.env, meeting, { mode: 'changed', repeats, why: reason ? { reason, by: v.name } : undefined }) : added.length ? await announceMeeting(c.env, meeting, { mode: 'added', repeats, only: added }) : { sent: 0, error: '' };
 	if (result.error) return c.redirect(`/meetings/${existing.id}?error=unsent`);
 	return c.redirect(`/meetings/${existing.id}?ok=${result.sent ? 'saved-emailed' : 'saved'}`);
 });

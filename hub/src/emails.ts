@@ -270,7 +270,7 @@ type EmailMeeting = {
  * everyone, for one email to the whole list. `announce`: sent as soon as it's scheduled, instead of
  * as the reminder before it; `repeats` then says how often it happens.
  */
-export function meetingEmail(name: string | null, m: EmailMeeting, today: string, appUrl: string, opts: { announce?: boolean; changed?: boolean; added?: boolean; hosting?: boolean; repeats?: string } = {}) {
+export function meetingEmail(name: string | null, m: EmailMeeting, today: string, appUrl: string, opts: { announce?: boolean; changed?: boolean; added?: boolean; hosting?: boolean; repeats?: string; why?: { reason: string; by: string } } = {}) {
 	const first = name ? name.split(' ')[0] : 'everyone';
 	const day = m.date === today ? 'Today' : m.date === addDays(today, 1) ? 'Tomorrow' : formatDate(m.date, today);
 	const on = m.date === today || m.date === addDays(today, 1) ? day.toLowerCase() : `on ${day}`;
@@ -295,6 +295,7 @@ export function meetingEmail(name: string | null, m: EmailMeeting, today: string
 	const html =
 		p(`Hi ${esc(first)},`) +
 		p(esc(intro + repeats)) +
+		(opts.why ? p(`<b>Reason:</b> ${esc(opts.why.reason)}${opts.why.by ? `<br><span style="color:${MUTED};">— ${esc(opts.why.by)}</span>` : ''}`) : '') +
 		`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${LINE};border-radius:10px;margin:0 0 10px;">
 <tr><td style="padding:14px 16px;">
 <div style="font-weight:600;font-size:16px;"><a href="${esc(url)}" style="color:${INK};text-decoration:none;">${esc(m.title)}</a></div>
@@ -304,7 +305,7 @@ ${agenda ? `<div style="font-size:14px;margin-top:12px;"><div style="font-size:1
 <div style="margin-top:14px;">${m.doc_url ? `${button(m.doc_url, 'Open the meeting doc')}&nbsp; ` : ''}${button(url, 'Meeting page', !m.doc_url)}</div>
 </td></tr></table>`;
 	const text =
-		`Hi ${first},\n\n${intro}${repeats}\n\n${m.title}\n${when}${m.host_name ? `\nHosted by ${m.host_name}` : ''}` +
+		`Hi ${first},\n\n${intro}${repeats}${opts.why ? `\n\nReason: ${opts.why.reason}${opts.why.by ? `\n— ${opts.why.by}` : ''}` : ''}\n\n${m.title}\n${when}${m.host_name ? `\nHosted by ${m.host_name}` : ''}` +
 		(agenda ? `\n\nAgenda\n${agenda}` : '') +
 		(m.doc_url ? `\n\nMeeting doc: ${m.doc_url}` : '') +
 		`\nMeeting page: ${url}`;

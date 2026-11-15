@@ -1,5 +1,24 @@
 // Small progressive enhancements. Every page works without this file.
 
+// A meeting's reason box stays hidden until it's needed: on Cancel, or when the date or time changes.
+const reasonBox = document.querySelector('[data-reason]');
+const showReason = (why) => {
+	reasonBox.querySelector('.label').textContent = why;
+	reasonBox.hidden = false;
+};
+if (reasonBox) {
+	const form = reasonBox.closest('form');
+	const input = reasonBox.querySelector('input');
+	const timing = ['date', 'time', 'end_time'].map((n) => form.elements[n]).filter(Boolean);
+	const was = timing.map((el) => el.value);
+	form.addEventListener('change', (e) => {
+		if (!timing.includes(e.target)) return;
+		input.required = timing.some((el, i) => el.value !== was[i]);
+		if (input.required) showReason('Reason for the new date or time');
+		else if (!input.value.trim()) reasonBox.hidden = true;
+	});
+}
+
 // Buttons that need a field filled in first: <button data-needs="reason"> (canceling a meeting).
 document.addEventListener('submit', (e) => {
 	const needs = e.submitter?.dataset.needs;
@@ -7,6 +26,7 @@ document.addEventListener('submit', (e) => {
 	if (!field || field.value.trim()) return;
 	e.preventDefault();
 	e.stopImmediatePropagation();
+	if (reasonBox?.contains(field)) showReason('Reason for canceling');
 	field.required = true;
 	field.reportValidity();
 	field.focus();

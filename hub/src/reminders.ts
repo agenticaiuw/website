@@ -183,11 +183,11 @@ export const emailMeeting = (m: MeetingRow) => ({ ...m, team_names: meetingTeams
  * One BCC email about a meeting: `new` when it's scheduled, `changed` when its date, time or place
  * moves, `added` to people newly put on it. `only` limits it to those people (default: everyone on it).
  */
-export async function announceMeeting(env: Env, m: MeetingRow, opts: { mode?: 'new' | 'changed' | 'added'; repeats?: string; only?: number[] } = {}) {
+export async function announceMeeting(env: Env, m: MeetingRow, opts: { mode?: 'new' | 'changed' | 'added'; repeats?: string; only?: number[]; why?: { reason: string; by: string } } = {}) {
 	const mode = opts.mode ?? 'new';
 	const people = (await meetingPeople(env.DB, m)).filter((p) => !opts.only || opts.only.includes(p.id));
 	if (!people.length) return { sent: 0, error: '' };
-	const msg = meetingEmail(null, emailMeeting(m), todayIn(env.TIMEZONE), env.APP_URL, { announce: true, changed: mode === 'changed', added: mode === 'added', repeats: opts.repeats });
+	const msg = meetingEmail(null, emailMeeting(m), todayIn(env.TIMEZONE), env.APP_URL, { announce: true, changed: mode === 'changed', added: mode === 'added', repeats: opts.repeats, why: opts.why });
 	const res = await sendMail(env, {
 		to: { name: env.MAIL_FROM_NAME, email: env.MAIL_FROM },
 		bcc: people.map((p) => ({ name: p.name, email: p.email })),
