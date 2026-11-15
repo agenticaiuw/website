@@ -4,11 +4,11 @@ import { activeMembers, all, first, MEETING_EXPECTED, MEETING_TEAMS_JSON, MEETIN
 import { meetingEmail } from '../emails';
 import { id, isHttpUrl, list, readForm, str } from '../form';
 import { canAssign, canEditMeeting, canSeeMeeting, isExec, teamsFor } from '../perm';
-import { announceMeeting, emailMeeting, meetingPeople, notifyAssigned } from '../reminders';
+import { announceCanceled, announceMeeting, emailMeeting, meetingPeople, notifyAssigned } from '../reminders';
 import { meetingReminderAt } from '../schedule';
 import type { AppEnv, AttendanceStatus, Member, MeetingKind, MeetingRow, TaskRow, Viewer } from '../types';
 import { page } from '../views/layout';
-import { Choice, Empty, Field, Markdown, MemberSelect, PageHead, PeoplePicker, Tabs, TaskList } from '../views/ui';
+import { Choice, Empty, Field, Markdown, MemberSelect, PageHead, PeoplePicker, PostButton, Tabs, TaskList } from '../views/ui';
 import { FormSection, formForMeeting } from './forms';
 import { createTasks } from './tasks';
 
@@ -242,19 +242,25 @@ function MeetingForm({ v, teamList, people, picked, teamsOf, m, kind, action, to
 			<div class="form-actions wide">
 				<button class="btn primary">{m ? 'Save' : 'Create'}</button>
 				<a class="btn ghost" href={m ? `/meetings/${m.id}` : '/meetings'}>
-					Cancel
+					Back
 				</a>
 				{m && (isExec(v) || m.created_by === v.id) && (
 					<>
 						<span class="spacer"></span>
 						{later > 0 && (
-							<button class="btn danger" formaction={`/meetings/${m.id}/delete?following=1`} data-confirm={`Delete this and the ${later} after it, with their attendance? Their action items stay as tasks.`}>
-								Delete this and later
+							<button class="btn danger" formaction={`/meetings/${m.id}/delete?following=1`} formnovalidate data-confirm={`Cancel this and the ${later} after it? Everyone on them is emailed, and their pages and attendance are deleted. Action items stay as tasks.`}>
+								Cancel this and later
 							</button>
 						)}
-						<button class="btn danger" formaction={`/meetings/${m.id}/delete`} data-confirm="Delete this and its attendance? Its action items stay as tasks.">
-							Delete
-						</button>
+						{m.date >= today ? (
+							<button class="btn danger" formaction={`/meetings/${m.id}/delete`} formnovalidate data-confirm="Cancel this meeting? Everyone on it is emailed, and its page and attendance are deleted. Action items stay as tasks.">
+								Cancel meeting
+							</button>
+						) : (
+							<button class="btn danger" formaction={`/meetings/${m.id}/delete`} formnovalidate data-confirm="Delete this past meeting and its attendance? No one is emailed. Action items stay as tasks.">
+								Delete
+							</button>
+						)}
 					</>
 				)}
 			</div>
@@ -561,15 +567,28 @@ meetingRoutes.post('/meetings/:id', async (c) => {
 	return c.redirect(`/meetings/${existing.id}?ok=${result.sent ? 'saved-emailed' : 'saved'}`);
 });
 
+/**
+ * Cancels a meeting (or it and the rest of its series): everyone on the upcoming ones is emailed,
+ * then they're deleted. Past ones are just deleted.
+ */
 meetingRoutes.post('/meetings/:id/delete', async (c) => {
 	const v = c.get('viewer');
 	const m = await loadMeeting(c, v, c.req.param('id'));
 	if (!m || !(isExec(v) || m.created_by === v.id)) return c.notFound();
 	const db = c.env.DB;
+	const today = todayIn(c.env.TIMEZONE);
+	const following = c.req.query('following') === '1' && !!m.series_id;
+	const later = following ? await laterInSeries(db, m) : [];
+	// Everyone on any of the upcoming ones hears about it, once.
+	const upcoming = [{ id: m.id, date: m.date }, ...later].filter((x) => x.date >= today);
+	const people = new Map<number, Member>();
+	for (const x of upcoming) for (const p of await meetingPeople(db, { id: x.id, kind: m.kind })) people.set(p.id, p);
 	const stmts = [db.prepare('DELETE FROM meetings WHERE id = ?').bind(m.id)];
-	if (c.req.query('following') === '1' && m.series_id) stmts.push(db.prepare(`DELETE ${LATER_IN_SERIES}`).bind(m.series_id, m.date, m.team_id));
+	if (following) stmts.push(db.prepare(`DELETE ${LATER_IN_SERIES}`).bind(m.series_id, m.date, m.team_id));
 	await db.batch(stmts);
-	return c.redirect('/meetings?ok=deleted');
+	if (!upcoming.length) return c.redirect('/meetings?ok=deleted');
+	const result = await announceCanceled(c.env, { ...m, date: upcoming[0].date }, [...people.values()], upcoming.slice(1).map((x) => x.date));
+	return c.redirect(`/meetings?${result.error ? 'error=unsent' : result.sent ? 'ok=canceled' : 'ok=deleted'}`);
 });
 
 // ---------- the meeting record ----------
@@ -626,6 +645,18 @@ function WhoCame({ m, came, people }: { m: MeetingRow; came: Member[]; people: M
 	);
 }
 
+/** Emails everyone on an upcoming meeting about it, with how it repeats if it's part of a series. */
+meetingRoutes.post('/meetings/:id/announce', async (c) => {
+	const v = c.get('viewer');
+	const m = await loadMeeting(c, v, c.req.param('id'));
+	if (!m || !canEditMeeting(v, m)) return c.notFound();
+	const later = await laterInSeries(c.env.DB, m);
+	const today = todayIn(c.env.TIMEZONE);
+	const repeats = later.length ? `It repeats every ${cadence(m.date, later) === 14 ? '2 weeks' : 'week'} until ${formatDate(later[later.length - 1].date, today)}.` : undefined;
+	const result = await announceMeeting(c.env, m, { repeats });
+	return c.redirect(`/meetings/${m.id}?${result.error ? 'error=unsent' : 'ok=announced'}`);
+});
+
 /** The reminder email as the viewer would get it. */
 meetingRoutes.get('/meetings/:id/reminder', async (c) => {
 	const v = c.get('viewer');
@@ -655,6 +686,7 @@ meetingRoutes.get('/meetings/:id', async (c) => {
 	const others = people.filter((p) => !roster.some((r) => r.id === p.id));
 	const defaultDue = addDays(m.date > today ? m.date : today, 7);
 	const joint = m.kind === 'meeting' && meetingTeams(m).length > 1;
+	const seriesLeft = editable ? (await laterInSeries(c.env.DB, m)).length : 0;
 
 	return page(
 		c,
@@ -680,9 +712,12 @@ meetingRoutes.get('/meetings/:id', async (c) => {
 				}
 				actions={
 					editable && (
-						<a class="btn" href={`/meetings/${m.id}/edit`}>
-							Edit
-						</a>
+						<>
+							{m.date >= today && <PostButton action={`/meetings/${m.id}/announce`} label="Email everyone" confirm={`Email everyone on it (${toRemind.length} ${toRemind.length === 1 ? 'person' : 'people'}) about this meeting${seriesLeft ? ' and its repeats' : ''} now?`} />}
+							<a class="btn" href={`/meetings/${m.id}/edit`}>
+								Edit
+							</a>
+						</>
 					)
 				}
 			/>

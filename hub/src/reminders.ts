@@ -1,7 +1,7 @@
 import { signDoneLink } from './auth';
 import { addDays, daysBetween, hourIn, todayIn, weekday } from './dates';
 import { all, first, getMeta, logTask, MEETING_EXPECTED, MEETING_SELECT, MEETING_TEAMS_JSON, meetingTeams, setMeta, TASK_SELECT, teamNames } from './db';
-import { assignedEmail, digestEmail, dueChangedEmail, taskNoticeEmail, meetingEmail, reminderEmail, urgentEmail, type DigestData, type EmailTask, type ReminderGroups } from './emails';
+import { assignedEmail, canceledEmail, digestEmail, dueChangedEmail, taskNoticeEmail, meetingEmail, reminderEmail, urgentEmail, type DigestData, type EmailTask, type ReminderGroups } from './emails';
 import { sendMail, sendMails } from './mail';
 import { EVENING_HOUR, meetingReminderAt, reminderFor, SEND_HOUR, shouldEscalate, SOON_DAYS, urgentReminderFor, type ReminderKind } from './schedule';
 import type { Env, Member, MeetingRow, TaskRow } from './types';
@@ -180,10 +180,6 @@ export function meetingPeople(db: D1Database, m: Pick<MeetingRow, 'id' | 'kind'>
 export const emailMeeting = (m: MeetingRow) => ({ ...m, team_names: meetingTeams(m).map((t) => t.name) });
 
 /**
- * Emails everyone a just-scheduled meeting is for (except `skipId`, who made it) right away. One
- * email with everyone in bcc, so even the whole club goes out in a few seconds.
- */
-/**
  * One BCC email about a meeting: `new` when it's scheduled, `changed` when its date, time or place
  * moves, `added` to people newly put on it. `only` limits it to those people (default: everyone on it).
  */
@@ -312,4 +308,16 @@ export async function notifyTaskEnded(env: Env, changer: { id: number; name: str
 		if (how === 'dropped') await logTask(env.DB, t.id, null, 'notified', res.ok ? `Drop emailed to ${t.assignee_name}` : `Drop email failed: ${res.error}`).run();
 	}
 	return sent;
+}
+
+/** One BCC email to `people` saying the meeting (and `later` dates of its series) is canceled. */
+export async function announceCanceled(env: Env, m: MeetingRow, people: Member[], later: string[] = []) {
+	if (!people.length) return { sent: 0, error: '' };
+	const res = await sendMail(env, {
+		to: { name: env.MAIL_FROM_NAME, email: env.MAIL_FROM },
+		bcc: people.map((p) => ({ name: p.name, email: p.email })),
+		kind: 'meeting-canceled',
+		...canceledEmail(emailMeeting(m), todayIn(env.TIMEZONE), env.APP_URL, later)
+	});
+	return res.ok ? { sent: people.length, error: '' } : { sent: 0, error: res.error ?? 'failed' };
 }

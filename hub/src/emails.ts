@@ -313,6 +313,23 @@ ${agenda ? `<div style="font-size:14px;margin-top:12px;"><div style="font-size:1
 	};
 }
 
+/** Sent to everyone on a meeting when it's canceled; `later` are the dates of later ones in its series canceled with it. */
+export function canceledEmail(m: EmailMeeting, today: string, appUrl: string, later: string[] = []) {
+	const day = m.date === today ? 'Today' : m.date === addDays(today, 1) ? 'Tomorrow' : formatDate(m.date, today);
+	const at = `${day}${m.time ? `, ${formatTimeRange(m.time, m.end_time)}` : ''}`;
+	const which = m.kind === 'event' ? 'The club event' : `The ${andList(m.team_names)} meeting`;
+	const on = m.date === today || m.date === addDays(today, 1) ? day.toLowerCase() : `on ${day}`;
+	const last = later.length ? formatDate(later[later.length - 1], today) : '';
+	const rest = later.length === 1 ? ` So is the next one, on ${last}.` : later.length ? ` So are the ${later.length} after it, through ${last}.` : '';
+	const line = `${which} ${on}${m.time ? ` (${formatTimeRange(m.time, m.end_time)})` : ''} is canceled.${rest}`;
+	const what = [m.title, m.location].filter(Boolean).join(' · ');
+	return {
+		subject: `Canceled: ${m.title}, ${at}${later.length ? ` and ${later.length === 1 ? 'the next one' : `the ${later.length} after it`}` : ''}`,
+		text: `Hi everyone,\n\n${line}\n\n${what}`,
+		html: layout(p('Hi everyone,') + p(esc(line)) + p(`<span style="color:${MUTED};">${esc(what)}</span>`), `Sent by the club hub at <a href="${esc(appUrl)}" style="color:${MUTED};">${esc(appUrl.replace(/^https?:\/\//, ''))}</a>. Questions? Reply to this email.`)
+	};
+}
+
 export function testEmail(name: string, appUrl: string) {
 	return {
 		subject: 'Test email from the Agentic AI UW Hub',

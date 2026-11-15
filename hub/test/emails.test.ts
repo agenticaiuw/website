@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { andList, assignedEmail, dueChangedEmail, meetingEmail } from '../src/emails.ts';
+import { andList, assignedEmail, canceledEmail, dueChangedEmail, meetingEmail } from '../src/emails.ts';
 
 const joint = {
 	id: 7,
@@ -59,4 +59,10 @@ test('a changed meeting says it changed', () => {
 	const e = meetingEmail(null, { ...joint, team_names: ['Business'], date: '2026-11-15' }, '2026-11-12', 'https://hub.example', { announce: true, changed: true });
 	assert.match(e.subject, /^Updated: Joint sync, Sun, Nov 15/);
 	assert.match(e.text, /The Business meeting has changed\. It’s now on Sun, Nov 15\./);
+});
+
+test('canceling the rest of a series says how many and through when', () => {
+	const e = canceledEmail({ ...joint, team_names: ['Business'], date: '2026-11-19', time: '16:30', end_time: '18:00' }, '2026-11-15', 'https://hub.example', ['2026-11-26', '2026-12-03', '2026-12-10']);
+	assert.match(e.subject, /^Canceled: Joint sync, Thu, Nov 19, 4:30–6:00 PM and the 3 after it$/);
+	assert.match(e.text, /The Business meeting on Thu, Nov 19 \(4:30–6:00 PM\) is canceled\. So are the 3 after it, through Thu, Dec 10\./);
 });
