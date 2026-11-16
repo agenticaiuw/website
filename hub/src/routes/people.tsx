@@ -487,11 +487,15 @@ peopleRoutes.get('/teams', async (c) => {
 		c,
 		{ title: 'Teams', active: 'teams' },
 		<>
-			<PageHead title={<span class="teams-title">Teams{editable && (
-				<button type="button" class="btn small" aria-haspopup="dialog" aria-controls="add-team-dialog" data-members-dialog="add-team-dialog">
-					<span aria-hidden="true">+</span> Add team
-				</button>
-			)}</span>} />
+			<PageHead
+				title="Teams"
+				sub={editable ? undefined : 'Every project team in the club. Open one to see its board and meetings.'}
+				actions={editable && (
+					<button type="button" class="btn primary" aria-haspopup="dialog" aria-controls="add-team-dialog" data-members-dialog="add-team-dialog">
+						New team
+					</button>
+				)}
+			/>
 			{editable && <dialog id="add-team-dialog" class="members-dialog" aria-labelledby="add-team-title">
 				<div class="members-dialog-content stack">
 					<header>

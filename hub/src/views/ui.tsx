@@ -3,8 +3,6 @@ import { dueLabel, formatDate } from '../dates';
 import { renderMarkdown } from '../markdown';
 import { canCompleteTask, canManageTask } from '../perm';
 import type { Member, TaskRow, Team, Viewer } from '../types';
-import { DoneMark, individualStage, MoveCard } from './task-stage';
-import { BOARD_STATUSES } from '../board';
 
 export function PageHead({ eyebrow, title, sub, actions }: { eyebrow?: string; title: Child; sub?: Child; actions?: Child }) {
 	return (
@@ -129,8 +127,7 @@ export function TaskList({
 				].filter(Boolean);
 				return (
 					<li class={`task ${open ? 'open' : t.status}`}>
-						{stats && <Ring {...stats} />}
-						{t.status === 'done' && (canCompleteTask(viewer, t) ? <MoveCard action={`/tasks/${t.id}/board-move`} status="done" title={t.title} back={back} /> : <DoneMark />)}
+						{stats ? <Ring {...stats} /> : <Tick task={t} viewer={viewer} back={back} />}
 						<div class="task-main">
 							<a href={`/tasks/${t.id}${stats && t.assignee_id !== viewer.id ? '?all=1' : ''}`} class="task-title">
 								{by === 'assignee' ? (t.assignee_id === viewer.id ? 'You' : t.assignee_name) : t.title}
@@ -143,8 +140,8 @@ export function TaskList({
 								</div>
 							)}
 						</div>
+						{!stats && <Stage task={t} viewer={viewer} back={back} />}
 						{open && <Due task={open} today={today} />}
-						{t.status !== 'done' && (canCompleteTask(viewer, t) ? <MoveCard action={`/tasks/${t.id}/board-move`} status={individualStage(t)} title={t.title} back={back} /> : <span class="hint task-stage-label">{BOARD_STATUSES.find(([status]) => status === individualStage(t))?.[1]}</span>)}
 						{removable && by === 'assignee' && canManageTask(viewer, t) && (
 							<form method="post" action={`/tasks/${t.id}/remove`} class="inline" data-confirm={`Take ${t.assignee_name} off this task? Their copy and its history are deleted; everyone else keeps theirs.`}>
 								<input type="hidden" name="back" value={back} />
@@ -157,6 +154,35 @@ export function TaskList({
 				);
 			})}
 		</ul>
+	);
+}
+
+/** The round control at the start of a task row: one click marks it done (or not done again). */
+function Tick({ task, viewer, back }: { task: TaskRow; viewer: Viewer; back: string }) {
+	const can = canCompleteTask(viewer, task);
+	if (task.status === 'dropped') return <span class="tick dropped" title="Dropped"></span>;
+	if (!can) return <span class={`tick${task.status === 'done' ? ' on' : ''}`} title={task.status === 'done' ? 'Done' : 'Only the assignee or an exec can mark it done'}></span>;
+	const done = task.status === 'done';
+	return (
+		<form method="post" action={`/tasks/${task.id}/status`} class="inline">
+			<input type="hidden" name="back" value={back} />
+			<input type="hidden" name="status" value={done ? 'open' : 'done'} />
+			<button class={`tick${done ? ' on' : ''}`} title={done ? 'Mark not done' : 'Mark done'} aria-label={`Mark “${task.title}” ${done ? 'not done' : 'done'}`}></button>
+		</form>
+	);
+}
+
+/** "In progress" on an open task: a small toggle for whoever does it, a tag for everyone else. */
+function Stage({ task, viewer, back }: { task: TaskRow; viewer: Viewer; back: string }) {
+	if (task.status !== 'open') return null;
+	const started = !!task.board_in_progress;
+	if (!canCompleteTask(viewer, task)) return started ? <span class="stage on">In progress</span> : null;
+	return (
+		<form method="post" action={`/tasks/${task.id}/board-move`} class="inline stage-form">
+			<input type="hidden" name="back" value={back} />
+			<input type="hidden" name="status" value={started ? 'open' : 'in_progress'} />
+			<button class={`stage${started ? ' on' : ''}`} title={started ? 'Back to to do' : 'Mark in progress'}>{started ? 'In progress' : 'Start'}</button>
+		</form>
 	);
 }
 
@@ -208,13 +234,35 @@ export function Menu({ label, children, form }: { label: string; children: Child
 	);
 }
 
-export function MemberSelect({ name, members, selected, required, blank, id, label }: { name: string; members: Pick<Member, 'id' | 'name'>[]; selected?: number | null; required?: boolean; blank?: string; id?: string; label?: string }) {
+type Named = { name: string; email?: string };
+
+/** Two people with the same name are impossible to tell apart, so anyone who shares a name in a list gets their NetID too. */
+export function netIds(people: Named[]) {
+	const count = new Map<string, number>();
+	for (const p of people) count.set(p.name.trim().toLowerCase(), (count.get(p.name.trim().toLowerCase()) ?? 0) + 1);
+	return (p: Named) => (p.email && (count.get(p.name.trim().toLowerCase()) ?? 0) > 1 ? p.email.split('@')[0] : '');
+}
+
+/** A person's name, with their NetID after it when someone else in the list has the same name. */
+export function PersonName({ p, netId }: { p: Named; netId: (p: Named) => string }) {
+	const id = netId(p);
+	return (
+		<>
+			{p.name}
+			{id && <small class="netid"> {id}</small>}
+		</>
+	);
+}
+
+export function MemberSelect({ name, members, selected, required, blank, id, label }: { name: string; members: (Pick<Member, 'id' | 'name'> & { email?: string })[]; selected?: number | null; required?: boolean; blank?: string; id?: string; label?: string }) {
+	const netId = netIds(members);
 	return (
 		<select name={name} id={id} required={required} aria-label={label}>
 			{blank !== undefined && <option value="">{blank}</option>}
 			{members.map((m) => (
 				<option value={String(m.id)} selected={m.id === selected}>
 					{m.name}
+					{netId(m) && ` (${netId(m)})`}
 				</option>
 			))}
 		</select>
@@ -226,7 +274,8 @@ export function MemberSelect({ name, members, selected, required, blank, id, lab
  * them; anyone can also be ticked on their own. Chips post as `team` (Whole club as `club`), people
  * as `personName`. Without JavaScript the chips and people are simply independent checkboxes.
  */
-export function PeoplePicker({ label, hint, teams, club, pickedTeams, people, picked, teamsOf, personName }: { label: string; hint?: Child; teams: Pick<Team, 'id' | 'name'>[]; club?: boolean; pickedTeams: Set<number>; people: Pick<Member, 'id' | 'name'>[]; picked: Set<number>; teamsOf: Map<number, number[]>; personName: string }) {
+export function PeoplePicker({ label, hint, teams, club, pickedTeams, people, picked, teamsOf, personName }: { label: string; hint?: Child; teams: Pick<Team, 'id' | 'name'>[]; club?: boolean; pickedTeams: Set<number>; people: (Pick<Member, 'id' | 'name'> & { email?: string })[]; picked: Set<number>; teamsOf: Map<number, number[]>; personName: string }) {
+	const netId = netIds(people);
 	return (
 		<fieldset class="field wide">
 			<legend class="label">{label}</legend>
@@ -262,7 +311,7 @@ export function PeoplePicker({ label, hint, teams, club, pickedTeams, people, pi
 						.map((p) => (
 							<label data-teams={(teamsOf.get(p.id) ?? []).join(' ')}>
 								<input type="checkbox" name={personName} value={String(p.id)} checked={picked.has(p.id)} />
-								{p.name}
+								<PersonName p={p} netId={netId} />
 							</label>
 						))}
 				</div>

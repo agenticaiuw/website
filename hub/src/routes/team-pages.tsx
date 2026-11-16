@@ -7,7 +7,7 @@ import { isExec } from '../perm';
 import type { AppEnv, Member, MeetingRow, TaskRow, Team } from '../types';
 import { Kanban } from '../views/board';
 import { page } from '../views/layout';
-import { Empty, Field, Markdown, MemberSelect, MembersDialog, PageHead, PostButton } from '../views/ui';
+import { Empty, Field, Markdown, MemberSelect, MembersDialog, netIds, PageHead, PersonName, PostButton } from '../views/ui';
 import { TaskForm } from './board-tasks';
 import { MeetingList } from './home';
 import { MemberOptions, MemberTags } from './people';
@@ -15,10 +15,10 @@ import { teamLibrary, TeamLibrary } from './team-library';
 
 export const teamPageRoutes = new Hono<AppEnv>();
 export type Subteam = { id: number; team_id: number; name: string; description: string; archived: number };
-export type RosterMember = Pick<Member, 'id' | 'name' | 'role' | 'available_hours'> & { is_lead: number; title: string; can_manage_page: number };
+export type RosterMember = Pick<Member, 'id' | 'name' | 'email' | 'role' | 'available_hours'> & { is_lead: number; title: string; can_manage_page: number };
 
 export function teamRoster(db: D1Database, team: number) {
-	return all<RosterMember>(db, `SELECT m.id, m.name, m.role, m.available_hours, tm.is_lead, tm.title, tm.can_manage_page
+	return all<RosterMember>(db, `SELECT m.id, m.name, m.email, m.role, m.available_hours, tm.is_lead, tm.title, tm.can_manage_page
 	 FROM team_members tm JOIN members m ON m.id = tm.member_id
 	 WHERE tm.team_id = ? AND m.active = 1 ORDER BY m.role = 'exec' DESC, tm.is_lead DESC, tm.title = '', m.name COLLATE NOCASE`, team);
 }
@@ -29,6 +29,7 @@ export function teamSubteams(db: D1Database, team: number) {
 
 export function SubteamCards({ root, subteams, members, subRoster, editable }: { root: string; subteams: Subteam[]; members: RosterMember[]; subRoster: { subteam_id: number; member_id: number }[]; editable: boolean }) {
 	const visible = subteams.filter((subteam) => !subteam.archived || editable);
+	if (!visible.length && !editable) return null;
 	return <section class="subteams-section" aria-labelledby="subteams-heading">
 		<div class="subteams-heading"><h2 id="subteams-heading" class="section-title">Subteams</h2>
 			{editable && <button type="button" class="icon-btn team-add-button" aria-label="Add subteam" title="Add subteam" aria-haspopup="dialog" aria-controls="new-subteam" data-members-dialog="new-subteam">+</button>}</div>
@@ -119,9 +120,8 @@ const renderTeamPage = async (c: Context<AppEnv>) => {
 				<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
 			</button>}</span>} sub={team.archived || selected?.archived ? 'Archived' : undefined}
 			actions={<>
-				{canCreate && <button type="button" class="btn primary" aria-haspopup="dialog" aria-controls="new-team-task" data-members-dialog="new-team-task">New team task</button>}
-				{!selected && manager && !team.archived && <a class="btn" href={`/tasks/new?team=${team.id}`}>New task</a>}
 				{!selected && manager && !team.archived && <a class="btn" href="/meetings/new">New meeting</a>}
+				{canCreate && <button type="button" class="btn primary" aria-haspopup="dialog" aria-controls="new-team-task" data-members-dialog="new-team-task">New task</button>}
 			</>} />
 		{canCreate && <dialog id="new-team-task" class="members-dialog" aria-labelledby="new-team-task-title">
 			<div class="members-dialog-content stack">
@@ -186,7 +186,7 @@ const renderTeamPage = async (c: Context<AppEnv>) => {
 							<fieldset>
 								<legend>Subteam members</legend>
 								<div class="selection-grid">{members.map((m) => (
-									<label class="check"><input type="checkbox" name="member" value={m.id} checked={subRoster.some((r) => r.subteam_id === selected.id && r.member_id === m.id)} /> {m.name}</label>
+									<label class="check"><input type="checkbox" name="member" value={m.id} checked={subRoster.some((r) => r.subteam_id === selected.id && r.member_id === m.id)} /> <PersonName p={m} netId={netIds(members)} /></label>
 								))}</div>
 							</fieldset>
 							<div><button class="btn small primary">Save subteam</button></div>

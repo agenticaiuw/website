@@ -1,3 +1,4 @@
+import { raw } from 'hono/html';
 import type { Context } from 'hono';
 import type { Child } from 'hono/jsx';
 import { isExec } from '../perm';
@@ -61,6 +62,25 @@ const ERRORS: Record<string, string> = {
 
 type NavKey = 'home' | 'tasks' | 'meetings' | 'people' | 'teams' | 'email' | 'collaboration';
 
+/** Simple line icons for the sidebar, drawn on a 24px grid. */
+const ICONS: Record<NavKey, string> = {
+	home: '<circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/>',
+	tasks: '<path d="M10 6h10M10 12h10M10 18h10"/><path d="m3.5 6 1.5 1.5L7.5 5M3.5 12l1.5 1.5L7.5 11"/><circle cx="5.25" cy="18" r="1.5"/>',
+	meetings: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+	people: '<circle cx="12" cy="8" r="3.75"/><path d="M4.5 20.5c.6-3.9 3.6-6 7.5-6s6.9 2.1 7.5 6"/>',
+	teams: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.75"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.75"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.75"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.75"/>',
+	collaboration: '<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="m8.2 10.8 7.6-3.6M8.2 13.2l7.6 3.6"/>',
+	email: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 7 8.5 6 8.5-6"/>'
+};
+
+function Icon({ name }: { name: NavKey }) {
+	return (
+		<svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+			{raw(ICONS[name])}
+		</svg>
+	);
+}
+
 function Nav({ viewer, active }: { viewer: Viewer; active?: NavKey }) {
 	const links: [NavKey, string, string][] = [
 		['home', '/', 'My work'],
@@ -74,12 +94,32 @@ function Nav({ viewer, active }: { viewer: Viewer; active?: NavKey }) {
 		<nav class="nav" aria-label="Main">
 			{links.map(([key, href, label]) => (
 				<a href={href} aria-current={active === key ? 'page' : undefined}>
-					{label}
+					<Icon name={key} />
+					<span>{label}</span>
 				</a>
 			))}
 		</nav>
 	);
 }
+
+function Brand({ size = 28 }: { size?: number }) {
+	return (
+		<a href="/" class="brand">
+			<img src="/favicon.svg" alt="" width={size} height={size} />
+			<span class="brand-text">
+				Agentic AI UW <span class="brand-hub">Hub</span>
+			</span>
+		</a>
+	);
+}
+
+const initials = (name: string) =>
+	name
+		.split(/\s+/)
+		.filter(Boolean)
+		.slice(0, 2)
+		.map((w) => w[0].toUpperCase())
+		.join('');
 
 export function Document({ title, children }: { title: string; children: Child }) {
 	return (
@@ -116,29 +156,27 @@ export function page(c: Context<AppEnv>, opts: { title: string; active?: NavKey 
 		'<!doctype html>' +
 			(
 				<Document title={opts.title}>
-					<header class="topbar">
-						<div class="shell topbar-inner">
-							<a href="/" class="brand">
-								<img src="/favicon.svg" alt="" width="28" height="28" />
-								<span>
-									Agentic AI UW <b>Hub</b>
-								</span>
-							</a>
+					<div class="app">
+						<aside class="sidebar">
+							<Brand />
 							<Nav viewer={viewer} active={opts.active} />
 							<div class="who">
-								<a href={`/people/${viewer.id}`} class="who-name">
-									{viewer.name}
+								<a href={`/people/${viewer.id}`} class="who-name" title="Your profile">
+									<span class="avatar" aria-hidden="true">
+										{initials(viewer.name)}
+									</span>
+									<span class="who-text">{viewer.name}</span>
 								</a>
 								<form method="post" action="/logout">
 									<button class="link-btn">Sign out</button>
 								</form>
 							</div>
-						</div>
-					</header>
-					<main class="shell main">
-						{(ok || err) && <div class="system-notices">{ok && <Notice>{ok}</Notice>}{err && <Notice error>{err}</Notice>}</div>}
-						{body}
-					</main>
+						</aside>
+						<main class="main">
+							{(ok || err) && <div class="system-notices">{ok && <Notice>{ok}</Notice>}{err && <Notice error>{err}</Notice>}</div>}
+							<div class="content">{body}</div>
+						</main>
+					</div>
 				</Document>
 			)
 	);
@@ -151,12 +189,7 @@ export function plainPage(c: Context, title: string, body: Child, status: 200 | 
 			(
 				<Document title={title}>
 					<main class="solo">
-						<a href="/" class="brand solo-brand">
-							<img src="/favicon.svg" alt="" width="36" height="36" />
-							<span>
-								Agentic AI UW <b>Hub</b>
-							</span>
-						</a>
+						<Brand size={36} />
 						<div class="card solo-card">{body}</div>
 					</main>
 				</Document>

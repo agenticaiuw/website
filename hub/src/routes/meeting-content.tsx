@@ -83,10 +83,11 @@ export function MeetingAgenda({ m, viewer, content, zone }: Props) {
 	return (
 		<section class="meeting-agenda" aria-label="Agenda" id="agenda">
 			<div class="agenda-heading">
-				{!ended && <button type="button" class="icon-btn agenda-add-button" aria-label="Add agenda item" title="Add agenda item" aria-haspopup="dialog" aria-controls="add-agenda-dialog" data-members-dialog="add-agenda-dialog"><span aria-hidden="true">+</span></button>}
+				<h2 class="section-title">Agenda</h2>
+				{!ended && <button type="button" class="btn small" aria-haspopup="dialog" aria-controls="add-agenda-dialog" data-members-dialog="add-agenda-dialog">+ Add item</button>}
 			</div>
 			{m.agenda.trim() && <Markdown text={m.agenda} />}
-			{!agenda.length && !m.agenda.trim() && <p class="hint">No agenda items yet</p>}
+			{!agenda.length && !m.agenda.trim() && <p class="hint">No agenda items yet.</p>}
 			{agenda.length > 0 && <ol class="stack agenda-items">
 				{agenda.map((item, i) => {
 					const path = `${root}/agenda/${item.id}`;
@@ -159,7 +160,7 @@ export function MeetingFiles({ m, viewer, content, zone }: Props) {
 		<section id="files" class="card meeting-library" aria-labelledby="library-title">
 			<div class="agenda-heading library-heading">
 				<h2 id="library-title" class="section-title">Library</h2>
-				{canUpload && <button type="button" class="icon-btn agenda-add-button" aria-label="Add file to library" title="Add file to library" aria-haspopup="dialog" aria-controls="add-library-file" data-members-dialog="add-library-file"><span aria-hidden="true">+</span></button>}
+				{canUpload && <button type="button" class="btn small" aria-haspopup="dialog" aria-controls="add-library-file" data-members-dialog="add-library-file">+ Add file or link</button>}
 			</div>
 			{content.agenda.filter((item) => item.removed && item.body).map((item) => (
 				<div class="card"><strong>{item.title}</strong><Markdown text={item.body ?? ''} /></div>

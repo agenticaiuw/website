@@ -9,7 +9,7 @@ import { announceCanceled, announceMeeting, emailMeeting, meetingPeople, notifyA
 import { meetingReminderAt } from '../schedule';
 import type { AppEnv, AttendanceStatus, Member, MeetingKind, MeetingRow, TaskRow, Viewer } from '../types';
 import { page } from '../views/layout';
-import { Choice, Empty, Field, Markdown, MemberSelect, PageHead, PeoplePicker, PostButton, Tabs, TaskList } from '../views/ui';
+import { Choice, Empty, Field, Markdown, MemberSelect, netIds, PageHead, PeoplePicker, PersonName, PostButton, Tabs, TaskList } from '../views/ui';
 import { FormSection, formForMeeting } from './forms';
 import { loadMeeting } from './meeting-access';
 import { MeetingAgenda, MeetingFiles, meetingContent } from './meeting-content';
@@ -469,23 +469,9 @@ meetingRoutes.post('/meetings', async (c) => {
 	return c.redirect(`/meetings/${firstId}?ok=${!result.sent ? ok : ok === 'scheduled' ? 'scheduled-emailed' : 'emailed'}`);
 });
 
-/** Every quarter hour from 7 AM to 11:45 PM, plus a saved time that falls between them. */
+/** A plain time box: any time, to the minute. */
 function TimeSelect({ name, value, label }: { name: string; value: string; label: string }) {
-	const times = Array.from({ length: 68 }, (_, i) => {
-		const mins = 7 * 60 + i * 15;
-		return `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
-	});
-	if (isTime(value) && !times.includes(value)) times.push(value);
-	return (
-		<select name={name} aria-label={label}>
-			<option value="">—</option>
-			{times.sort().map((t) => (
-				<option value={t} selected={t === value}>
-					{formatTime(t)}
-				</option>
-			))}
-		</select>
-	);
+	return <input type="time" name={name} aria-label={label} value={isTime(value) ? value : ''} />;
 }
 
 /** Later meetings in the same series that changes to this one can carry over to. */
@@ -707,7 +693,7 @@ function WhoCame({ m, came, people }: { m: MeetingRow; came: Member[]; people: M
 							{people.map((p) => (
 								<label>
 									<input type="checkbox" name="came" value={String(p.id)} checked={ids.has(p.id)} />
-									{p.name}
+									<PersonName p={p} netId={netIds(people)} />
 								</label>
 							))}
 						</div>
@@ -892,7 +878,9 @@ meetingRoutes.get('/meetings/:id', async (c) => {
 										<>
 											{roster.map((r) => (
 												<div class="att-row" role="radiogroup" aria-label={r.name}>
-													<span>{r.name}</span>
+													<span>
+														<PersonName p={r} netId={netIds(roster)} />
+													</span>
 													<div class="seg">
 														{STATUSES.map(([value, label]) => (
 															<label>

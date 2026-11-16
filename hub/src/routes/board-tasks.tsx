@@ -10,7 +10,7 @@ import type { AppEnv, Team, Viewer } from '../types';
 import { MoveCard } from '../views/board';
 import { DoneMark } from '../views/task-stage';
 import { page } from '../views/layout';
-import { Empty, Field, Markdown, PageHead, PostButton } from '../views/ui';
+import { Empty, Field, Markdown, netIds, PageHead, PersonName, PostButton } from '../views/ui';
 import { teamRoster, teamSubteams, type RosterMember, type Subteam } from './team-pages';
 
 export const boardTaskRoutes = new Hono<AppEnv>();
@@ -60,7 +60,7 @@ export function TaskForm({ action, due, members, subteams, assignedPeople, assig
 				<fieldset>
 					<legend>Assign to people</legend>
 					<div class="selection-grid">{members.map((m) => <label class="check">
-						<input type="checkbox" name="person" value={m.id} checked={assignedPeople.has(m.id)} /> {m.name}
+						<input type="checkbox" name="person" value={m.id} checked={assignedPeople.has(m.id)} /> <PersonName p={m} netId={netIds(members)} />
 					</label>)}</div>
 				</fieldset>
 				{!!subteams?.length && <fieldset>

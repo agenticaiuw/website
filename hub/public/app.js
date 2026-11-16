@@ -368,8 +368,8 @@ for (const picker of document.querySelectorAll('.picker')) {
 }
 
 // Meeting form: picking a start time sets the end an hour later, until someone picks the end themselves.
-for (const start of document.querySelectorAll('select[name=time]')) {
-	const end = start.form?.querySelector('select[name=end_time]');
+for (const start of document.querySelectorAll('input[type=time][name=time]')) {
+	const end = start.form?.querySelector('input[type=time][name=end_time]');
 	if (!end) continue;
 	let auto = !end.value;
 	end.addEventListener('change', () => (auto = false));
@@ -377,7 +377,7 @@ for (const start of document.querySelectorAll('select[name=time]')) {
 		if (!auto) return;
 		const [h, m] = start.value.split(':').map(Number);
 		const later = start.value && `${String(h + 1).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-		end.value = [...end.options].some((o) => o.value === later) ? later : '';
+		end.value = start.value && h < 23 ? later : '';
 	});
 }
 
