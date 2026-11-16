@@ -102,6 +102,8 @@ export async function useLoginCode(env: Env, email: string, code: string) {
 
 /** On agenticaiuw.com the sign-in cookie covers every subdomain, so game.agenticaiuw.com/host knows who's an exec. */
 function cookieDomain(c: Context<AppEnv>) {
+	// Wrangler can present the deployed hostname to the Worker while the browser is on loopback.
+	if (c.env.DEV_MODE) return undefined;
 	const host = new URL(c.req.url).hostname;
 	return host === 'agenticaiuw.com' || host.endsWith('.agenticaiuw.com') ? 'agenticaiuw.com' : undefined;
 }

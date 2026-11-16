@@ -97,11 +97,11 @@ export function logTask(db: D1Database, taskId: number, memberId: number | null,
 		.bind(taskId, memberId, kind, body);
 }
 
-export function setTaskStatus(db: D1Database, taskId: number, status: TaskStatus, actorId: number | null, note = '') {
+export function setTaskStatus(db: D1Database, taskId: number, status: TaskStatus, actorId: number | null, note = '', inProgress = false) {
 	const now = nowIso();
 	return db.batch([
-		db.prepare('UPDATE tasks SET status = ?, completed_at = ?, updated_at = ? WHERE id = ?').bind(status, status === 'done' ? now : null, now, taskId),
-		logTask(db, taskId, actorId, status === 'open' ? 'reopened' : status, note)
+		db.prepare('UPDATE tasks SET status = ?, completed_at = ?, updated_at = ?, board_in_progress = ? WHERE id = ?').bind(status, status === 'done' ? now : null, now, inProgress ? 1 : 0, taskId),
+		logTask(db, taskId, actorId, inProgress ? 'progress' : status === 'open' ? 'reopened' : status, note)
 	]);
 }
 

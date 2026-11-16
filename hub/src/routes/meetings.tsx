@@ -1,8 +1,9 @@
 import { Hono } from 'hono';
 import { addDays, daysBetween, formatDate, formatTime, formatTimeRange, hourIn, isDate, isTime, todayIn } from '../dates';
-import { activeMembers, all, first, MEETING_EXPECTED, MEETING_TEAMS_JSON, MEETING_VISIBLE, meetingById, meetingTeams, nowIso, TASK_SELECT, teamNames, teams, teamsByMember, visible } from '../db';
+import { activeMembers, all, first, MEETING_EXPECTED, MEETING_SELECT, MEETING_TEAMS_JSON, MEETING_VISIBLE, meetingById, meetingTeams, nowIso, run, TASK_SELECT, teamNames, teams, teamsByMember, visible } from '../db';
 import { meetingEmail } from '../emails';
 import { id, isHttpUrl, list, readForm, str } from '../form';
+import { meetingTiming } from '../meeting-content';
 import { canAssign, canEditMeeting, canSeeMeeting, isExec, teamsFor } from '../perm';
 import { announceCanceled, announceMeeting, emailMeeting, meetingPeople, notifyAssigned, notifyHost } from '../reminders';
 import { meetingReminderAt } from '../schedule';
@@ -10,6 +11,9 @@ import type { AppEnv, AttendanceStatus, Member, MeetingKind, MeetingRow, TaskRow
 import { page } from '../views/layout';
 import { Choice, Empty, Field, Markdown, MemberSelect, PageHead, PeoplePicker, PostButton, Tabs, TaskList } from '../views/ui';
 import { FormSection, formForMeeting } from './forms';
+import { loadMeeting } from './meeting-access';
+import { MeetingAgenda, MeetingFiles, meetingContent } from './meeting-content';
+import { MeetingSummary, summaryRevisions } from './meeting-summary';
 import { createTasks } from './tasks';
 
 export const meetingRoutes = new Hono<AppEnv>();
@@ -38,11 +42,15 @@ meetingRoutes.get('/meetings', async (c) => {
 	const v = c.get('viewer');
 	const today = todayIn(c.env.TIMEZONE);
 	const events = c.req.query('kind') === 'event';
-	const team = events ? null : id(c.req.query('team'));
+	const selectedTeams = [...new Set((c.req.queries('team') ?? []).flatMap((value) => value.split(',')).map(Number).filter((n) => Number.isInteger(n) && n > 0))];
+	const dateMode = ['before', 'after', 'on'].includes(c.req.query('date_mode') ?? '') ? c.req.query('date_mode')! : 'on';
+	const rawDate = c.req.query('date') ?? '';
+	const date = isDate(rawDate) ? rawDate : '';
 	const where = [visible(v, MEETING_VISIBLE)];
 	const params: (string | number)[] = [v.id, today];
 	if (events) where.push("m.kind = 'event'");
-	if (team) where.push(`m.id IN (SELECT meeting_id FROM meeting_teams WHERE team_id = ?${params.push(team)})`);
+	if (selectedTeams.length) where.push(`m.id IN (SELECT meeting_id FROM meeting_teams WHERE team_id IN (SELECT value FROM json_each(?${params.push(JSON.stringify(selectedTeams))})))`);
+	if (date) where.push(`m.date ${dateMode === 'before' ? '<' : dateMode === 'after' ? '>' : '='} ?${params.push(date)}`);
 	const [upcoming, past, teamList] = await Promise.all([
 		all<MeetingListRow>(c.env.DB, `${LIST_SELECT} WHERE ${where.join(' AND ')} AND m.date >= ?2 ORDER BY m.date, m.time LIMIT 300`, ...params),
 		all<MeetingListRow>(c.env.DB, `${LIST_SELECT} WHERE ${where.join(' AND ')} AND m.date < ?2 ORDER BY m.date DESC, m.time DESC LIMIT 300`, ...params),
@@ -128,13 +136,26 @@ meetingRoutes.get('/meetings', async (c) => {
 				}
 			/>
 			<div class="toolbar">
-				<Tabs<string | number>
-					label="Show"
-					current={events ? 'events' : team}
-					href={(t) => (t === 'events' ? '/meetings?kind=event' : t ? `/meetings?team=${t}` : '/meetings')}
-					options={[[null, 'All'], ['events', 'Club events'], ...visibleTeams.map((t): [number, string] => [t.id, t.name])]}
-				/>
+				<form method="get" action="/meetings" class="meeting-team-filter" data-meeting-filters>
+					<div class="seg" aria-label="Meeting type">
+						<label><input type="radio" name="kind" value="" checked={!events} /><span>All</span></label>
+						<label><input type="radio" name="kind" value="event" checked={events} /><span>Club events</span></label>
+					</div>
+					<details class="menu team-filter-menu">
+						<summary class="btn" data-team-filter-label>{selectedTeams.length ? `Teams (${selectedTeams.length})` : 'All teams'} ▾</summary>
+						<div class="menu-panel team-filter-panel" aria-label="Filter by teams">
+							{visibleTeams.map((t) => <label class="check"><input type="checkbox" name="team" value={String(t.id)} checked={selectedTeams.includes(t.id)} /><span>{t.name}</span></label>)}
+						</div>
+					</details>
+					<label class="sr-only" for="meeting-date-mode">Date comparison</label>
+					<select id="meeting-date-mode" name="date_mode" aria-label="Date comparison">
+						<option value="before" selected={dateMode === 'before'}>Before</option><option value="after" selected={dateMode === 'after'}>After</option><option value="on" selected={dateMode === 'on'}>On</option>
+					</select>
+					<input type="date" name="date" value={date} aria-label="Meeting date" />
+					<noscript><button class="btn small">Apply filters</button></noscript>
+				</form>
 			</div>
+			<div id="meeting-filter-results" aria-live="polite">
 			<h2 class="section-title">Upcoming</h2>
 			{soon.length ? table(soon, true) : <Empty>{later.length ? 'Nothing in the next three weeks.' : 'Nothing scheduled.'}</Empty>}
 			{later.length > 0 && (
@@ -147,6 +168,7 @@ meetingRoutes.get('/meetings', async (c) => {
 			)}
 			<h2 class="section-title">Past</h2>
 			{past.length ? table(past, false) : <Empty>None yet.</Empty>}
+			</div>
 		</>
 	);
 });
@@ -466,19 +488,6 @@ function TimeSelect({ name, value, label }: { name: string; value: string; label
 	);
 }
 
-async function loadMeeting(c: { env: AppEnv['Bindings'] }, v: Viewer, raw: string) {
-	const meetingId = id(raw);
-	const m = meetingId ? await meetingById(c.env.DB, meetingId) : null;
-	if (!m) return null;
-	const listed = !!(await first(
-		c.env.DB,
-		'SELECT 1 FROM attendance WHERE meeting_id = ?1 AND member_id = ?2 UNION ALL SELECT 1 FROM meeting_invites WHERE meeting_id = ?1 AND member_id = ?2',
-		m.id,
-		v.id
-	));
-	return canSeeMeeting(v, m, listed) ? m : null;
-}
-
 /** Later meetings in the same series that changes to this one can carry over to. */
 const LATER_IN_SERIES = 'FROM meetings WHERE series_id = ?1 AND date > ?2 AND team_id = ?3';
 
@@ -617,15 +626,68 @@ meetingRoutes.post('/meetings/:id/delete', async (c) => {
  * Who's expected: everyone on its teams (all execs for exec meetings), anyone invited, and anyone
  * already marked. Club events are open to everyone, so only the people marked as there.
  */
+type AttendanceRow = { member_id: number; meeting_id: number; status: AttendanceStatus; self_report: number };
+
 async function rosterFor(db: D1Database, m: MeetingRow) {
-	return all<Member & { status: AttendanceStatus | null }>(
+	return all<Member & { status: AttendanceStatus | null; self_report: number | null }>(
 		db,
-		`SELECT mb.*, a.status FROM members mb
+		`SELECT mb.*, a.status, a.self_report FROM members mb
 		 LEFT JOIN attendance a ON a.member_id = mb.id AND a.meeting_id = ?1
 		 WHERE a.status IS NOT NULL OR (?2 = 'meeting' AND mb.active = 1 AND ${MEETING_EXPECTED})
 		 ORDER BY mb.name COLLATE NOCASE`,
 		m.id,
 		m.kind
+	);
+}
+
+async function attendanceHistory(db: D1Database, m: MeetingRow, v: Viewer) {
+	const history = await all<MeetingRow>(db, `${MEETING_SELECT}
+	 WHERE ${visible(v, MEETING_VISIBLE)} AND m.kind = ?2 AND (m.date, m.time, m.id) <= (?3, ?4, ?5)
+	 AND (?2 = 'event' OR EXISTS (SELECT 1 FROM meeting_teams mt
+	   WHERE mt.meeting_id = m.id AND mt.team_id IN (SELECT team_id FROM meeting_teams WHERE meeting_id = ?5)))
+	 ORDER BY m.date DESC, m.time DESC, m.id DESC`, v.id, m.kind, m.date, m.time, m.id);
+	if (!history.some((meeting) => meeting.id === m.id)) history.unshift(m);
+	const ids = JSON.stringify(history.map((meeting) => meeting.id));
+	const [rows, expected] = await Promise.all([
+		all<AttendanceRow>(db, 'SELECT * FROM attendance WHERE meeting_id IN (SELECT value FROM json_each(?))', ids),
+		m.kind === 'event' ? [] : all<{ meeting_id: number; member_id: number }>(db, `SELECT record.id AS meeting_id, mb.id AS member_id
+		 FROM meetings record CROSS JOIN members mb WHERE record.id IN (SELECT value FROM json_each(?1))
+		 AND mb.active = 1 AND ${MEETING_EXPECTED.replaceAll('?1', 'record.id')}`, ids)
+	]);
+	return { history: history.reverse(), rows, expected };
+}
+
+function attendanceLabel(status: AttendanceStatus, selfReport: number | null) {
+	return status === 'present' ? 'Here' : status === 'late' && selfReport ? 'Partial' : STATUSES.find(([value]) => value === status)?.[1] ?? '';
+}
+
+function AttendanceHistory({ roster, history, rows, expected, zone }: {
+	roster: Member[]; history: MeetingRow[]; rows: AttendanceRow[]; expected: { meeting_id: number; member_id: number }[]; zone: string;
+}) {
+	const byCell = new Map(rows.map((row) => [`${row.member_id}:${row.meeting_id}`, row]));
+	const expectedCells = new Set(expected.map((row) => `${row.member_id}:${row.meeting_id}`));
+	const people = new Map(roster.map((member) => [member.id, member.name]));
+	if (!people.size) return null;
+	const started = history.map((meeting) => meetingTiming(meeting, zone).started);
+	return (
+		<details class="card attendance-history">
+			<summary class="link-btn">Attendance history</summary>
+			<div class="table-scroll" tabindex={0} role="region" aria-label="Attendance history">
+				<table class="attendance-sheet">
+					<thead><tr><th scope="col">Member</th>{history.map((meeting) => (
+						<th scope="col"><a href={`/meetings/${meeting.id}`} title={meeting.title}>{formatDate(meeting.date)}</a></th>
+					))}</tr></thead>
+					<tbody>{Array.from(people, ([memberId, name]) => (
+						<tr><th scope="row">{name}</th>{history.map((meeting, i) => {
+							const key = `${memberId}:${meeting.id}`;
+							const entry = byCell.get(key);
+							const absent = started[i] && (meeting.kind === 'event' || expectedCells.has(key));
+							return <td>{entry ? <span class={`pill att-${entry.status}`}>{attendanceLabel(entry.status, entry.self_report)}</span> : absent ? 'Absent' : '—'}</td>;
+						})}</tr>
+					))}</tbody>
+				</table>
+			</div>
+		</details>
 	);
 }
 
@@ -692,12 +754,15 @@ meetingRoutes.get('/meetings/:id', async (c) => {
 	const today = todayIn(c.env.TIMEZONE);
 	const editable = canEditMeeting(v, m);
 	const remindAt = meetingReminderAt(m);
-	const [roster, actions, people, toRemind, form] = await Promise.all([
+	const [roster, actions, people, toRemind, form, content, attendance, summary] = await Promise.all([
 		rosterFor(c.env.DB, m),
 		all<TaskRow>(c.env.DB, `${TASK_SELECT} WHERE t.meeting_id = ? ORDER BY t.status = 'open' DESC, t.due_date, a.name`, m.id),
 		editable ? activeMembers(c.env.DB) : Promise.resolve([] as Member[]),
 		editable && m.date >= today ? meetingPeople(c.env.DB, m) : Promise.resolve([] as Member[]),
-		formForMeeting(c.env.DB, m.id)
+		formForMeeting(c.env.DB, m.id),
+		meetingContent(c.env.DB, m.id),
+		attendanceHistory(c.env.DB, m, v),
+		summaryRevisions(c.env.DB, m.id)
 	]);
 	const reminded = m.reminded_on === remindAt.date;
 	const remindLater = remindAt.date > today || (remindAt.date === today && hourIn(c.env.TIMEZONE) < remindAt.hour);
@@ -707,6 +772,14 @@ meetingRoutes.get('/meetings/:id', async (c) => {
 	const defaultDue = addDays(m.date > today ? m.date : today, 7);
 	const joint = m.kind === 'meeting' && meetingTeams(m).length > 1;
 	const seriesLeft = editable ? (await laterInSeries(c.env.DB, m)).length : 0;
+	const timing = meetingTiming(m, c.env.TIMEZONE);
+	const view = c.req.query('view');
+	const selectedView = ['preparation', 'follow-up', 'form', 'attendance', 'library'].includes(view ?? '') ? view : timing.ended ? 'follow-up' : 'preparation';
+	const formView = selectedView === 'form';
+	const followUp = selectedView === 'follow-up';
+	const myAttendance = roster.find((r) => r.id === v.id);
+	const canCheckIn = timing.started && !timing.ended && (m.kind === 'event' || !!myAttendance)
+		&& (!myAttendance?.status || myAttendance.self_report === 1);
 
 	return page(
 		c,
@@ -743,13 +816,34 @@ meetingRoutes.get('/meetings/:id', async (c) => {
 				}
 			/>
 
-			<div class="grid-2 wide-left">
-				<section>
-					<h2 class="section-title">Agenda</h2>
-					<Markdown text={m.agenda} empty="No agenda recorded." />
-					<h2 class="section-title">Notes</h2>
-					<Markdown text={m.notes} empty="No notes yet." />
-
+			<div data-meeting-tabs>
+				<nav class="seg meeting-tabs" role="tablist" aria-label="Meeting stages">
+					<a id="preparation-tab" role="tab" aria-controls="meeting-preparation" aria-selected={selectedView === 'preparation'} tabindex={selectedView === 'preparation' ? 0 : -1} href={`/meetings/${m.id}?view=preparation`}>Agenda</a>
+					<a id="follow-up-tab" role="tab" aria-controls="meeting-follow-up" aria-selected={followUp} tabindex={followUp ? 0 : -1} href={`/meetings/${m.id}?view=follow-up`}>Summary</a>
+					<a id="form-tab" role="tab" aria-controls="meeting-form" aria-selected={formView} tabindex={formView ? 0 : -1} href={`/meetings/${m.id}?view=form`}>Form</a>
+					<a id="attendance-tab" role="tab" aria-controls="meeting-attendance-panel" aria-selected={selectedView === 'attendance'} tabindex={selectedView === 'attendance' ? 0 : -1} href={`/meetings/${m.id}?view=attendance`}>Attendance</a>
+					<a id="library-tab" role="tab" aria-controls="meeting-library-panel" aria-selected={selectedView === 'library'} tabindex={selectedView === 'library' ? 0 : -1} href={`/meetings/${m.id}?view=library`}>Library</a>
+				</nav>
+				<div id="meeting-preparation" class="meeting-tab-panel grid-2 wide-left" role="tabpanel" aria-labelledby="preparation-tab" hidden={selectedView !== 'preparation'}>
+					<section>
+						<MeetingAgenda m={m} viewer={v} content={content} zone={c.env.TIMEZONE} />
+					</section>
+					<aside>
+					{toRemind.length > 0 && (reminded || remindLater) && (
+						<p class="hint reminder-note">
+							{reminded
+								? `Reminder emailed to ${toRemind.length} ${toRemind.length === 1 ? 'person' : 'people'} on ${formatDate(remindAt.date, today)}.`
+								: `Reminder email goes to ${toRemind.length} ${toRemind.length === 1 ? 'person' : 'people'} on ${formatDate(remindAt.date, today)} at ${formatTime(`${String(remindAt.hour).padStart(2, '0')}:00`)}.`}{' '}
+							<a href={`/meetings/${m.id}/reminder`} target="_blank">
+								Preview
+							</a>
+						</p>
+					)}
+					</aside>
+				</div>
+				<div id="meeting-follow-up" class="meeting-tab-panel grid-2 wide-left" role="tabpanel" aria-labelledby="follow-up-tab" hidden={!followUp}>
+					<section>
+						<MeetingSummary m={m} revisions={summary} zone={c.env.TIMEZONE} />
 					<h2 class="section-title" id="actions">
 						Action items
 					</h2>
@@ -774,36 +868,28 @@ meetingRoutes.get('/meetings/:id', async (c) => {
 							</div>
 						</form>
 					)}
-				</section>
+					</section>
+					<aside>
 
-				<aside>
-					{toRemind.length > 0 && (reminded || remindLater) && (
-						<p class="hint reminder-note">
-							{reminded
-								? `Reminder emailed to ${toRemind.length} ${toRemind.length === 1 ? 'person' : 'people'} on ${formatDate(remindAt.date, today)}.`
-								: `Reminder email goes to ${toRemind.length} ${toRemind.length === 1 ? 'person' : 'people'} on ${formatDate(remindAt.date, today)} at ${formatTime(`${String(remindAt.hour).padStart(2, '0')}:00`)}.`}{' '}
-							<a href={`/meetings/${m.id}/reminder`} target="_blank">
-								Preview
-							</a>
-						</p>
+					</aside>
+				</div>
+				<div id="meeting-attendance-panel" class="meeting-tab-panel" role="tabpanel" aria-labelledby="attendance-tab" hidden={selectedView !== 'attendance'}>
+					{canCheckIn && (
+						<form method="post" action={`/meetings/${m.id}/check-in`} class="card stack" data-attendance-autosave>
+							<strong>Your attendance</strong>
+							<Choice name="status" label="Check in" selected={myAttendance?.status ?? 'present'} options={[[ 'present', 'Here' ], [ 'late', 'Partial' ]]} />
+							<noscript><div><button class="btn small primary">Save check-in</button></div></noscript>
+						</form>
 					)}
-					<FormSection m={m} f={form} editable={editable} appUrl={c.env.APP_URL} />
-					{m.kind === 'event' ? (
-						<WhoCame m={m} came={marked} people={editable ? people : null} />
-					) : (
 						<>
-							<h2 class="section-title">
+							<h2 class="section-title attendance-heading">
 								Attendance <span class="muted">{marked.length ? `${present}/${marked.length} present` : ''}</span>
+								{editable && roster.length > 0 && <button type="button" class="link-btn" form="meeting-attendance" data-all-present>Mark everyone present</button>}
 							</h2>
 							{editable ? (
-								<form method="post" action={`/meetings/${m.id}/attendance`} class="card attendance">
+								<form id="meeting-attendance" method="post" action={`/meetings/${m.id}/attendance`} class="card attendance" data-attendance-autosave>
 									{roster.length ? (
 										<>
-											<div class="att-tools">
-												<button type="button" class="link-btn" data-all-present>
-													Mark everyone present
-												</button>
-											</div>
 											{roster.map((r) => (
 												<div class="att-row" role="radiogroup" aria-label={r.name}>
 													<span>{r.name}</span>
@@ -821,32 +907,55 @@ meetingRoutes.get('/meetings/:id', async (c) => {
 									) : (
 										<Empty>No one is on this team yet. Add people below, or add team members on the Teams page.</Empty>
 									)}
-									{others.length > 0 && (
-										<label class="field">
-											<span class="label">Someone else came</span>
-											<MemberSelect name="add" members={others} blank="Add a person (marked present)" />
-										</label>
-									)}
-									<button class="btn primary">Save attendance</button>
+									<p class="hint" data-attendance-status role="status" aria-live="polite"></p>
+									<noscript><button class="btn primary">Save attendance</button></noscript>
 								</form>
 							) : marked.length ? (
 								<ul class="att-list">
 									{marked.map((r) => (
 										<li>
 											<span>{r.name}</span>
-											<span class={`pill att-${r.status}`}>{r.status}</span>
+											<span class={`pill att-${r.status}`}>{attendanceLabel(r.status!, r.self_report)}</span>
 										</li>
 									))}
 								</ul>
 							) : (
 								<Empty>Attendance not taken.</Empty>
 							)}
+							{editable && <div class="attendance-add"><button type="button" class="icon-btn agenda-add-button" aria-label="Add someone to attendance" title="Add someone to attendance" aria-haspopup="dialog" aria-controls="attendance-add-dialog" data-members-dialog="attendance-add-dialog">+</button></div>}
+							{editable && <dialog id="attendance-add-dialog" class="members-dialog" aria-labelledby="attendance-add-title"><div class="members-dialog-content stack">
+								<header><h2 id="attendance-add-title">Add someone</h2><form method="dialog"><button class="icon-btn" aria-label="Close">?</button></form></header>
+								{others.length ? <form method="post" action={`/meetings/${m.id}/attendance`} class="stack"><Field label="Person"><MemberSelect name="add" members={others} blank="Choose a person" required /></Field><div><button class="btn primary">Add</button></div></form> : <p class="hint">Everyone is already listed.</p>}
+							</div></dialog>}
 						</>
-					)}
-				</aside>
+					<AttendanceHistory roster={roster} {...attendance} zone={c.env.TIMEZONE} />
+				</div>
+				<div id="meeting-library-panel" class="meeting-tab-panel" role="tabpanel" aria-labelledby="library-tab" hidden={selectedView !== 'library'}>
+					<MeetingFiles m={m} viewer={v} content={content} zone={c.env.TIMEZONE} />
+				</div>
+				<div id="meeting-form" class="meeting-tab-panel" role="tabpanel" aria-labelledby="form-tab" hidden={!formView}>
+					{!form && !editable ? <p class="hint">No form yet.</p> : <FormSection m={m} f={form} editable={editable} appUrl={c.env.APP_URL} />}
+				</div>
 			</div>
 		</>
 	);
+});
+
+meetingRoutes.post('/meetings/:id/check-in', async (c) => {
+	const v = c.get('viewer');
+	const m = await loadMeeting(c, v, c.req.param('id'));
+	if (!m) return c.notFound();
+	const form = await readForm(c);
+	const status = str(form.status);
+	const timing = meetingTiming(m, c.env.TIMEZONE);
+	const path = `/meetings/${m.id}`;
+	if (!timing.started || timing.ended || (status !== 'present' && status !== 'late')) return c.redirect(`${path}?error=forbidden`);
+	const result = await run(c.env.DB, `INSERT INTO attendance (meeting_id, member_id, status, self_report)
+	 SELECT ?1, mb.id, ?4, 1 FROM members mb WHERE mb.id = ?3 AND mb.active = 1
+	 AND (?2 = 'event' OR ${MEETING_EXPECTED})
+	 ON CONFLICT(meeting_id, member_id) DO UPDATE SET status = excluded.status
+	 WHERE attendance.self_report = 1`, m.id, m.kind, v.id, status);
+	return c.redirect(`${path}?view=attendance&${result.meta.changes ? 'ok=attendance' : 'error=forbidden'}`);
 });
 
 meetingRoutes.post('/meetings/:id/attendance', async (c) => {
@@ -854,20 +963,11 @@ meetingRoutes.post('/meetings/:id/attendance', async (c) => {
 	const m = await loadMeeting(c, v, c.req.param('id'));
 	if (!m || !canEditMeeting(v, m)) return c.notFound();
 	const form = await readForm(c);
-	if (m.kind === 'event') {
-		const came = list(form.came).map(Number).filter((n) => Number.isInteger(n) && n > 0);
-		const db = c.env.DB;
-		await db.batch([
-			// The checklist only lists active members; leave anyone else's record alone.
-			db.prepare('DELETE FROM attendance WHERE meeting_id = ? AND member_id IN (SELECT id FROM members WHERE active = 1)').bind(m.id),
-			...came.map((memberId) => db.prepare("INSERT OR REPLACE INTO attendance (meeting_id, member_id, status) VALUES (?, ?, 'present')").bind(m.id, memberId))
-		]);
-		return c.redirect(`/meetings/${m.id}?ok=attendance`);
-	}
+
 	const valid = new Set(STATUSES.map(([s]) => s));
 	const stmts: D1PreparedStatement[] = [];
 	const upsert = (memberId: number, status: string) =>
-		c.env.DB.prepare('INSERT INTO attendance (meeting_id, member_id, status) VALUES (?, ?, ?) ON CONFLICT(meeting_id, member_id) DO UPDATE SET status = excluded.status').bind(m.id, memberId, status);
+		c.env.DB.prepare('INSERT INTO attendance (meeting_id, member_id, status) VALUES (?, ?, ?) ON CONFLICT(meeting_id, member_id) DO UPDATE SET status = excluded.status, self_report = 0').bind(m.id, memberId, status);
 	for (const [key, value] of Object.entries(form)) {
 		const memberId = key.startsWith('att_') ? id(key.slice(4)) : null;
 		const status = str(value);
@@ -876,7 +976,7 @@ meetingRoutes.post('/meetings/:id/attendance', async (c) => {
 	const added = id(form.add);
 	if (added) stmts.push(upsert(added, 'present'));
 	if (stmts.length) await c.env.DB.batch(stmts);
-	return c.redirect(`/meetings/${m.id}?ok=attendance`);
+	return c.redirect(`/meetings/${m.id}?view=attendance&ok=attendance`);
 });
 
 meetingRoutes.post('/meetings/:id/actions', async (c) => {

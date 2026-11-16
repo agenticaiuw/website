@@ -18,6 +18,7 @@ const FLASH: Record<string, string> = {
 	dropped: 'Dropped. No more reminders for it.',
 	commented: 'Comment added.',
 	assigned: 'Assigned. Everyone on it was emailed.',
+	'assigned-self': 'Assigned to you.',
 	'tasks-created': 'Tasks created. Each person got one email listing their new tasks.',
 	removed: 'Taken off the task. Their reminders have stopped.',
 	attendance: 'Attendance saved.',
@@ -33,7 +34,18 @@ const FLASH: Record<string, string> = {
 const ERRORS: Record<string, string> = {
 	reason: 'Add a reason for canceling. It goes in the email to everyone.',
 	'reason-change': 'Add a reason for the new date or time. It goes in the email to everyone.',
+	summary: 'Enter a summary contribution of 1 to 10000 characters.',
+	duration: 'Enter a duration from 1 to 1440 whole minutes.',
 	missing: 'Fill in the required fields.',
+	hours: 'Enter a number from 0 to 168.',
+	stale: 'This item changed. Review the latest version and try again.',
+	file: 'Choose a supported file up to 8 MiB.',
+	'file-space': 'The attachment storage limit has been reached.',
+	link: 'Use valid HTTPS links.',
+	'library-link': 'Enter a valid HTTP or HTTPS link.',
+	cal: 'Use an HTTPS link on cal.com.',
+	selection: 'Choose active people and subteams on this team.',
+	assignment: 'Choose at least one person or subteam.',
 	team: 'Pick at least one team, or Whole club.',
 	date: 'Use a valid date.',
 	until: 'Pick an end date for the repeats that comes after the first date.',
@@ -54,9 +66,10 @@ function Nav({ viewer, active }: { viewer: Viewer; active?: NavKey }) {
 		['home', '/', 'My work'],
 		['tasks', '/tasks', 'Tasks'],
 		['meetings', '/meetings', 'Meetings'],
-		['people', '/people', 'People']
+		['people', '/people', 'People'],
+		['teams', '/teams', 'Teams']
 	];
-	if (isExec(viewer)) links.push(['collaboration', '/collaboration', 'Collaboration'], ['teams', '/teams', 'Teams'], ['email', '/email', 'Email']);
+	if (isExec(viewer)) links.push(['collaboration', '/collaboration', 'Collaboration'], ['email', '/email', 'Email']);
 	return (
 		<nav class="nav" aria-label="Main">
 			{links.map(([key, href, label]) => (
@@ -87,6 +100,14 @@ export function Document({ title, children }: { title: string; children: Child }
 	);
 }
 
+export function Notice({ children, error = false }: { children: Child; error?: boolean }) {
+	return <div class={`system-notice ${error ? 'err' : 'ok'}`} data-system-notice role={error ? 'alert' : 'status'}>
+		<span class="system-notice-icon" aria-hidden="true">{error ? '!' : '✓'}</span>
+		<div class="system-notice-text">{children}</div>
+		<button type="button" class="system-notice-close" aria-label="Dismiss notification" data-dismiss-notice>×</button>
+	</div>;
+}
+
 export function page(c: Context<AppEnv>, opts: { title: string; active?: NavKey }, body: Child) {
 	const viewer = c.get('viewer');
 	const ok = FLASH[c.req.query('ok') ?? ''];
@@ -115,16 +136,7 @@ export function page(c: Context<AppEnv>, opts: { title: string; active?: NavKey 
 						</div>
 					</header>
 					<main class="shell main">
-						{ok && (
-							<p class="flash ok" role="status">
-								{ok}
-							</p>
-						)}
-						{err && (
-							<p class="flash err" role="alert">
-								{err}
-							</p>
-						)}
+						{(ok || err) && <div class="system-notices">{ok && <Notice>{ok}</Notice>}{err && <Notice error>{err}</Notice>}</div>}
 						{body}
 					</main>
 				</Document>

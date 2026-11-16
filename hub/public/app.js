@@ -1,4 +1,197 @@
-// Small progressive enhancements. Every page works without this file.
+// Small browser interactions for the server-rendered pages.
+
+for (const filters of document.querySelectorAll('[data-library-filters]')) {
+	const section = filters.closest('.meeting-library');
+	const author = filters.querySelector('[data-library-author-filter]');
+	const type = filters.querySelector('[data-library-type-filter]');
+	const apply = () => {
+		let visible = 0;
+		for (const item of section.querySelectorAll('[data-library-item]')) {
+			item.hidden = !!((author.value && item.dataset.libraryAuthor !== author.value) || (type.value && item.dataset.libraryType !== type.value));
+			if (!item.hidden) visible++;
+		}
+		section.querySelector('[data-library-no-results]').hidden = visible > 0;
+	};
+	filters.addEventListener('change', apply);
+}
+
+for (const notice of document.querySelectorAll('[data-system-notice]')) {
+	const dismiss = () => { notice.hidden = true; };
+	notice.querySelector('[data-dismiss-notice]')?.addEventListener('click', dismiss);
+	setTimeout(dismiss, 5000);
+}
+if (document.querySelector('[data-system-notice]')) {
+	const url = new URL(location.href);
+	url.searchParams.delete('ok');
+	url.searchParams.delete('error');
+	history.replaceState(history.state, '', url);
+}
+
+for (const input of document.querySelectorAll('input[type="file"][name="file"]')) {
+	input.addEventListener('change', () => {
+		input.setCustomValidity([...input.files].reduce((total, file) => total + file.size, 0) > 8 * 1024 * 1024 ? 'Choose files totaling no more than 8 MiB.' : '');
+		if (input.validationMessage) input.reportValidity();
+	});
+}
+
+for (const form of document.querySelectorAll('[data-board-move]')) {
+	form.querySelector('select')?.addEventListener('change', () => form.requestSubmit());
+}
+
+for (const board of document.querySelectorAll('.kanban')) {
+	let dragged = null;
+	board.addEventListener('dragstart', (event) => {
+		const card = event.target.closest('[data-board-draggable]');
+		if (!card || !board.contains(card)) return;
+		dragged = card;
+		card.classList.add('is-dragging');
+		event.dataTransfer.effectAllowed = 'move';
+		event.dataTransfer.setData('text/plain', 'task');
+	});
+	board.addEventListener('dragover', (event) => {
+		const column = event.target.closest('[data-board-stage]');
+		if (!dragged || !column || !board.contains(column)) return;
+		event.preventDefault();
+		event.dataTransfer.dropEffect = 'move';
+		for (const item of board.querySelectorAll('.is-drop-target')) item.classList.remove('is-drop-target');
+		column.classList.add('is-drop-target');
+	});
+	board.addEventListener('drop', (event) => {
+		const column = event.target.closest('[data-board-stage]');
+		if (!dragged || !column || !board.contains(column)) return;
+		event.preventDefault();
+		const form = dragged.querySelector('[data-board-move]');
+		const select = form?.querySelector('select[name="status"]');
+		if (select && select.value !== column.dataset.boardStage) {
+			select.value = column.dataset.boardStage;
+			form.requestSubmit();
+		}
+	});
+	board.addEventListener('dragend', () => {
+		dragged?.classList.remove('is-dragging');
+		dragged = null;
+		for (const item of board.querySelectorAll('.is-drop-target')) item.classList.remove('is-drop-target');
+	});
+}
+
+for (const form of document.querySelectorAll('[data-meeting-filters]')) {
+	let pending;
+	form.addEventListener('change', async () => {
+		const count = form.querySelectorAll('input[name="team"]:checked').length;
+		form.querySelector('[data-team-filter-label]').textContent = count ? `Teams (${count}) ▾` : 'All teams ▾';
+		const params = new URLSearchParams(new FormData(form));
+		if (!params.get('kind')) params.delete('kind');
+		if (!params.get('date')) { params.delete('date'); params.delete('date_mode'); }
+		const url = `${form.action}${params.size ? `?${params}` : ''}`;
+		pending?.abort();
+		pending = new AbortController();
+		try {
+			const response = await fetch(url, { signal: pending.signal });
+			if (!response.ok) throw new Error('Could not load meetings');
+			const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+			const results = doc.getElementById('meeting-filter-results');
+			if (!results) throw new Error('Missing meeting results');
+			document.getElementById('meeting-filter-results').replaceWith(results);
+			history.replaceState(null, '', url);
+		} catch (error) {
+			if (error.name !== 'AbortError') location.assign(url);
+		}
+	});
+}
+
+for (const group of document.querySelectorAll('[data-meeting-tabs]')) {
+	const tabs = [...group.querySelectorAll(':scope > [role="tablist"] > [role="tab"]')];
+	const select = (tab, updateUrl = false) => {
+		for (const option of tabs) {
+			const selected = option === tab;
+			option.setAttribute('aria-selected', String(selected));
+			option.tabIndex = selected ? 0 : -1;
+			document.getElementById(option.getAttribute('aria-controls')).hidden = !selected;
+		}
+		if (updateUrl) history.replaceState(null, '', tab.href);
+	};
+	for (const [index, tab] of tabs.entries()) {
+		tab.addEventListener('click', (event) => {
+			if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+			event.preventDefault();
+			select(tab, true);
+		});
+		tab.addEventListener('keydown', (event) => {
+			const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1
+				: event.key === 'ArrowRight' ? (index + 1) % tabs.length
+				: event.key === 'ArrowLeft' ? (index + tabs.length - 1) % tabs.length : null;
+			if (next === null) return;
+			event.preventDefault();
+			select(tabs[next], true);
+			tabs[next].focus();
+		});
+	}
+	const revealAnchor = () => {
+		const target = document.getElementById(location.hash.slice(1));
+		const panel = target?.closest('[role="tabpanel"]');
+		if (!panel || !group.contains(panel)) return;
+		select(tabs.find((tab) => tab.getAttribute('aria-controls') === panel.id));
+		target.scrollIntoView({ block: 'start' });
+	};
+	revealAnchor();
+	window.addEventListener('hashchange', revealAnchor);
+}
+
+for (const group of document.querySelectorAll('[data-library-tabs]')) {
+	const tabs = [...group.querySelectorAll('[role="tab"]')];
+	const select = (tab) => {
+		for (const option of tabs) {
+			const selected = option === tab;
+			option.setAttribute('aria-selected', String(selected));
+			option.tabIndex = selected ? 0 : -1;
+			document.getElementById(option.getAttribute('aria-controls')).hidden = !selected;
+		}
+	};
+	for (const [index, tab] of tabs.entries()) {
+		tab.addEventListener('click', () => select(tab));
+		tab.addEventListener('keydown', (event) => {
+			const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : event.key === 'ArrowRight' ? (index + 1) % tabs.length : event.key === 'ArrowLeft' ? (index + tabs.length - 1) % tabs.length : null;
+			if (next === null) return;
+			event.preventDefault();
+			select(tabs[next]);
+			tabs[next].focus();
+		});
+	}
+}
+
+for (const button of document.querySelectorAll('[data-members-dialog]')) {
+	const dialog = document.getElementById(button.dataset.membersDialog);
+	if (!(dialog instanceof HTMLDialogElement)) continue;
+	button.addEventListener('click', () => dialog.showModal());
+	dialog.addEventListener('close', () => button.focus());
+	dialog.addEventListener('click', (e) => {
+		if (e.target === dialog) dialog.close();
+	});
+}
+
+const newTeamTaskDialog = document.getElementById('new-team-task');
+if (newTeamTaskDialog instanceof HTMLDialogElement) {
+	const status = newTeamTaskDialog.querySelector('input[name="status"]');
+	document.querySelector('[data-members-dialog="new-team-task"]')?.addEventListener('click', () => { if (status) status.value = 'open'; });
+	for (const button of document.querySelectorAll('[data-board-add]')) {
+		button.addEventListener('click', () => {
+			if (status) status.value = button.dataset.boardAdd;
+			newTeamTaskDialog.showModal();
+			newTeamTaskDialog.addEventListener('close', () => button.focus(), { once: true });
+		});
+	}
+}
+
+for (const form of document.querySelectorAll('form[data-board-assignment]')) {
+	const error = form.querySelector('[data-assignment-error]');
+	form.addEventListener('change', () => { if (error) error.hidden = true; });
+	form.addEventListener('submit', (event) => {
+		if (form.querySelector('input[name="person"]:checked, input[name="subteam"]:checked')) return;
+		event.preventDefault();
+		if (error) error.hidden = false;
+		form.querySelector('input[name="person"], input[name="subteam"]')?.focus();
+	});
+}
 
 // A meeting's reason box stays hidden until it's needed: on Cancel, or when the date or time changes.
 const reasonBox = document.querySelector('[data-reason]');
@@ -61,14 +254,44 @@ for (const btn of document.querySelectorAll('[data-add-row]')) {
 	});
 }
 
-// Attendance: mark everyone present in one click (still needs Save).
+// Save only changed attendance entries, in order, so unrelated check-ins stay intact.
+for (const form of document.querySelectorAll('form[data-attendance-autosave]')) {
+	let pending = Promise.resolve();
+	const status = form.querySelector('[data-attendance-status]');
+	const save = (entries) => {
+		if (!status) { form.requestSubmit(); return; }
+		status.textContent = 'Saving…';
+		pending = pending.then(async () => {
+			const response = await fetch(form.action, { method: 'POST', body: new URLSearchParams(entries) });
+			if (!response.ok || !response.url.includes('ok=attendance')) throw new Error('Save failed');
+		}).then(() => { status.textContent = 'Saved'; }).catch(() => { status.textContent = 'Could not save attendance. Please try again.'; });
+	};
+	form.addEventListener('change', (event) => {
+		const input = event.target;
+		if (input.matches('input[type="radio"]:checked')) save([[input.name, input.value]]);
+	});
+	form.addEventListener('attendance-mark-all', () => save([...form.querySelectorAll('input[type="radio"][value="present"]:checked')].map((input) => [input.name, input.value])));
+}
+
+// Attendance: mark everyone present in one click.
 for (const btn of document.querySelectorAll('[data-all-present]')) {
 	btn.addEventListener('click', () => {
-		for (const radio of btn.closest('form').querySelectorAll('input[type=radio][value=present]')) radio.checked = true;
+		for (const radio of btn.form.querySelectorAll('input[type=radio][value=present]')) radio.checked = true;
+		btn.form.dispatchEvent(new Event('attendance-mark-all'));
 	});
 }
 
-// Menus (<details class="menu">): one open at a time; a click elsewhere or Escape closes them.
+// Keep the selected meeting's column in view when the history first opens.
+for (const history of document.querySelectorAll('.attendance-history')) {
+	history.addEventListener('toggle', () => {
+		if (history.open) {
+			const table = history.querySelector('.table-scroll');
+			if (table) table.scrollLeft = table.scrollWidth;
+		}
+	}, { once: true });
+}
+
+// Dropdown menus close on outside clicks or Escape; inline disclosures stay open.
 const openMenus = () => document.querySelectorAll('details.menu[open]');
 document.addEventListener('click', (e) => {
 	for (const menu of openMenus()) if (!menu.contains(e.target)) menu.open = false;

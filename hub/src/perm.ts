@@ -20,7 +20,7 @@ export function canSeeTask(v: Viewer, t: TaskRow) {
 
 /** The assignee can close out their own task; managers can too. */
 export function canCompleteTask(v: Viewer, t: TaskRow) {
-	return t.assignee_id === v.id || canManageTask(v, t);
+	return t.assignee_id === v.id || isExec(v);
 }
 
 /** Execs, whoever made it, and the lead of any team it's for. */

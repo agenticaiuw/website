@@ -7,7 +7,7 @@ import { all, first, meetingById, memberByEmail, nowIso, run } from '../db';
 import { id, isEmail, list, readForm, str } from '../form';
 import { canEditMeeting } from '../perm';
 import type { AppEnv, Form, FormQuestion, FormResponse, MeetingRow } from '../types';
-import { Document, page, plainPage } from '../views/layout';
+import { Document, Notice, page, plainPage } from '../views/layout';
 import { Empty, Field, PageHead } from '../views/ui';
 
 // Forms people fill out at a meeting, from a link or a QR code on the screen. The form itself
@@ -35,52 +35,32 @@ export function formForMeeting(db: D1Database, meetingId: number) {
 	return first<FormWithCount>(db, 'SELECT f.*, (SELECT COUNT(*) FROM form_responses r WHERE r.form_id = f.id) AS responses FROM forms f WHERE f.meeting_id = ?', meetingId);
 }
 
-/** The form box on the meeting page. Everyone who can see the meeting gets the link; editors get the rest. */
+/** Form details and editing stay in the meeting's Form tab. */
 export function FormSection({ m, f, editable, appUrl }: { m: MeetingRow; f: FormWithCount | null; editable: boolean; appUrl: string }) {
 	const base = `/meetings/${m.id}/form`;
-	if (!f) {
-		if (!editable) return null;
-		return (
-			<>
-				<h2 class="section-title" id="form">
-					Form
-				</h2>
-				<p class="hint">
-					Feedback or anything else people fill out from a QR code, no sign-in needed. You can put a live count on the screen. <a href={base}>Add a form</a>
-				</p>
-			</>
-		);
-	}
-	const url = formUrl(appUrl, f);
-	return (
-		<>
-			<h2 class="section-title" id="form">
-				{f.title} <span class="count">{f.responses}</span>
-			</h2>
-			<div class="card form-box">
-				{f.closed ? (
-					<p class="hint">Closed. It isn't taking responses.</p>
-				) : (
-					<p>
-						<a href={url}>{bare(url)}</a>
-					</p>
-				)}
-				{editable && (
-					<div class="form-actions">
-						<a class="btn primary" href={`${base}/screen`}>
-							Show on screen
-						</a>
-						<a class="btn" href={`${base}/responses`}>
-							Responses
-						</a>
-						<a class="btn ghost" href={base}>
-							Edit
-						</a>
-					</div>
-				)}
+	const rows: FormQuestion[] = [...(f ? questionsOf(f) : []), { id: '', label: '', kind: 'text' }];
+	return <section id="form" class="stack">
+		{f && <div class="card form-box">
+			<h2 class="section-title">{f.title} <span class="count">{f.responses}</span></h2>
+			{f.closed ? <p class="hint">Closed. It isn't taking responses.</p> : <p><a href={formUrl(appUrl, f)}>{bare(formUrl(appUrl, f))}</a></p>}
+			{editable && <div class="form-actions"><a class="btn primary" href={`${base}/screen`}>Show on screen</a><a class="btn" href={`${base}/responses`}>Responses</a></div>}
+		</div>}
+		{editable && <form method="post" action={base} class="card form-grid">
+			<Field label="Title" wide><input name="title" required maxlength={100} value={f?.title ?? 'Feedback'} /></Field>
+			<div class="field wide">
+				<span class="label">Questions</span>
+				<div class="action-rows" data-rows>{rows.map((q) => <div class="question-row" data-row>
+					<input type="hidden" name="qid" value={q.id} />
+					<input name="qlabel" value={q.label} maxlength={300} placeholder="Question" aria-label="Question" />
+					<select name="qkind" aria-label="Answer"><option value="">Written answer</option><option value="rating" selected={q.kind === 'rating'}>Rating 1–5</option></select>
+				</div>)}</div>
+				<span class="hint">Name and email are always asked. Clear a question to remove it.</span>
 			</div>
-		</>
-	);
+			<div class="wide"><button type="button" class="btn ghost" data-add-row>+ Another question</button></div>
+			{f && <label class="check wide"><input type="checkbox" name="closed" value="1" checked={!!f.closed} /> Closed: stop taking responses</label>}
+			<div class="form-actions wide"><button class="btn primary">Save</button></div>
+		</form>}
+	</section>;
 }
 
 // ---------- setting it up (signed in) ----------
@@ -94,68 +74,7 @@ async function editableMeeting(c: Context<AppEnv>) {
 formRoutes.get('/meetings/:id/form', async (c) => {
 	const m = await editableMeeting(c);
 	if (!m) return c.notFound();
-	const f = await formForMeeting(c.env.DB, m.id);
-	// The saved questions plus one blank row to add another.
-	const rows: FormQuestion[] = [...(f ? questionsOf(f) : []), { id: '', label: '', kind: 'text' }];
-	return page(
-		c,
-		{ title: f ? `Edit: ${f.title}` : 'New form', active: 'meetings' },
-		<>
-			<PageHead
-				eyebrow={`Form · ${m.title}`}
-				title={f ? f.title : 'New form'}
-				sub="People open it from a link or QR code without signing in. They give their name and email, and anyone on the roster is checked off as there."
-			/>
-			<form method="post" action={`/meetings/${m.id}/form`} class="card form-grid">
-				<Field label="Title" wide>
-					<input name="title" required maxlength={100} value={f?.title ?? 'Feedback'} />
-				</Field>
-				<div class="field wide">
-					<span class="label">Questions</span>
-					<div class="action-rows" data-rows>
-						{rows.map((q) => (
-							<div class="question-row" data-row>
-								<input type="hidden" name="qid" value={q.id} />
-								<input name="qlabel" value={q.label} maxlength={300} placeholder="Question" aria-label="Question" />
-								<select name="qkind" aria-label="Answer">
-									<option value="">Written answer</option>
-									<option value="rating" selected={q.kind === 'rating'}>
-										Rating 1–5
-									</option>
-								</select>
-							</div>
-						))}
-					</div>
-					<span class="hint">Name and email are always asked. Clear a question to remove it.</span>
-				</div>
-				<div class="wide">
-					<button type="button" class="btn ghost" data-add-row>
-						+ Another question
-					</button>
-				</div>
-				{f && (
-					<label class="check wide">
-						<input type="checkbox" name="closed" value="1" checked={!!f.closed} />
-						Closed: stop taking responses
-					</label>
-				)}
-				<div class="form-actions wide">
-					<button class="btn primary">Save</button>
-					<a class="btn ghost" href={`/meetings/${m.id}`}>
-						Cancel
-					</a>
-					{f && (
-						<>
-							<span class="spacer"></span>
-							<button class="btn danger" formaction={`/meetings/${m.id}/form/delete`} data-confirm={`Delete this form and its ${f.responses} ${f.responses === 1 ? 'response' : 'responses'}?`}>
-								Delete form
-							</button>
-						</>
-					)}
-				</div>
-			</form>
-		</>
-	);
+	return c.redirect(`/meetings/${m.id}?view=form`);
 });
 
 formRoutes.post('/meetings/:id/form', async (c) => {
@@ -164,7 +83,7 @@ formRoutes.post('/meetings/:id/form', async (c) => {
 	if (!m) return c.notFound();
 	const form = await readForm(c);
 	const title = str(form.title, 100);
-	if (!title) return c.redirect(`/meetings/${m.id}/form?error=missing`);
+	if (!title) return c.redirect(`/meetings/${m.id}?view=form&error=missing#form`);
 	const ids = list(form.qid);
 	const kinds = list(form.qkind);
 	// Saved questions keep their ids so earlier answers stay with them. New ones get a fresh random
@@ -179,7 +98,7 @@ formRoutes.post('/meetings/:id/form', async (c) => {
 	} else {
 		await run(c.env.DB, 'INSERT INTO forms (meeting_id, token, title, questions, created_by) VALUES (?, ?, ?, ?, ?)', m.id, shortToken(), title, JSON.stringify(questions), v.id);
 	}
-	return c.redirect(`/meetings/${m.id}?ok=saved#form`);
+	return c.redirect(`/meetings/${m.id}?view=form&ok=saved#form`);
 });
 
 formRoutes.post('/meetings/:id/form/delete', async (c) => {
@@ -369,9 +288,7 @@ publicFormRoutes.get('/f/:token', async (c) => {
 		<>
 			{head}
 			{c.req.query('error') && (
-				<p class="flash err" role="alert">
-					Fill in your name and a valid email.
-				</p>
+				<div class="system-notices"><Notice error>Fill in your name and a valid email.</Notice></div>
 			)}
 			<form method="post" action={`/f/${f.token}`} class="stack">
 				<Field label="Name">

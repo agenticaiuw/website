@@ -3,6 +3,8 @@ import { dueLabel, formatDate } from '../dates';
 import { renderMarkdown } from '../markdown';
 import { canCompleteTask, canManageTask } from '../perm';
 import type { Member, TaskRow, Team, Viewer } from '../types';
+import { DoneMark, individualStage, MoveCard } from './task-stage';
+import { BOARD_STATUSES } from '../board';
 
 export function PageHead({ eyebrow, title, sub, actions }: { eyebrow?: string; title: Child; sub?: Child; actions?: Child }) {
 	return (
@@ -33,18 +35,37 @@ export function Empty({ children }: { children: Child }) {
 	return <p class="empty">{children}</p>;
 }
 
+export function MembersDialog({ id, name, count, children }: { id: string; name: string; count: number; children: Child }) {
+	return (
+		<div class="members-control">
+			<button type="button" class="btn small" aria-haspopup="dialog" aria-controls={id} data-members-dialog={id}>
+				Members ({count})
+			</button>
+			<dialog id={id} class="members-dialog" aria-labelledby={`${id}-title`}>
+				<div class="members-dialog-content">
+					<header>
+						<h2 id={`${id}-title`}>{name} members</h2>
+						<form method="dialog"><button class="btn small" autofocus>Close</button></form>
+					</header>
+					{children}
+				</div>
+			</dialog>
+		</div>
+	);
+}
+
 export function Markdown({ text, empty }: { text: string; empty?: string }) {
 	if (!text.trim()) return empty ? <Empty>{empty}</Empty> : null;
 	return <div class="prose" dangerouslySetInnerHTML={{ __html: renderMarkdown(text) }} />;
 }
 
 /** A one-button form. `back` is where to land afterwards. */
-export function PostButton({ action, label, cls = 'btn', back, confirm, name, value }: { action: string; label: Child; cls?: string; back?: string; confirm?: string; name?: string; value?: string }) {
+export function PostButton({ action, label, cls = 'btn', back, confirm, name, value, removeLabel }: { action: string; label: Child; cls?: string; back?: string; confirm?: string; name?: string; value?: string; removeLabel?: string }) {
 	return (
 		<form method="post" action={action} class="inline" data-confirm={confirm}>
 			{back && <input type="hidden" name="back" value={back} />}
 			{name && <input type="hidden" name={name} value={value ?? ''} />}
-			<button class={cls}>{label}</button>
+			<button class={removeLabel ? 'icon-btn remove-cross' : cls} aria-label={removeLabel} title={removeLabel}>{removeLabel ? <span aria-hidden="true">×</span> : label}</button>
 		</form>
 	);
 }
@@ -108,7 +129,8 @@ export function TaskList({
 				].filter(Boolean);
 				return (
 					<li class={`task ${open ? 'open' : t.status}`}>
-						{stats ? <Ring {...stats} /> : <Tick task={t} viewer={viewer} back={back} />}
+						{stats && <Ring {...stats} />}
+						{t.status === 'done' && (canCompleteTask(viewer, t) ? <MoveCard action={`/tasks/${t.id}/board-move`} status="done" title={t.title} back={back} /> : <DoneMark />)}
 						<div class="task-main">
 							<a href={`/tasks/${t.id}${stats && t.assignee_id !== viewer.id ? '?all=1' : ''}`} class="task-title">
 								{by === 'assignee' ? (t.assignee_id === viewer.id ? 'You' : t.assignee_name) : t.title}
@@ -122,6 +144,7 @@ export function TaskList({
 							)}
 						</div>
 						{open && <Due task={open} today={today} />}
+						{t.status !== 'done' && (canCompleteTask(viewer, t) ? <MoveCard action={`/tasks/${t.id}/board-move`} status={individualStage(t)} title={t.title} back={back} /> : <span class="hint task-stage-label">{BOARD_STATUSES.find(([status]) => status === individualStage(t))?.[1]}</span>)}
 						{removable && by === 'assignee' && canManageTask(viewer, t) && (
 							<form method="post" action={`/tasks/${t.id}/remove`} class="inline" data-confirm={`Take ${t.assignee_name} off this task? Their copy and its history are deleted; everyone else keeps theirs.`}>
 								<input type="hidden" name="back" value={back} />
@@ -140,19 +163,6 @@ export function TaskList({
 function Ring({ done, total }: { done: number; total: number }) {
 	const label = `${done} of ${total} done`;
 	return <span class="ring" style={`--p:${total ? Math.round((100 * done) / total) : 0}%`} role="img" aria-label={label} title={label}></span>;
-}
-
-/** The round control at the start of a task row: a button for whoever may finish it, a marker for everyone else. */
-function Tick({ task, viewer, back }: { task: TaskRow; viewer: Viewer; back: string }) {
-	if (task.status !== 'open') return <span class="tick on" title={task.status === 'done' ? 'Done' : 'Dropped'}></span>;
-	if (!canCompleteTask(viewer, task)) return <span class="tick" title="Only the assignee or whoever assigned it can mark it done"></span>;
-	return (
-		<form method="post" action={`/tasks/${task.id}/status`} class="inline">
-			<input type="hidden" name="back" value={back} />
-			<input type="hidden" name="status" value="done" />
-			<button class="tick" title="Mark done" aria-label={`Mark “${task.title}” done`}></button>
-		</form>
-	);
 }
 
 /** Links that act as one control, e.g. status or team filters. `href` builds each option's URL. */

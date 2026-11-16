@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { safeRedirect } from '../auth';
+import { BOARD_STATUSES, boardTasks } from '../board';
 import { addDays, formatDate, formatTimestamp, isDate, todayIn } from '../dates';
 import { activeMembers, all, first, groupStats, logTask, memberById, nowIso, run, setTaskStatus, TASK_ON_TEAM, TASK_SELECT, TASK_VISIBLE, taskById, teams, teamsByMember, visible } from '../db';
 import { id, list, readForm, str, withNotice } from '../form';
@@ -7,7 +8,10 @@ import { canAssign, canCompleteTask, canManageTask, canSeeTask, isExec, teamsFor
 import { notifyAssigned, notifyDueChanged, notifyTaskEnded } from '../reminders';
 import type { AppEnv, Member, Task, TaskRow, TaskStatus, Team, Viewer } from '../types';
 import { page } from '../views/layout';
+import { BoardTaskList } from '../views/board';
+import { DoneMark, individualStage, MoveCard } from '../views/task-stage';
 import { Choice, Due, Field, Markdown, MemberSelect, PageHead, PeoplePicker, PostButton, Tabs, TaskList, TeamSelect } from '../views/ui';
+import { loadMeeting } from './meeting-access';
 
 export const taskRoutes = new Hono<AppEnv>();
 
@@ -21,8 +25,8 @@ taskRoutes.get('/tasks', async (c) => {
 	const team = id(c.req.query('team'));
 	const q = (c.req.query('q') ?? '').trim().slice(0, 100);
 
-	const where = [visible(v, TASK_VISIBLE)];
-	const params: (string | number)[] = [v.id];
+	const where = ['1 = 1'];
+	const params: (string | number)[] = [];
 	const bind = (value: string | number) => `?${params.push(value)}`;
 	if (status === 'open') where.push("t.status = 'open'");
 	else if (status === 'overdue') where.push(`t.status = 'open' AND t.due_date < ${bind(today)}`);
@@ -33,13 +37,14 @@ taskRoutes.get('/tasks', async (c) => {
 	if (q) where.push(`(t.title LIKE ${bind(`%${q}%`)} OR t.details LIKE ?${params.length})`);
 	const order = status === 'done' || status === 'dropped' ? 't.completed_at DESC, t.updated_at DESC' : 't.due_date, t.id';
 
-	const [tasks, people, teamList] = await Promise.all([
+	const [tasks, people, teamList, sharedTasks] = await Promise.all([
 		all<TaskRow>(c.env.DB, `${TASK_SELECT} WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT 300`, ...params),
 		activeMembers(c.env.DB),
-		teams(c.env.DB)
+		teams(c.env.DB),
+		boardTasks(c.env.DB, v.id, { team, assignee, status, q, today })
 	]);
 	const groups = await groupStats(c.env.DB, tasks);
-	const visibleTeams = isExec(v) ? teamList : teamList.filter((t) => t.kind === 'project' || v.teamIds.has(t.id));
+	const visibleTasks = tasks.map((task) => canSeeTask(v, task) ? task : { ...task, meeting_title: null });
 	const back = c.req.url.replace(new URL(c.req.url).origin, '');
 	const withStatus = (s: string | null) => {
 		const u = new URL(c.req.url);
@@ -53,7 +58,7 @@ taskRoutes.get('/tasks', async (c) => {
 		<>
 			<PageHead
 				title="Tasks"
-				sub={isExec(v) ? 'Every task in the club.' : 'Your tasks, tasks you assigned, and your project teams’ tasks.'}
+				sub="Every task in the club."
 				actions={
 					<a class="btn primary" href="/tasks/new">
 						New task
@@ -75,11 +80,15 @@ taskRoutes.get('/tasks', async (c) => {
 					]}
 				/>
 				<MemberSelect name="assignee" members={people} selected={assignee} blank="Anyone" label="Assignee" />
-				<TeamSelect name="team" teams={visibleTeams} selected={team} blank="Any team" label="Team" />
+				<select name="team" aria-label="Team">
+					<option value="" selected={!team}>Any team</option>
+					{teamList.map((t) => <option value={String(t.id)} selected={team === t.id}>{t.name}</option>)}
+				</select>
 				<input type="search" name="q" value={q} placeholder="Search tasks" aria-label="Search tasks" />
 				<button class="btn js-hide">Filter</button>
 			</form>
-			<TaskList tasks={tasks} today={today} viewer={v} show={['assignee', 'team', 'meeting']} back={back} empty="No tasks match." groups={groups} />
+			{sharedTasks.length > 0 && <BoardTaskList tasks={sharedTasks} viewer={v} today={today} back={back} />}
+			{(visibleTasks.length > 0 || !sharedTasks.length) && <TaskList tasks={visibleTasks} today={today} viewer={v} show={['assignee', 'team', 'meeting']} back={back} empty="No tasks match." groups={groups} />}
 		</>
 	);
 });
@@ -104,7 +113,8 @@ taskRoutes.get('/tasks/new', async (c) => {
 		c,
 		{ title: 'New task', active: 'tasks' },
 		<>
-			<PageHead eyebrow="Tasks" title="New task" sub={canAssign(v) ? 'Give it to one person or a whole team. Each person is emailed and reminded until they’re done, and you see everyone’s progress on one task.' : 'Track something you committed to. You’ll get reminders before it’s due.'} />
+			<PageHead eyebrow="Tasks" title="New task" sub={canAssign(v) ? 'Give it to one person or a whole team. Each person is emailed and reminded until they’re done, and you see everyone’s progress on one task.' : 'Track something you committed to. You’ll get reminders before it’s due.'}
+				actions={<a class="btn" href="/teams">Create a shared team task</a>} />
 			<form method="post" action="/tasks" class="card form-grid">
 				<div class="field wide">
 					<span class="label">What needs to happen</span>
@@ -294,21 +304,21 @@ const ACTIVITY_VERB: Record<string, string> = {
 	edited: 'edited it',
 	due_changed: 'changed the due date',
 	reassigned: 'reassigned it',
+	progress: 'moved it to In progress',
 	unassigned: 'took someone off it'
 };
 
-async function loadTask(c: { env: AppEnv['Bindings'] }, v: Viewer, raw: string) {
+async function loadTask(c: { env: AppEnv['Bindings'] }, raw: string) {
 	const taskId = id(raw);
-	const task = taskId ? await taskById(c.env.DB, taskId) : null;
-	return task && canSeeTask(v, task) ? task : null;
+	return taskId ? taskById(c.env.DB, taskId) : null;
 }
 
 taskRoutes.get('/tasks/:id', async (c) => {
 	const v = c.get('viewer');
-	const task = await loadTask(c, v, c.req.param('id'));
+	const task = await loadTask(c, c.req.param('id'));
 	if (!task) return c.notFound();
 	const today = todayIn(c.env.TIMEZONE);
-	const [activity, copies] = await Promise.all([
+	const [activity, copies, meeting] = await Promise.all([
 		all<Activity>(
 			c.env.DB,
 			`SELECT a.id, a.kind, a.body, a.created_at, m.name AS member_name
@@ -316,12 +326,13 @@ taskRoutes.get('/tasks/:id', async (c) => {
 			 WHERE a.task_id = ? ORDER BY a.created_at, a.id`,
 			task.id
 		),
-		task.group_id ? all<TaskRow>(c.env.DB, `${TASK_SELECT} WHERE t.group_id = ? ORDER BY a.name COLLATE NOCASE`, task.group_id) : Promise.resolve([])
+		task.group_id ? all<TaskRow>(c.env.DB, `${TASK_SELECT} WHERE t.group_id = ? ORDER BY a.name COLLATE NOCASE`, task.group_id) : Promise.resolve([]),
+		task.meeting_id ? loadMeeting(c, v, String(task.meeting_id)) : null
 	]);
 	const back = `/tasks/${task.id}`;
 	// A shared task: everyone's copy, each with its own tick. With ?all=1 the page is an overview
 	// for someone who isn't on it; otherwise it's about this one person's copy.
-	const everyone = copies.filter((t) => canSeeTask(v, t));
+	const everyone = copies;
 	const shared = everyone.length > 1;
 	const overview = shared && c.req.query('all') === '1';
 	const total = copies.filter((t) => t.status !== 'dropped').length;
@@ -347,8 +358,7 @@ taskRoutes.get('/tasks/:id', async (c) => {
 				title={task.title}
 				actions={
 					<>
-						{!overview && task.status === 'open' && canCompleteTask(v, task) && <PostButton action={`/tasks/${task.id}/status`} name="status" value="done" label="Mark done" cls="btn primary" back={back} />}
-						{!overview && task.status !== 'open' && canCompleteTask(v, task) && <PostButton action={`/tasks/${task.id}/status`} name="status" value="open" label="Reopen" back={back} />}
+						{!overview && task.status !== 'done' && canCompleteTask(v, task) && <MoveCard action={`/tasks/${task.id}/board-move`} status={individualStage(task)} title={task.title} back={back} />}
 						{canManageTask(v, task) && (
 							<a class="btn" href={`/tasks/${task.id}/edit`}>
 								Edit
@@ -362,7 +372,7 @@ taskRoutes.get('/tasks/:id', async (c) => {
 					<dl class="facts card">
 						<div>
 							<dt>{overview ? 'Progress' : 'Status'}</dt>
-							<dd>{overview ? `${done} of ${total} done` : <Due task={task} today={today} />}</dd>
+							<dd>{overview ? `${done} of ${total} done` : <span class="task-title-line">{task.status === 'done' ? (canCompleteTask(v, task) ? <MoveCard action={`/tasks/${task.id}/board-move`} status="done" title={task.title} back={back} /> : <DoneMark />) : BOARD_STATUSES.find(([status]) => status === individualStage(task))?.[1]}</span>}</dd>
 						</div>
 						<div>
 							<dt>Due</dt>
@@ -391,11 +401,11 @@ taskRoutes.get('/tasks/:id', async (c) => {
 							<dt>Assigned by</dt>
 							<dd>{task.assigner_name ?? '—'}</dd>
 						</div>
-						{task.meeting_id && (
+						{meeting && (
 							<div>
 								<dt>From meeting</dt>
 								<dd>
-									<a href={`/meetings/${task.meeting_id}`}>{task.meeting_title}</a>
+									<a href={`/meetings/${meeting.id}`}>{meeting.title}</a>
 								</dd>
 							</div>
 						)}
@@ -426,7 +436,7 @@ taskRoutes.get('/tasks/:id', async (c) => {
 								</li>
 							))}
 						</ol>
-						<form method="post" action={`/tasks/${task.id}/comment`} class="stack">
+						{canSeeTask(v, task) && <form method="post" action={`/tasks/${task.id}/comment`} class="stack">
 							<label class="field">
 								<span class="label">Add a comment</span>
 								<textarea name="body" rows={3} required placeholder="Progress, blockers, a link to the result…"></textarea>
@@ -434,7 +444,7 @@ taskRoutes.get('/tasks/:id', async (c) => {
 							<div>
 								<button class="btn">Comment</button>
 							</div>
-						</form>
+						</form>}
 					</section>
 				)}
 			</div>
@@ -442,16 +452,33 @@ taskRoutes.get('/tasks/:id', async (c) => {
 	);
 });
 
+taskRoutes.post('/tasks/:id/board-move', async (c) => {
+	const v = c.get('viewer');
+	const task = await loadTask(c, c.req.param('id'));
+	if (!task || !canCompleteTask(v, task)) return c.notFound();
+	const form = await readForm(c);
+	const next = BOARD_STATUSES.find(([status]) => status === str(form.status));
+	const back = safeRedirect(str(form.back) || `/tasks/${task.id}`);
+	if (!next) return c.redirect(withNotice(back, 'error', 'missing'));
+	const status = next[0] === 'in_progress' ? 'open' : next[0];
+	const inProgress = next[0] === 'in_progress';
+	if (status !== task.status || inProgress !== !!task.board_in_progress) {
+		await setTaskStatus(c.env.DB, task.id, status, v.id, '', inProgress);
+	}
+	return c.redirect(withNotice(back, 'ok', 'saved'));
+});
+
 taskRoutes.post('/tasks/:id/status', async (c) => {
 	const v = c.get('viewer');
-	const task = await loadTask(c, v, c.req.param('id'));
+	const task = await loadTask(c, c.req.param('id'));
 	if (!task) return c.notFound();
 	const form = await readForm(c);
 	const status = str(form.status) as TaskStatus;
-	const allowed = status === 'dropped' ? canManageTask(v, task) : (status === 'done' || status === 'open') && canCompleteTask(v, task);
+	// Only the assignee (or an exec) marks it done; whoever manages it can also drop it.
+	const allowed = ['dropped', 'done', 'open'].includes(status) && (canCompleteTask(v, task) || (status === 'dropped' && canManageTask(v, task)));
 	const back = safeRedirect(str(form.back) || `/tasks/${task.id}`);
 	if (!allowed) return c.redirect(withNotice(back, 'error', 'forbidden'));
-	if (status === 'dropped' && str(form.all) === '1' && task.group_id) {
+	if (status === 'dropped' && str(form.all) === '1' && task.group_id && canManageTask(v, task)) {
 		const open = await all<TaskRow>(c.env.DB, `${TASK_SELECT} WHERE t.group_id = ? AND t.status = 'open'`, task.group_id);
 		for (const t of open) await setTaskStatus(c.env.DB, t.id, 'dropped', v.id);
 		await notifyTaskEnded(c.env, v, open, 'dropped');
@@ -464,8 +491,8 @@ taskRoutes.post('/tasks/:id/status', async (c) => {
 
 taskRoutes.post('/tasks/:id/comment', async (c) => {
 	const v = c.get('viewer');
-	const task = await loadTask(c, v, c.req.param('id'));
-	if (!task) return c.notFound();
+	const task = await loadTask(c, c.req.param('id'));
+	if (!task || !canSeeTask(v, task)) return c.notFound();
 	const body = str((await readForm(c)).body, 5000);
 	if (body) await logTask(c.env.DB, task.id, v.id, 'comment', body).run();
 	return c.redirect(`/tasks/${task.id}?ok=commented`);
@@ -474,7 +501,7 @@ taskRoutes.post('/tasks/:id/comment', async (c) => {
 /** Takes one person off a shared task: their copy and its history go, the others stay. */
 taskRoutes.post('/tasks/:id/remove', async (c) => {
 	const v = c.get('viewer');
-	const task = await loadTask(c, v, c.req.param('id'));
+	const task = await loadTask(c, c.req.param('id'));
 	if (!task) return c.notFound();
 	if (!canManageTask(v, task)) return c.redirect(`/tasks/${task.id}?error=forbidden`);
 	const others = task.group_id ? await all<{ id: number }>(c.env.DB, 'SELECT id FROM tasks WHERE group_id = ? AND id != ? ORDER BY id', task.group_id, task.id) : [];
@@ -493,7 +520,7 @@ taskRoutes.post('/tasks/:id/remove', async (c) => {
 
 taskRoutes.get('/tasks/:id/edit', async (c) => {
 	const v = c.get('viewer');
-	const task = await loadTask(c, v, c.req.param('id'));
+	const task = await loadTask(c, c.req.param('id'));
 	if (!task || !canManageTask(v, task)) return c.notFound();
 	const [people, teamList, teamsOf, copies] = await Promise.all([
 		activeMembers(c.env.DB),
@@ -564,7 +591,7 @@ taskRoutes.get('/tasks/:id/edit', async (c) => {
 /** Saves a task for everyone on it: same title, details, due date, team and urgency; adds and removes people. */
 taskRoutes.post('/tasks/:id', async (c) => {
 	const v = c.get('viewer');
-	const task = await loadTask(c, v, c.req.param('id'));
+	const task = await loadTask(c, c.req.param('id'));
 	if (!task || !canManageTask(v, task)) return c.notFound();
 	const form = await readForm(c);
 	const title = str(form.title, 200);

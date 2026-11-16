@@ -1,4 +1,5 @@
 import { signDoneLink } from './auth';
+import { boardTaskHref, type BoardTask } from './board';
 import { addDays, daysBetween, hourIn, todayIn, weekday } from './dates';
 import { all, first, getMeta, logTask, MEETING_EXPECTED, MEETING_SELECT, MEETING_TEAMS_JSON, meetingTeams, setMeta, TASK_SELECT, teamNames } from './db';
 import { assignedEmail, canceledEmail, digestEmail, dueChangedEmail, taskNoticeEmail, meetingEmail, reminderEmail, urgentEmail, type DigestData, type EmailTask, type ReminderGroups } from './emails';
@@ -24,21 +25,31 @@ async function emailTask(env: Env, t: TaskRow, opts: { withDone?: boolean; withA
 }
 
 type ReminderRow = TaskRow & { assignee_active: number; assigner_email: string | null; assigner_active: number | null };
+type BoardReminder = {
+	task_id: string; member_id: number; name: string; email: string; title: string; due_date: string;
+	team_name: string; last_reminder_on: string | null;
+};
 
 export async function runDailyReminders(env: Env, now = new Date()) {
 	const today = todayIn(env.TIMEZONE, now);
-	const tasks = await all<ReminderRow>(
+	const [tasks, board] = await Promise.all([all<ReminderRow>(
 		env.DB,
 		TASK_SELECT.replace('b.name AS assigner_name', 'b.name AS assigner_name, b.email AS assigner_email, b.active AS assigner_active, a.active AS assignee_active') +
 			` WHERE t.status = 'open' AND t.due_date <= ? ORDER BY t.due_date, t.id`,
 		addDays(today, SOON_DAYS)
-	);
+	), all<BoardReminder>(env.DB, `SELECT t.id AS task_id, m.id AS member_id, m.name, m.email, t.title, t.due_date,
+		tm.name AS team_name, n.last_reminder_on
+		FROM board_tasks t JOIN teams tm ON tm.id = t.team_id
+		JOIN board_task_recipients r ON r.task_id = t.id JOIN members m ON m.id = r.member_id
+		LEFT JOIN board_task_reminders n ON n.task_id = t.id AND n.member_id = m.id
+		WHERE t.status IN ('open', 'in_progress') AND m.active = 1 AND t.due_date <= ?
+		ORDER BY t.due_date, t.id`, addDays(today, SOON_DAYS))]);
 
-	type Bucket = { name: string; email: string; groups: ReminderGroups; reminded: { id: number; kind: ReminderKind }[]; escalated: ReminderRow[] };
+	type Bucket = { name: string; email: string; groups: ReminderGroups; reminded: { id: number; kind: ReminderKind }[]; escalated: ReminderRow[]; board: { task: BoardReminder; kind: ReminderKind }[] };
 	const buckets = new Map<number, Bucket>();
 	const bucket = (id: number, name: string, email: string) => {
 		let b = buckets.get(id);
-		if (!b) buckets.set(id, (b = { name, email, groups: { overdue: [], today: [], soon: [], followUp: [] }, reminded: [], escalated: [] }));
+		if (!b) buckets.set(id, (b = { name, email, groups: { overdue: [], today: [], soon: [], followUp: [] }, reminded: [], escalated: [], board: [] }));
 		return b;
 	};
 
@@ -55,19 +66,44 @@ export async function runDailyReminders(env: Env, now = new Date()) {
 			b.escalated.push(t);
 		}
 	}
+	for (const task of board) {
+		const kind = reminderFor(task.due_date, task.last_reminder_on, today);
+		if (kind) bucket(task.member_id, task.name, task.email).board.push({ task, kind });
+	}
 
 	let sent = 0;
 	let failed = 0;
 	for (const b of buckets.values()) {
+		const claims = b.board.length ? await env.DB.batch(b.board.map(({ task }) =>
+			env.DB.prepare(`INSERT INTO board_task_reminders (task_id, member_id, last_reminder_on)
+			 SELECT ?1, ?2, ?3 FROM board_tasks t JOIN board_task_recipients r ON r.task_id = t.id
+			 JOIN members m ON m.id = r.member_id
+			 WHERE t.id = ?1 AND m.id = ?2 AND m.active = 1 AND t.status IN ('open', 'in_progress') AND t.due_date = ?4
+			 ON CONFLICT(task_id, member_id) DO UPDATE SET last_reminder_on = excluded.last_reminder_on
+			 WHERE board_task_reminders.last_reminder_on IS ?5`)
+				.bind(task.task_id, task.member_id, today, task.due_date, task.last_reminder_on))) : [];
+		const claimed = b.board.filter((_, i) => claims[i].meta.changes > 0);
+		for (const { task, kind } of claimed) {
+			b.groups[kind].push({
+				id: task.task_id, title: task.title, due_date: task.due_date, team_name: task.team_name, meeting_title: null,
+				url: env.APP_URL + boardTaskHref(task.task_id)
+			});
+		}
+		if (!claimed.length && !b.reminded.length && !b.escalated.length) continue;
 		const msg = reminderEmail(b.name, b.groups, today, env.APP_URL);
 		const res = await sendMail(env, { to: { name: b.name, email: b.email }, kind: 'reminder', ...msg });
 		if (!res.ok) {
 			failed++;
+			if (claimed.length) await env.DB.batch(claimed.map(({ task }) => task.last_reminder_on === null
+				? env.DB.prepare('DELETE FROM board_task_reminders WHERE task_id = ? AND member_id = ? AND last_reminder_on = ?')
+					.bind(task.task_id, task.member_id, today)
+				: env.DB.prepare('UPDATE board_task_reminders SET last_reminder_on = ? WHERE task_id = ? AND member_id = ? AND last_reminder_on = ?')
+					.bind(task.last_reminder_on, task.task_id, task.member_id, today)));
 			continue; // nothing is marked, so the next run tries again
 		}
 		sent++;
 		const label = { overdue: 'Overdue reminder emailed', today: 'Due-today reminder emailed', soon: 'Due-soon reminder emailed' };
-		await env.DB.batch([
+		if (b.reminded.length || b.escalated.length) await env.DB.batch([
 			...b.reminded.flatMap((r) => [
 				env.DB.prepare('UPDATE tasks SET last_reminder_on = ?, reminded_at = ?, reminders_sent = reminders_sent + 1 WHERE id = ?').bind(today, now.toISOString(), r.id),
 				logTask(env.DB, r.id, null, 'reminder', label[r.kind])
@@ -310,6 +346,24 @@ export async function notifyAssigned(env: Env, assigner: { id: number; name: str
 		const res = await sendMail(env, { to: { name: list[0].assignee_name, email: list[0].assignee_email }, kind: 'assigned', ...msg });
 		if (res.ok) sent++;
 		await env.DB.batch(list.map((t) => logTask(env.DB, t.id, null, 'notified', res.ok ? `Assignment emailed to ${t.assignee_name}` : `Assignment email failed: ${res.error}`)));
+	}
+	return sent;
+}
+
+/** Emails people newly responsible for a team board card (named, or through a subteam), except whoever did it. */
+export async function notifyBoardAssigned(env: Env, assigner: { id: number; name: string }, task: Pick<BoardTask, 'id' | 'title' | 'due_date' | 'team_name'>, before: Set<number> = new Set()) {
+	const today = todayIn(env.TIMEZONE);
+	const people = await all<Pick<Member, 'id' | 'name' | 'email'>>(
+		env.DB,
+		'SELECT DISTINCT m.id, m.name, m.email FROM board_task_recipients r JOIN members m ON m.id = r.member_id WHERE r.task_id = ? AND m.active = 1',
+		task.id
+	);
+	const item: EmailTask = { id: task.id, title: task.title, due_date: task.due_date, team_name: task.team_name, meeting_title: null, url: env.APP_URL + boardTaskHref(task.id) };
+	let sent = 0;
+	for (const m of people) {
+		if (m.id === assigner.id || before.has(m.id)) continue;
+		const res = await sendMail(env, { to: { name: m.name, email: m.email }, kind: 'assigned', ...assignedEmail(m.name, assigner.name, [item], today, env.APP_URL) });
+		if (res.ok) sent++;
 	}
 	return sent;
 }

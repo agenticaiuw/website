@@ -35,7 +35,7 @@ function button(href: string, label: string, primary = true) {
 const toneColor = { overdue: RED, today: '#b45309', soon: INK, later: MUTED, done: MUTED } as const;
 
 export type EmailTask = {
-	id: number;
+	id: number | string;
 	title: string;
 	due_date: string;
 	team_name: string | null;

@@ -7,7 +7,7 @@ import { isEmail, readForm, str } from '../form';
 import { sendMail } from '../mail';
 import type { Context } from 'hono';
 import type { AppEnv } from '../types';
-import { plainPage } from '../views/layout';
+import { Notice, plainPage } from '../views/layout';
 
 export const authRoutes = new Hono<AppEnv>();
 
@@ -45,7 +45,7 @@ function codePage(c: Context<AppEnv>, email: string, next: string, notice: { err
 			<p class="sub">
 				If <strong>{email || 'that address'}</strong> is on the club roster, a 6-digit code is on its way from {c.env.MAIL_FROM}. It expires in 10 minutes.
 			</p>
-			{notice.error && <p class="flash err">{notice.error}</p>}
+			{notice.error && <div class="system-notices"><Notice error>{notice.error}</Notice></div>}
 			{notice.devCode && (
 				<p class="flash ok">
 					Local dev mode: your code is <strong>{notice.devCode}</strong>

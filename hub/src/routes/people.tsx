@@ -1,12 +1,13 @@
 import { Hono } from 'hono';
+import { boardTasks } from '../board';
 import { addDays, formatDate, todayIn } from '../dates';
 import { activeMembers, all, groupStats, MEETING_SELECT, memberByEmail, memberById, MEETING_VISIBLE, run, TASK_ON_TEAM, TASK_SELECT, TASK_VISIBLE, teams, visible } from '../db';
 import { id, isEmail, readForm, str } from '../form';
 import { isExec } from '../perm';
 import type { AppEnv, AttendanceStatus, Member, MeetingRow, Role, Team, TaskRow } from '../types';
 import { page } from '../views/layout';
-import { MeetingList } from './home';
-import { Choice, Empty, Field, Menu, PageHead, pct, PostButton, Stat, TaskList } from '../views/ui';
+import { BoardTaskList } from '../views/board';
+import { Choice, Empty, Field, MembersDialog, Menu, PageHead, pct, PostButton, Stat, TaskList } from '../views/ui';
 
 export const peopleRoutes = new Hono<AppEnv>();
 
@@ -169,7 +170,7 @@ peopleRoutes.get('/people/:id', async (c) => {
 	if (!person) return c.notFound();
 	const today = todayIn(c.env.TIMEZONE);
 	const self = person.id === v.id;
-	const [tasks, meetings, memberships] = await Promise.all([
+	const [tasks, meetings, memberships, allShared] = await Promise.all([
 		all<TaskRow>(
 			c.env.DB,
 			`${TASK_SELECT} WHERE t.assignee_id = ?2 AND ${visible(v, TASK_VISIBLE)} ORDER BY t.status = 'open' DESC, CASE WHEN t.status = 'open' THEN t.due_date END, t.completed_at DESC LIMIT 60`,
@@ -184,8 +185,10 @@ peopleRoutes.get('/people/:id', async (c) => {
 			v.id,
 			person.id
 		),
-		all<Team & { is_lead: number; team_title: string }>(c.env.DB, 'SELECT t.*, x.is_lead, x.title AS team_title FROM team_members x JOIN teams t ON t.id = x.team_id WHERE x.member_id = ? AND t.archived = 0 ORDER BY t.name', person.id)
+		all<Team & { is_lead: number; team_title: string }>(c.env.DB, 'SELECT t.*, x.is_lead, x.title AS team_title FROM team_members x JOIN teams t ON t.id = x.team_id WHERE x.member_id = ? AND t.archived = 0 ORDER BY t.name', person.id),
+		boardTasks(c.env.DB, v.id, { assignee: person.id })
 	]);
+	const shared = allShared.filter((t) => t.team_kind !== 'exec' || isExec(v));
 	const open = tasks.filter((t) => t.status === 'open');
 	const closed = tasks.filter((t) => t.status !== 'open');
 
@@ -229,6 +232,10 @@ peopleRoutes.get('/people/:id', async (c) => {
 							<TaskList tasks={closed} today={today} viewer={v} show={['team']} back={`/people/${person.id}`} />
 						</>
 					)}
+					{shared.length > 0 && <>
+						<h2 class="section-title">Team board tasks</h2>
+						<BoardTaskList tasks={shared} viewer={v} today={today} back={`/people/${person.id}`} />
+					</>}
 				</section>
 				<aside>
 					<h2 class="section-title">Meetings</h2>
@@ -308,10 +315,10 @@ peopleRoutes.post('/people/:id', async (c) => {
 
 // ---------- teams (execs) ----------
 
-type TeamMemberRow = { team_id: number; member_id: number; is_lead: number; title: string; name: string; role: Role };
+export type TeamMemberRow = { team_id: number; member_id: number; is_lead: number; title: string; name: string; role: Role };
 
 /** Execs show as execs on every team; anyone else can be a team's lead. Titles are per team. */
-function MemberTags({ m }: { m: TeamMemberRow }) {
+export function MemberTags({ m }: { m: { title: string; role: Role; is_lead: number } }) {
 	return (
 		<>
 			{m.title && <span class="muted team-title">{m.title}</span>}
@@ -320,100 +327,141 @@ function MemberTags({ m }: { m: TeamMemberRow }) {
 	);
 }
 
-/** A team's members, its settings menu and "Add someone…", shared by the Teams page and each team's page. */
-function TeamCard({ t, links, people, teamList, open }: { t: Team; links: TeamMemberRow[]; people: Member[]; teamList: Team[]; open?: number }) {
+/** An exec's menu for one person on a team: their title there, whether they lead it, or taking them off. */
+export function MemberOptions({ team, m }: { team: Pick<Team, 'id' | 'name' | 'kind'>; m: { member_id: number; name: string; title: string; role: Role; is_lead: number } }) {
+	return (
+		<Menu label={`Options for ${m.name}`} form>
+			<form method="post" action={`/teams/${team.id}/members/${m.member_id}`} class="stack">
+				<Field label={`Title on ${team.name}`} hint="Optional, e.g. Firmware or Project manager">
+					<input name="title" maxlength={60} value={m.title} />
+				</Field>
+				{m.role === 'exec' ? (
+					<span class="hint">Execs run every team, so they show as Exec.</span>
+				) : (
+					team.kind !== 'exec' && (
+						<label class="check">
+							<input type="checkbox" name="lead" value="1" checked={!!m.is_lead} /> Lead of {team.name}
+						</label>
+					)
+				)}
+				<div>
+					<button class="btn primary small">Save</button>
+				</div>
+			</form>
+			<PostButton action={`/teams/${team.id}/members/${m.member_id}/remove`} label={`Remove from ${team.name}`} removeLabel={`Remove ${m.name} from ${team.name}`} cls="item danger" />
+		</Menu>
+	);
+}
+
+/** A team on the Teams page: who runs it, its people (in a dialog), and for execs its settings and adding people. */
+export function TeamCard({ team: t, links, people, teamList, editable, open }: { team: Team; links: TeamMemberRow[]; people: Member[]; teamList: Team[]; editable: boolean; open?: number }) {
 	const members = links.filter((l) => l.team_id === t.id);
+	const execs = members.filter((m) => m.role === 'exec');
+	const leads = members.filter((m) => m.is_lead && m.role !== 'exec');
 	const others = people.filter((p) => !members.some((m) => m.member_id === p.id));
 	const targets = teamList.filter((x) => x.id !== t.id && !x.archived && x.kind === t.kind);
+	const names = (list: TeamMemberRow[]) => list.map((m, i) => <>{i > 0 && ', '}<a href={`/people/${m.member_id}`}>{m.name}</a></>);
 	return (
 		<section class={`card team${t.archived ? ' inactive' : ''}`} id={`team-${t.id}`}>
 			<header class="team-head">
 				<div>
-					<h2>
-						<a href={`/teams/${t.id}`}>{t.name}</a>
-					</h2>
+					<h2><a class="team-card-link" href={`/teams/${t.id}`}>{t.name}</a></h2>
+					<p>
+						{execs.length ? <>{execs.length === 1 ? 'Exec' : 'Execs'} · {names(execs)}</> : 'No exec assigned'}
+						{leads.length > 0 && <>{' · '}{leads.length === 1 ? 'Lead' : 'Leads'} · {names(leads)}</>}
+					</p>
 					<p>
 						{members.length} {members.length === 1 ? 'person' : 'people'}
 						{open !== undefined && ` · ${open} open ${open === 1 ? 'task' : 'tasks'}`}
 						{t.kind === 'exec' && ' · Execs only'}
 					</p>
 				</div>
-				<Menu label={`${t.name} settings`} form>
-					<form method="post" action={`/teams/${t.id}`} class="stack">
-						<Field label="Name">
-							<input name="name" value={t.name} required maxlength={100} />
-						</Field>
-						<Choice
-							name="kind"
-							label="Who sees its meetings and tasks"
-							selected={t.kind}
-							options={[
-								['project', 'Its members'],
-								['exec', 'Execs only']
-							]}
-						/>
-						<label class="check">
-							<input type="checkbox" name="archived" value="1" checked={!!t.archived} /> Archived
-						</label>
-						<div>
-							<button class="btn primary small">Save</button>
-						</div>
-					</form>
-					{targets.length > 0 && (
-						<form method="post" action={`/teams/${t.id}/merge`} class="stack" data-confirm={`Combine ${t.name} into the team you picked? Its people, open tasks and upcoming meetings move over, and ${t.name} is archived.`}>
-							<Field label="Combine into" hint="Moves its people, open tasks and upcoming meetings, then archives it.">
-								<select name="into" required>
-									<option value="">Pick a team…</option>
-									{targets.map((x) => (
-										<option value={String(x.id)}>{x.name}</option>
-									))}
-								</select>
-							</Field>
-							<div>
-								<button class="btn small">Combine</button>
-							</div>
-						</form>
-					)}
-				</Menu>
 			</header>
-			<ul class="team-members">
-				{members.map((m) => (
-					<li>
-						<a href={`/people/${m.member_id}`}>{m.name}</a>
-						<MemberTags m={m} />
-						<Menu label={`Options for ${m.name}`} form>
-							<form method="post" action={`/teams/${t.id}/members/${m.member_id}`} class="stack">
-								<Field label={`Title on ${t.name}`} hint="Optional, e.g. Firmware or Project manager">
-									<input name="title" maxlength={60} value={m.title} />
+			<div class="team-actions">
+				<MembersDialog id={`team-${t.id}-members`} name={t.name} count={members.length}>
+					{members.length ? (
+						<ul class="team-members">
+							{members.map((m) => (
+								<li>
+									<a href={`/people/${m.member_id}`}>{m.name}</a>
+									<MemberTags m={m} />
+									{editable && <MemberOptions team={t} m={m} />}
+								</li>
+							))}
+						</ul>
+					) : (
+						<Empty>No members yet.</Empty>
+					)}
+					{editable && (
+						<Menu label={`${t.name} settings`} form>
+							<form method="post" action={`/teams/${t.id}`} class="stack">
+								<Field label="Name">
+									<input name="name" value={t.name} required maxlength={100} />
 								</Field>
-								{m.role === 'exec' ? (
-									<span class="hint">Execs run every team, so they show as Exec.</span>
-								) : (
-									t.kind !== 'exec' && (
-										<label class="check">
-											<input type="checkbox" name="lead" value="1" checked={!!m.is_lead} /> Lead of {t.name}
-										</label>
-									)
-								)}
+								<Choice
+									name="kind"
+									label="Who sees its meetings and tasks"
+									selected={t.kind}
+									options={[
+										['project', 'Its members'],
+										['exec', 'Execs only']
+									]}
+								/>
+								<label class="check">
+									<input type="checkbox" name="archived" value="1" checked={!!t.archived} /> Archived
+								</label>
 								<div>
 									<button class="btn primary small">Save</button>
 								</div>
 							</form>
-							<PostButton action={`/teams/${t.id}/members/${m.member_id}/remove`} label={`Remove from ${t.name}`} cls="item danger" />
+							{targets.length > 0 && (
+								<form method="post" action={`/teams/${t.id}/merge`} class="stack" data-confirm={`Combine ${t.name} into the team you picked? Its people, open tasks and upcoming meetings move over, and ${t.name} is archived.`}>
+									<Field label="Combine into" hint="Moves its people, open tasks and upcoming meetings, then archives it.">
+										<select name="into" required>
+											<option value="">Pick a team…</option>
+											{targets.map((x) => (
+												<option value={String(x.id)}>{x.name}</option>
+											))}
+										</select>
+									</Field>
+									<div>
+										<button class="btn small">Combine</button>
+									</div>
+								</form>
+							)}
 						</Menu>
-					</li>
-				))}
-			</ul>
-			{others.length > 0 && (
-				<form method="post" action={`/teams/${t.id}/members`} class="team-add" data-autosubmit>
-					<select name="member" required aria-label={`Add someone to ${t.name}`}>
-						<option value="">Add someone…</option>
-						{others.map((p) => (
-							<option value={String(p.id)}>{p.name}</option>
-						))}
-					</select>
-					<button class="btn small js-hide">Add</button>
-				</form>
+					)}
+				</MembersDialog>
+				{editable && (
+					<button type="button" class="icon-btn team-add-button" aria-label={`Add someone to ${t.name}`} title={`Add someone to ${t.name}`} aria-haspopup="dialog" aria-controls={`team-${t.id}-add`} data-members-dialog={`team-${t.id}-add`}>
+						<span aria-hidden="true">+</span>
+					</button>
+				)}
+			</div>
+			{editable && (
+				<dialog id={`team-${t.id}-add`} class="members-dialog" aria-labelledby={`team-${t.id}-add-title`}>
+					<div class="members-dialog-content stack">
+						<header>
+							<h2 id={`team-${t.id}-add-title`}>Add someone to {t.name}</h2>
+							<form method="dialog">
+								<button class="btn small">Close</button>
+							</form>
+						</header>
+						{others.length > 0 ? (
+							<form method="post" action={`/teams/${t.id}/members`} class="team-add">
+								<select name="member" required aria-label={`Add someone to ${t.name}`}>
+									<option value="">Add someone…</option>
+									{others.map((p) => (
+										<option value={String(p.id)}>{p.name}</option>
+									))}
+								</select>
+								<button class="btn small primary">Add</button>
+							</form>
+						) : (
+							<Empty>Everyone on the roster is already on this team.</Empty>
+						)}
+					</div>
+				</dialog>
 			)}
 		</section>
 	);
@@ -423,113 +471,46 @@ const TEAM_LINKS = "SELECT x.team_id, x.member_id, x.is_lead, x.title, m.name, m
 
 peopleRoutes.get('/teams', async (c) => {
 	const v = c.get('viewer');
-	if (!isExec(v)) return forbidden(c);
+	const editable = isExec(v);
 	const [teamList, links, people, counts] = await Promise.all([
 		teams(c.env.DB, true),
 		all<TeamMemberRow>(c.env.DB, TEAM_LINKS),
-		activeMembers(c.env.DB),
+		editable ? activeMembers(c.env.DB) : Promise.resolve([]),
 		all<{ team_id: number; n: number }>(c.env.DB, `SELECT tt.id AS team_id, (SELECT COUNT(*) FROM tasks t WHERE t.status = 'open' AND ${TASK_ON_TEAM(1).replaceAll('?1', 'tt.id')}) AS n FROM teams tt`)
 	]);
 	const open = new Map(counts.map((r) => [r.team_id, r.n]));
-	const card = (t: Team) => <TeamCard t={t} links={links} people={people} teamList={teamList} open={open.get(t.id) ?? 0} />;
-	const archived = teamList.filter((t) => t.archived);
+	// Everyone sees the project teams; exec-only teams are for execs.
+	const listedTeams = editable ? teamList : teamList.filter((t) => t.kind !== 'exec');
+	const card = (t: Team) => <TeamCard team={t} links={links} people={people} teamList={teamList} editable={editable} open={open.get(t.id) ?? 0} />;
+	const archived = listedTeams.filter((t) => t.archived);
 	return page(
 		c,
 		{ title: 'Teams', active: 'teams' },
 		<>
-			<PageHead title="Teams" sub="Leads can record their team’s meetings and assign its tasks. Open a team to see its tasks and meetings." />
-			<div class="teams">{teamList.filter((t) => !t.archived).map(card)}</div>
-			<form method="post" action="/teams" class="new-team">
-				<input name="name" required maxlength={100} placeholder="New team name" aria-label="New team name" />
-				<button class="btn">Create team</button>
-			</form>
+			<PageHead title={<span class="teams-title">Teams{editable && (
+				<button type="button" class="btn small" aria-haspopup="dialog" aria-controls="add-team-dialog" data-members-dialog="add-team-dialog">
+					<span aria-hidden="true">+</span> Add team
+				</button>
+			)}</span>} />
+			{editable && <dialog id="add-team-dialog" class="members-dialog" aria-labelledby="add-team-title">
+				<div class="members-dialog-content stack">
+					<header>
+						<h2 id="add-team-title">Add team</h2>
+						<form method="dialog"><button class="btn small">Close</button></form>
+					</header>
+					<form method="post" action="/teams" class="stack">
+						<Field label="Team name"><input name="name" required maxlength={100} placeholder="New team name" /></Field>
+						<div><button class="btn primary">Add team</button></div>
+					</form>
+				</div>
+			</dialog>}
+			<div class="teams">{listedTeams.filter((t) => !t.archived).map(card)}</div>
 			{archived.length > 0 && (
 				<details class="archived-teams">
 					<summary>Archived teams ({archived.length})</summary>
 					<div class="teams">{archived.map(card)}</div>
 				</details>
 			)}
-		</>
-	);
-});
-
-peopleRoutes.get('/teams/:id', async (c) => {
-	const v = c.get('viewer');
-	const teamId = id(c.req.param('id'));
-	const db = c.env.DB;
-	const teamList = await teams(db, true);
-	const t = teamList.find((x) => x.id === teamId);
-	if (!t || !(isExec(v) || v.teamIds.has(t.id))) return c.notFound();
-	const today = todayIn(c.env.TIMEZONE);
-	const [links, people, tasks, upcoming, recent] = await Promise.all([
-		all<TeamMemberRow>(db, TEAM_LINKS),
-		activeMembers(db),
-		all<TaskRow>(db, `${TASK_SELECT} WHERE ${TASK_ON_TEAM(2)} AND ${visible(v, TASK_VISIBLE)} AND (t.status = 'open' OR t.completed_at >= ?3) ORDER BY t.status != 'open', t.due_date, t.id LIMIT 300`, v.id, t.id, addDays(today, -30)),
-		all<MeetingRow>(db, `${MEETING_SELECT} WHERE m.id IN (SELECT meeting_id FROM meeting_teams WHERE team_id = ?2) AND ${visible(v, MEETING_VISIBLE)} AND m.date >= ?3 ORDER BY m.date, m.time LIMIT 10`, v.id, t.id, today),
-		all<MeetingRow>(db, `${MEETING_SELECT} WHERE m.id IN (SELECT meeting_id FROM meeting_teams WHERE team_id = ?2) AND ${visible(v, MEETING_VISIBLE)} AND m.date < ?3 ORDER BY m.date DESC, m.time DESC LIMIT 5`, v.id, t.id, today)
-	]);
-	const groups = await groupStats(db, tasks);
-	const open = tasks.filter((x) => x.status === 'open');
-	const closed = tasks.filter((x) => x.status !== 'open');
-	const members = links.filter((l) => l.team_id === t.id);
-	const leads = isExec(v) || v.leadOf.has(t.id);
-	const back = `/teams/${t.id}`;
-	return page(
-		c,
-		{ title: t.name, active: 'teams' },
-		<>
-			<PageHead
-				eyebrow={t.archived ? 'Archived team' : t.kind === 'exec' ? 'Exec team' : 'Team'}
-				title={t.name}
-				sub={`${members.length} ${members.length === 1 ? 'person' : 'people'} · ${open.length} open ${open.length === 1 ? 'task' : 'tasks'}`}
-				actions={
-					leads && (
-						<>
-							<a class="btn primary" href={`/tasks/new?team=${t.id}`}>
-								New task
-							</a>
-							<a class="btn" href="/meetings/new">
-								New meeting
-							</a>
-						</>
-					)
-				}
-			/>
-			<div class="grid-2 wide-left">
-				<section>
-					<h2 class="section-title">Open tasks</h2>
-					<TaskList tasks={open} today={today} viewer={v} show={['assignee', 'meeting']} back={back} empty="No open tasks." groups={groups} />
-					{closed.length > 0 && (
-						<>
-							<h2 class="section-title">Finished in the last 30 days</h2>
-							<TaskList tasks={closed} today={today} viewer={v} show={['assignee']} back={back} groups={groups} />
-						</>
-					)}
-				</section>
-				<aside>
-					<h2 class="section-title">Upcoming meetings</h2>
-					<MeetingList meetings={upcoming} today={today} />
-					{recent.length > 0 && (
-						<>
-							<h2 class="section-title">Recent meetings</h2>
-							<MeetingList meetings={recent} today={today} />
-						</>
-					)}
-					<h2 class="section-title">People</h2>
-					{isExec(v) ? (
-						<TeamCard t={t} links={links} people={people} teamList={teamList} />
-					) : (
-						<ul class="team-members card">
-							{members.map((m) => (
-								<li>
-									<a href={`/people/${m.member_id}`}>{m.name}</a>
-									<MemberTags m={m} />
-								</li>
-							))}
-						</ul>
-					)}
-				</aside>
-			</div>
 		</>
 	);
 });
