@@ -60,6 +60,11 @@ export type Task = {
 	/** Reminded the evening it's due, then every 2 hours while overdue, until urgent_until. */
 	urgent: number;
 	urgent_until: string | null;
+	/** Repeats every this many days (0 = doesn't), until repeat_until if set. */
+	repeat_days: number;
+	repeat_until: string | null;
+	/** The next one in the repeat has been made. */
+	repeated: number;
 	/** UTC time of the last reminder email of any kind. */
 	reminded_at: string | null;
 	created_at: string;

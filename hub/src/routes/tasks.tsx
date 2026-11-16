@@ -7,7 +7,7 @@ import { canAssign, canCompleteTask, canManageTask, canSeeTask, isExec, teamsFor
 import { notifyAssigned, notifyDueChanged, notifyTaskEnded } from '../reminders';
 import type { AppEnv, Member, Task, TaskRow, TaskStatus, Team, Viewer } from '../types';
 import { page } from '../views/layout';
-import { Due, Field, Markdown, MemberSelect, PageHead, PeoplePicker, PostButton, Tabs, TaskList, TeamSelect } from '../views/ui';
+import { Choice, Due, Field, Markdown, MemberSelect, PageHead, PeoplePicker, PostButton, Tabs, TaskList, TeamSelect } from '../views/ui';
 
 export const taskRoutes = new Hono<AppEnv>();
 
@@ -143,6 +143,7 @@ taskRoutes.get('/tasks/new', async (c) => {
 						<TeamSelect name="team" teams={assignableTeams(v, teamList)} selected={preTeam} blank="No team" />
 					</Field>
 				)}
+				<RepeatFields days={0} until={null} />
 				<label class="check wide">
 					<input type="checkbox" name="urgent" value="1" />
 					Urgent: extra reminders the evening it’s due, then every 2 hours while overdue
@@ -165,7 +166,7 @@ taskRoutes.get('/tasks/new', async (c) => {
 export async function createTasks(
 	env: AppEnv['Bindings'],
 	v: Viewer,
-	input: { title: string; details: string; assignees: number[]; due: string; teamId: number | null; teamOf?: (assignee: number) => number | null; meetingId: number | null; urgent?: boolean }
+	input: { title: string; details: string; assignees: number[]; due: string; teamId: number | null; teamOf?: (assignee: number) => number | null; meetingId: number | null; urgent?: boolean; repeatDays?: number; repeatUntil?: string | null }
 ): Promise<{ ids: number[] } | { error: string }> {
 	if (!input.title || !input.assignees.length) return { error: 'missing' };
 	if (!isDate(input.due)) return { error: 'date' };
@@ -184,7 +185,7 @@ export async function createTasks(
 		if (!person || !person.active) continue;
 		const res = await run(
 			env.DB,
-			'INSERT INTO tasks (title, details, assignee_id, assigned_by, team_id, meeting_id, due_date, urgent) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+			'INSERT INTO tasks (title, details, assignee_id, assigned_by, team_id, meeting_id, due_date, urgent, repeat_days, repeat_until) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
 			input.title,
 			input.details,
 			assignee,
@@ -192,7 +193,9 @@ export async function createTasks(
 			teamOf(assignee),
 			input.meetingId,
 			input.due,
-			input.urgent ? 1 : 0
+			input.urgent ? 1 : 0,
+			input.repeatDays ?? 0,
+			input.repeatUntil ?? null
 		);
 		const taskId = Number(res.meta.last_row_id);
 		ids.push(taskId);
@@ -229,7 +232,8 @@ taskRoutes.post('/tasks', async (c) => {
 			teamId: picked[0] ?? null,
 			teamOf: (a) => picked.find(on(a)) ?? picked[0] ?? (a === v.id ? null : (led.find(on(a)) ?? led[0] ?? null)),
 			meetingId: null,
-			urgent: str(form.urgent) === '1'
+			urgent: str(form.urgent) === '1',
+			...readRepeat(form, row.due)
 		});
 		if ('error' in result) return c.redirect(ids.length ? '/tasks?error=partial' : `/tasks/new?error=${result.error}`);
 		ids.push(...result.ids);
@@ -245,6 +249,37 @@ taskRoutes.post('/tasks', async (c) => {
 	const own = await first<{ id: number }>(c.env.DB, 'SELECT id FROM tasks WHERE id IN (SELECT value FROM json_each(?)) AND assignee_id = ?', JSON.stringify(ids), v.id);
 	return c.redirect(own ? `/tasks/${own.id}?ok=assigned` : `/tasks/${ids[0]}?all=1&ok=assigned`);
 });
+
+/** How often a task can repeat. On each one's due date the next is made and everyone on it is emailed. */
+const TASK_REPEATS: [string, string][] = [
+	['0', 'Doesn’t repeat'],
+	['7', 'Weekly'],
+	['14', 'Every 2 weeks']
+];
+
+function RepeatFields({ days, until }: { days: number; until: string | null }) {
+	return (
+		<>
+			<Choice name="repeat" label="Repeats" selected={String(days)} options={TASK_REPEATS} hint="On each due date the next one is made and everyone on it is emailed." />
+			<label class="field until">
+				<span class="label">Until</span>
+				<input type="date" name="repeat_until" value={until ?? ''} />
+				<span class="hint">Optional. Leave it blank to keep going until someone stops it.</span>
+			</label>
+		</>
+	);
+}
+
+/** The repeat fields from a form: days (0 = doesn't repeat) and an optional end date. */
+function readRepeat(form: Record<string, unknown>, due: string) {
+	const days = Number(str(form.repeat));
+	const repeatDays = days === 7 || days === 14 ? days : 0;
+	const until = str(form.repeat_until);
+	return { repeatDays, repeatUntil: repeatDays && isDate(until) && until >= due ? until : null };
+}
+
+const repeatText = (t: { repeat_days: number; repeat_until: string | null }, today: string) =>
+	`${t.repeat_days === 14 ? 'Every 2 weeks' : 'Every week'}${t.repeat_until ? `, until ${formatDate(t.repeat_until, today)}` : ''}`;
 
 // ---------- detail ----------
 
@@ -333,6 +368,15 @@ taskRoutes.get('/tasks/:id', async (c) => {
 							<dt>Due</dt>
 							<dd>{formatDate(task.due_date, today)}</dd>
 						</div>
+						{task.repeat_days > 0 && (
+							<div>
+								<dt>Repeats</dt>
+								<dd>
+									{repeatText(task, today)}
+									{task.repeated ? ' · the next one has been made' : ' · the next one is made on the due date'}
+								</dd>
+							</div>
+						)}
 						{!!task.urgent && (
 							<div>
 								<dt>Urgent</dt>
@@ -490,6 +534,11 @@ taskRoutes.get('/tasks/:id/edit', async (c) => {
 				<Field label="Team">
 					<TeamSelect name="team" teams={teamChoices.filter(Boolean)} selected={task.team_id} blank="No team" />
 				</Field>
+				{task.repeated ? (
+					task.repeat_days > 0 && <p class="hint wide">{`This repeats ${repeatText(task, todayIn(c.env.TIMEZONE)).replace(/^E/, 'e')}. The next one is already made, so change the repeat there.`}</p>
+				) : (
+					<RepeatFields days={task.repeat_days} until={task.repeat_until} />
+				)}
 				<label class="check wide">
 					<input type="checkbox" name="urgent" value="1" checked={!!task.urgent} />
 					Urgent: extra reminders the evening it’s due, then every 2 hours while overdue
@@ -523,6 +572,8 @@ taskRoutes.post('/tasks/:id', async (c) => {
 	const due = str(form.due_date);
 	const teamId = id(form.team);
 	const urgent = str(form.urgent) === '1' ? 1 : 0;
+	// Once the next one's made, this one's repeat is history and stays as it was.
+	const { repeatDays, repeatUntil } = task.repeated ? { repeatDays: task.repeat_days, repeatUntil: task.repeat_until } : readRepeat(form, due);
 	const wanted = [...new Set(list(form.assignee).map(Number).filter((n) => Number.isInteger(n) && n > 0))];
 	const edit = `/tasks/${task.id}/edit`;
 	if (!title || !wanted.length) return c.redirect(`${edit}?error=missing`);
@@ -538,7 +589,7 @@ taskRoutes.post('/tasks/:id', async (c) => {
 	// New people get their own copy, filed under the task's team.
 	let newIds: number[] = [];
 	if (adding.length) {
-		const made = await createTasks(c.env, v, { title, details, assignees: adding, due, teamId, meetingId: task.meeting_id, urgent: !!urgent });
+		const made = await createTasks(c.env, v, { title, details, assignees: adding, due, teamId, meetingId: task.meeting_id, urgent: !!urgent, repeatDays, repeatUntil });
 		if ('error' in made) return c.redirect(`${edit}?error=${made.error}`);
 		newIds = made.ids;
 	}
@@ -558,15 +609,15 @@ taskRoutes.post('/tasks/:id', async (c) => {
 		stmts.push(
 			db
 				.prepare(
-					`UPDATE tasks SET title = ?, details = ?, team_id = ?, due_date = ?, urgent = ?, updated_at = ?,
+					`UPDATE tasks SET title = ?, details = ?, team_id = ?, due_date = ?, urgent = ?, repeat_days = ?, repeat_until = ?, updated_at = ?,
 					 urgent_until = CASE WHEN ? THEN NULL ELSE urgent_until END,
 					 escalated_on = CASE WHEN ? THEN NULL ELSE escalated_on END,
 					 last_reminder_on = CASE WHEN ? THEN NULL ELSE last_reminder_on END WHERE id = ?`
 				)
-				.bind(title, details, teamId, due, urgent, nowIso(), urgent && !o.urgent ? 1 : 0, dueChanged ? 1 : 0, dueChanged ? 1 : 0, o.id)
+				.bind(title, details, teamId, due, urgent, repeatDays, repeatUntil, nowIso(), urgent && !o.urgent ? 1 : 0, dueChanged ? 1 : 0, dueChanged ? 1 : 0, o.id)
 		);
 		if (dueChanged) stmts.push(logTask(db, o.id, v.id, 'due_changed', `${formatDate(o.due_date)} → ${formatDate(due)}`));
-		if (title !== o.title || details !== o.details || teamId !== o.team_id || urgent !== o.urgent) stmts.push(logTask(db, o.id, v.id, 'edited'));
+		if (title !== o.title || details !== o.details || teamId !== o.team_id || urgent !== o.urgent || repeatDays !== o.repeat_days || repeatUntil !== o.repeat_until) stmts.push(logTask(db, o.id, v.id, 'edited'));
 		for (const gone of leaving) stmts.push(logTask(db, o.id, v.id, 'unassigned', `${gone.assignee_name} is no longer on this task.`));
 	}
 	for (const gone of leaving) stmts.push(db.prepare('DELETE FROM tasks WHERE id = ?').bind(gone.id));

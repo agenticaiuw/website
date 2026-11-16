@@ -224,6 +224,46 @@ export async function sendMeetingReminders(env: Env, now = new Date()) {
 }
 
 /**
+ * Repeating tasks: on each one's due date, the next one is made for everyone still on it (not anyone
+ * who dropped theirs) and they're emailed about it, like any new task. Stops after repeat_until.
+ */
+export async function makeRepeatingTasks(env: Env, today: string) {
+	const db = env.DB;
+	const due = await all<TaskRow>(db, `${TASK_SELECT} WHERE t.repeat_days > 0 AND t.repeated = 0 AND t.due_date <= ? ORDER BY t.id`, today);
+	const groups = new Map<number, TaskRow[]>();
+	for (const t of due) groups.set(t.group_id ?? t.id, [...(groups.get(t.group_id ?? t.id) ?? []), t]);
+	let made = 0;
+	for (const copies of groups.values()) {
+		const t = copies[0];
+		await db.prepare('UPDATE tasks SET repeated = 1 WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(copies.map((o) => o.id))).run();
+		// The next date after today, in case a run was missed.
+		let next = addDays(t.due_date, t.repeat_days);
+		while (next <= today) next = addDays(next, t.repeat_days);
+		if (t.repeat_until && next > t.repeat_until) continue;
+		const ids: number[] = [];
+		for (const o of copies) {
+			if (o.status === 'dropped') continue;
+			const res = await db
+				.prepare(
+					`INSERT INTO tasks (title, details, assignee_id, assigned_by, team_id, meeting_id, due_date, urgent, repeat_days, repeat_until)
+					 SELECT ?, ?, id, ?, ?, ?, ?, ?, ?, ? FROM members WHERE id = ? AND active = 1`
+				)
+				.bind(o.title, o.details, o.assigned_by, o.team_id, o.meeting_id, next, o.urgent, o.repeat_days, o.repeat_until, o.assignee_id)
+				.run();
+			if (!res.meta.changes) continue;
+			const id = Number(res.meta.last_row_id);
+			ids.push(id);
+			await logTask(db, id, null, 'created', `Repeats ${t.repeat_days === 14 ? 'every 2 weeks' : 'weekly'}: the one after ${o.due_date}`).run();
+		}
+		if (!ids.length) continue;
+		if (ids.length > 1) await db.prepare('UPDATE tasks SET group_id = ? WHERE id IN (SELECT value FROM json_each(?))').bind(ids[0], JSON.stringify(ids)).run();
+		made += ids.length;
+		await notifyAssigned(env, { id: t.assigned_by ?? 0, name: t.assigner_name ?? 'The club hub' }, ids);
+	}
+	return made;
+}
+
+/**
  * The cron entry point. Runs every hour. Task reminders go out at 9 AM club time, plus the exec
  * digest on Mondays; urgent tasks are checked every hour; meeting reminders at 9 AM and 6 PM.
  */
@@ -231,6 +271,8 @@ export async function scheduled(env: Env, now = new Date()) {
 	const hour = hourIn(env.TIMEZONE, now);
 	const today = todayIn(env.TIMEZONE, now);
 	if (hour === SEND_HOUR) {
+		const repeats = await makeRepeatingTasks(env, today);
+		if (repeats) console.log(`[repeats] ${today}: ${repeats} made`);
 		const result = await runDailyReminders(env, now);
 		console.log(`[reminders] ${today}: ${result.sent} sent, ${result.failed} failed`);
 		if (weekday(today) === 1 && (await getMeta(env.DB, 'last_digest_on')) !== today) {
