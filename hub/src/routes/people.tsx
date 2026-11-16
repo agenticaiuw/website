@@ -184,7 +184,7 @@ peopleRoutes.get('/people/:id', async (c) => {
 			v.id,
 			person.id
 		),
-		all<Team & { is_lead: number }>(c.env.DB, 'SELECT t.*, x.is_lead FROM team_members x JOIN teams t ON t.id = x.team_id WHERE x.member_id = ? AND t.archived = 0 ORDER BY t.name', person.id)
+		all<Team & { is_lead: number; team_title: string }>(c.env.DB, 'SELECT t.*, x.is_lead, x.title AS team_title FROM team_members x JOIN teams t ON t.id = x.team_id WHERE x.member_id = ? AND t.archived = 0 ORDER BY t.name', person.id)
 	]);
 	const open = tasks.filter((t) => t.status === 'open');
 	const closed = tasks.filter((t) => t.status !== 'open');
@@ -200,7 +200,7 @@ peopleRoutes.get('/people/:id', async (c) => {
 					<>
 						{(isExec(v) || self) && person.email}
 						{person.discord && ` · Discord: ${person.discord}`}
-						{memberships.length > 0 && ` · ${memberships.map((t) => t.name + (t.is_lead ? ' (lead)' : '')).join(', ')}`}
+						{memberships.length > 0 && ` · ${memberships.map((t) => { const about = [t.is_lead && 'lead', t.team_title].filter(Boolean).join(', '); return t.name + (about ? ` (${about})` : ''); }).join(', ')}`}
 					</>
 				}
 				actions={
@@ -308,7 +308,17 @@ peopleRoutes.post('/people/:id', async (c) => {
 
 // ---------- teams (execs) ----------
 
-type TeamMemberRow = { team_id: number; member_id: number; is_lead: number; name: string; role: Role };
+type TeamMemberRow = { team_id: number; member_id: number; is_lead: number; title: string; name: string; role: Role };
+
+/** Execs show as execs on every team; anyone else can be a team's lead. Titles are per team. */
+function MemberTags({ m }: { m: TeamMemberRow }) {
+	return (
+		<>
+			{m.title && <span class="muted team-title">{m.title}</span>}
+			{m.role === 'exec' ? <span class="tag exec">Exec</span> : m.is_lead ? <span class="tag lead">Lead</span> : null}
+		</>
+	);
+}
 
 /** A team's members, its settings menu and "Add someone…", shared by the Teams page and each team's page. */
 function TeamCard({ t, links, people, teamList, open }: { t: Team; links: TeamMemberRow[]; people: Member[]; teamList: Team[]; open?: number }) {
@@ -370,10 +380,25 @@ function TeamCard({ t, links, people, teamList, open }: { t: Team; links: TeamMe
 				{members.map((m) => (
 					<li>
 						<a href={`/people/${m.member_id}`}>{m.name}</a>
-						{/* The exec board has execs, not leads. */}
-						{t.kind === 'exec' ? m.role === 'exec' && <span class="tag exec">Exec</span> : m.is_lead ? <span class="tag lead">Lead</span> : null}
-						<Menu label={`Options for ${m.name}`}>
-							{t.kind !== 'exec' && <PostButton action={`/teams/${t.id}/members/${m.member_id}/lead`} label={m.is_lead ? 'Remove as lead' : 'Make lead'} cls="item" />}
+						<MemberTags m={m} />
+						<Menu label={`Options for ${m.name}`} form>
+							<form method="post" action={`/teams/${t.id}/members/${m.member_id}`} class="stack">
+								<Field label={`Title on ${t.name}`} hint="Optional, e.g. Firmware or Project manager">
+									<input name="title" maxlength={60} value={m.title} />
+								</Field>
+								{m.role === 'exec' ? (
+									<span class="hint">Execs run every team, so they show as Exec.</span>
+								) : (
+									t.kind !== 'exec' && (
+										<label class="check">
+											<input type="checkbox" name="lead" value="1" checked={!!m.is_lead} /> Lead of {t.name}
+										</label>
+									)
+								)}
+								<div>
+									<button class="btn primary small">Save</button>
+								</div>
+							</form>
 							<PostButton action={`/teams/${t.id}/members/${m.member_id}/remove`} label={`Remove from ${t.name}`} cls="item danger" />
 						</Menu>
 					</li>
@@ -394,7 +419,7 @@ function TeamCard({ t, links, people, teamList, open }: { t: Team; links: TeamMe
 	);
 }
 
-const TEAM_LINKS = 'SELECT x.team_id, x.member_id, x.is_lead, m.name, m.role FROM team_members x JOIN members m ON m.id = x.member_id WHERE m.active = 1 ORDER BY x.is_lead DESC, m.name COLLATE NOCASE';
+const TEAM_LINKS = "SELECT x.team_id, x.member_id, x.is_lead, x.title, m.name, m.role FROM team_members x JOIN members m ON m.id = x.member_id WHERE m.active = 1 ORDER BY m.role = 'exec' DESC, x.is_lead DESC, x.title = '', m.name COLLATE NOCASE";
 
 peopleRoutes.get('/teams', async (c) => {
 	const v = c.get('viewer');
@@ -498,7 +523,7 @@ peopleRoutes.get('/teams/:id', async (c) => {
 							{members.map((m) => (
 								<li>
 									<a href={`/people/${m.member_id}`}>{m.name}</a>
-									{m.is_lead ? <span class="tag lead">Lead</span> : null}
+									<MemberTags m={m} />
 								</li>
 							))}
 						</ul>
@@ -564,10 +589,19 @@ peopleRoutes.post('/teams/:id/members', async (c) => {
 	return c.redirect(teamBack(c, teamId));
 });
 
-peopleRoutes.post('/teams/:id/members/:member/lead', async (c) => {
+/** A person's title on a team and whether they lead it. Execs are never leads: they run every team. */
+peopleRoutes.post('/teams/:id/members/:member', async (c) => {
 	if (!isExec(c.get('viewer'))) return forbidden(c);
 	const teamId = id(c.req.param('id'));
-	await run(c.env.DB, 'UPDATE team_members SET is_lead = 1 - is_lead WHERE team_id = ? AND member_id = ?', teamId ?? 0, id(c.req.param('member')) ?? 0);
+	const form = await readForm(c);
+	await run(
+		c.env.DB,
+		"UPDATE team_members SET title = ?, is_lead = ? * (SELECT role != 'exec' FROM members WHERE id = member_id) WHERE team_id = ? AND member_id = ?",
+		str(form.title, 60),
+		str(form.lead) === '1' ? 1 : 0,
+		teamId ?? 0,
+		id(c.req.param('member')) ?? 0
+	);
 	return c.redirect(teamBack(c, teamId));
 });
 

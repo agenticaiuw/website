@@ -413,6 +413,7 @@ tr.inactive, .team.inactive { opacity: 0.55; }
 .team-members li:hover { background: var(--surface-2); }
 .team-members a { text-decoration: none; margin-right: auto; }
 .team-members .tag { margin: 0 4px 0 0; }
+.team-members .team-title { font-size: 13px; margin-right: 6px; }
 /* Row menus stay out of the way until the row is hovered or focused (always shown on touch). */
 @media (hover: hover) {
 	.team-members .menu:not([open]) { opacity: 0; }
