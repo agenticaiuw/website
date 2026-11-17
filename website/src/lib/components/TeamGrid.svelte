@@ -2,6 +2,7 @@
 	import { site } from '$lib/site';
 	const { team } = site();
 	import Badge from './Badge.svelte';
+	import Rail from './Rail.svelte';
 
 	/* The founding board cards on the home page, drawn like collectible cards:
 	   badge holds each team's tool. Booking links stay on the Join page. */
@@ -17,31 +18,9 @@
 		ux: '#4a2233',
 		business: '#2b3a1c'
 	};
-
-	/* The cards sit in one row that scrolls sideways; the arrows step it a card at a time. */
-	let rail: HTMLUListElement | undefined = $state();
-	let atStart = $state(true);
-	let atEnd = $state(false);
-	const update = () => {
-		if (!rail) return;
-		atStart = rail.scrollLeft < 4;
-		atEnd = rail.scrollLeft + rail.clientWidth > rail.scrollWidth - 4;
-	};
-	const step = (dir: number) => {
-		if (!rail) return;
-		const card = rail.querySelector('li');
-		const by = card ? card.getBoundingClientRect().width + parseFloat(getComputedStyle(rail).columnGap || '16') : rail.clientWidth * 0.8;
-		const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-		rail.scrollBy({ left: dir * by, behavior: still ? 'auto' : 'smooth' });
-	};
-	$effect(() => {
-		update();
-		window.addEventListener('resize', update);
-		return () => window.removeEventListener('resize', update);
-	});
 </script>
 
-<ul class="rail" role="list" data-stagger="x" bind:this={rail} onscroll={update}>
+<Rail>
 	{#each team.members as m (m.name)}
 		<li data-reveal class="card member">
 			<div class="art" style:--tile={TILE[m.subteam] ?? 'var(--surface-2)'}>
@@ -66,66 +45,20 @@
 			</div>
 		</li>
 	{/each}
-</ul>
-
-<div class="shell arrows" class:hidden={atStart && atEnd}>
-	<button type="button" class="arrow" onclick={() => step(-1)} disabled={atStart} aria-label="Previous">
-		<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
-	</button>
-	<button type="button" class="arrow" onclick={() => step(1)} disabled={atEnd} aria-label="Next">
-		<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
-	</button>
-</div>
+</Rail>
 
 <style>
-	/* The row starts in line with the page's text and runs off the right edge. */
-	.rail {
-		--gutter: max(clamp(1.25rem, 5vw, 4rem), calc((100% - 78rem) / 2 + clamp(1.25rem, 5vw, 4rem)));
-		display: flex;
-		gap: 1rem;
-		margin: 0;
-		padding: 0.75rem var(--gutter) 2rem;
-		list-style: none;
-		overflow-x: auto;
-		overscroll-behavior-x: contain;
-		scroll-snap-type: x mandatory;
-		scroll-padding-inline: var(--gutter);
-		scrollbar-width: none;
-	}
-	.rail::-webkit-scrollbar { display: none; }
 	.member {
 		display: flex;
 		flex-direction: column;
-		flex: none;
-		width: clamp(15rem, 21vw, 18.5rem);
-		min-width: 0;
 		padding: 0.6rem;
-		scroll-snap-align: start;
 		transition: transform 0.3s var(--ease-spring), box-shadow 0.3s ease;
 	}
-
-	.arrows { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: -0.75rem; }
-	.arrows.hidden { visibility: hidden; }
-	.arrow {
-		display: grid;
-		place-items: center;
-		width: 2.75rem;
-		height: 2.75rem;
-		border-radius: 999px;
-		border: 1.5px solid var(--line-strong);
-		background: var(--surface-2);
-		color: var(--fg);
-		transition: border-color 0.2s ease, opacity 0.2s ease;
-	}
-	.arrow:hover:not(:disabled), .arrow:focus-visible { border-color: var(--fg); }
-	.arrow:disabled { opacity: 0.35; cursor: default; }
 
 	/* Short screens: a smaller badge keeps the whole gallery on one screen. */
 	@media (max-height: 700px) {
 		.art { padding: 0.7rem 0 0.4rem; }
 		.art :global(.badge) { width: 92px !important; }
-		.rail { padding-bottom: 1.25rem; }
-		.arrows { margin-top: -0.25rem; }
 	}
 	.member:hover { transform: translateY(-4px) rotate(-0.4deg); box-shadow: var(--shadow-lift); }
 	.art {

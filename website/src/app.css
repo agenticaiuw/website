@@ -120,7 +120,7 @@ p { text-wrap: pretty; }
 	justify-content: center;
 	min-height: 100vh;
 	min-height: 100svh;
-	padding-block: calc(4.5rem + clamp(1rem, 4svh, 2.5rem)) clamp(2rem, 7svh, 4.5rem);
+	padding-block: calc(4.5rem + clamp(1rem, 4svh, 2.5rem)) clamp(1.5rem, 5svh, 4rem);
 }
 
 /* Slide headings: crisp and heavy, sized to the screen's width and height. */

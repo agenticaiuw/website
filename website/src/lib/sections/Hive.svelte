@@ -4,37 +4,47 @@
 	const { project, work } = site();
 </script>
 
-<section id="hive" class="hive-page scroll-mt-16 overflow-clip">
-	<div class="shell">
-		<!-- Hive: the project goal, why it matters, then this semester's plan. -->
-		<header class="hive" data-reveal>
-			<p class="eyebrow accent">{project.eyebrow}</p>
-			<h1>{project.title}<span class="title-dot">.</span></h1>
-			<p class="goal">{@html richHtml(project.goal)}</p>
-			{#if project.why}<p class="why">{project.why}</p>{/if}
-		</header>
+<!-- Slide 1: the project's name and goal, big, with why it matters. -->
+<section id="hive" class="slide hive-hero scroll-mt-16">
+	<header class="shell hero-inner" data-hero>
+		<p class="eyebrow accent" data-hero-after>{project.eyebrow}</p>
+		<h1 class="title"><span class="word" data-word>{project.title}<span class="title-dot">.</span></span></h1>
+		<p class="goal" data-hero-after>{@html richHtml(project.goal)}</p>
+		{#if project.why}<p class="why" data-hero-after>{project.why}</p>{/if}
+	</header>
 
-		<div class="semester card" data-reveal>
-			<h2>{project.semesterLabel}</h2>
-			<ol>
-				{#each project.semester as point, i (i)}
-					<li><span class="index-numeral" aria-hidden="true">{i + 1}</span><p>{point}</p></li>
-				{/each}
-			</ol>
-			<a class="repo" href={project.repoHref} target="_blank" rel="noopener noreferrer">
-				{project.repoCta} <span aria-hidden="true">↗</span><span class="sr-only"> (opens in a new tab)</span>
-			</a>
-		</div>
+	<div class="cue" aria-hidden="true" data-cue>
+		<span data-hero-after>
+			<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+		</span>
+	</div>
+</section>
+
+<!-- Slide 2: this semester's plan, the code, and the teams building it. -->
+<section class="slide hive-plan" aria-labelledby="plan-heading">
+	<div class="shell">
+		<h2 id="plan-heading" class="slide-title" data-reveal>{project.semesterLabel}</h2>
+		<ol class="points" role="list" data-stagger>
+			{#each project.semester as point, i (i)}
+				<li class="card point" data-reveal>
+					<span class="num" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+					<p>{point}</p>
+				</li>
+			{/each}
+		</ol>
+		<a class="repo" href={project.repoHref} target="_blank" rel="noopener noreferrer" data-reveal>
+			{project.repoCta} <span aria-hidden="true">↗</span><span class="sr-only"> (opens in a new tab)</span>
+		</a>
 
 		<!-- Who builds it: one link per team page. -->
-		<nav class="builders" aria-labelledby="builders-heading" data-reveal>
-			<h2 id="builders-heading"><a href="/teams/">{work.subteams.heading} <span class="go" aria-hidden="true">→</span></a></h2>
-			<ul role="list">
+		<nav class="builders" aria-labelledby="builders-heading">
+			<h2 id="builders-heading" data-reveal><a href="/teams/">{work.subteams.heading} <span class="go" aria-hidden="true">→</span></a></h2>
+			<ul class="tiles" role="list" data-stagger>
 				{#each work.subteams.items as t (t.k)}
-					<li>
-						<a href="/teams/{t.k}/" class="chip">
-							<Badge size={30} prop={t.k} sticker={false} />
-							<span>{t.short}</span>
+					<li data-reveal>
+						<a href="/teams/{t.k}/" class="tile">
+							<span class="ring"><Badge size="100%" prop={t.k} sticker={false} /></span>
+							<span class="tile-name">{t.short}</span>
 						</a>
 					</li>
 				{/each}
@@ -44,51 +54,128 @@
 </section>
 
 <style>
-	.hive-page { padding: clamp(6.5rem, 11vw, 8.5rem) 0 clamp(4.5rem, 9vw, 7rem); }
-	.hive { max-width: 56rem; }
-	h1 { margin: 0.4rem 0 1rem; font-size: clamp(3.6rem, 8vw, 6.2rem); font-weight: 800; line-height: 1.02; letter-spacing: -0.035em; }
+	/* ---- slide 1 ---- */
+	.hive-hero { overflow: clip; }
+	.hero-inner { transform-origin: 30% 40%; }
+	.title {
+		margin-top: 0.25rem;
+		font-family: var(--font-sans);
+		font-size: clamp(4.5rem, min(21vw, 24svh), 13rem);
+		font-weight: 900;
+		line-height: 0.88;
+		letter-spacing: -0.05em;
+		text-transform: uppercase;
+		color: var(--fg);
+	}
+	.word { display: inline-block; }
 	.title-dot { color: var(--accent); }
 	.goal {
-		font-family: var(--font-display);
-		font-size: clamp(1.4rem, 2.6vw, 2rem);
+		margin-top: clamp(1rem, 3.5svh, 2rem);
+		max-width: 58rem;
+		font-family: var(--font-sans);
+		font-size: clamp(1.3rem, min(2.5vw, 4.2svh), 2.1rem);
 		font-weight: 500;
 		line-height: 1.3;
-		letter-spacing: -0.01em;
+		letter-spacing: -0.015em;
 		color: var(--fg);
 	}
-	.goal :global(strong) { font-weight: 700; }
-	.why { margin-top: 1.25rem; max-width: 44rem; font-size: 1.05rem; line-height: 1.65; color: var(--muted); }
+	.goal :global(strong) { font-weight: 800; }
+	.why {
+		margin-top: clamp(0.9rem, 2.6svh, 1.5rem);
+		max-width: 46rem;
+		font-size: clamp(1rem, min(1.25vw, 2.3svh), 1.15rem);
+		line-height: 1.6;
+		color: var(--muted);
+	}
+	.cue {
+		position: absolute;
+		inset-inline: 0;
+		bottom: clamp(0.75rem, 4svh, 2rem);
+		width: fit-content;
+		margin-inline: auto;
+		color: var(--muted);
+	}
+	.cue span { display: block; animation: nudge 2.4s ease-in-out infinite; }
+	@keyframes nudge {
+		0%, 100% { transform: translateY(0); opacity: 0.6; }
+		50% { transform: translateY(6px); opacity: 1; }
+	}
 
-	.semester { margin-top: clamp(2rem, 4vw, 2.75rem); padding: clamp(1.4rem, 3vw, 2rem); background: linear-gradient(140deg, var(--accent-surface), var(--surface) 70%); border-color: var(--accent-border); }
-	.semester h2 { font-size: clamp(1.4rem, 2.6vw, 1.8rem); }
-	.semester ol { display: grid; gap: 1rem; margin-top: 1.25rem; list-style: none; padding: 0; }
-	@media (min-width: 900px) { .semester ol { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-	.semester li { display: flex; align-items: flex-start; gap: 0.85rem; min-width: 0; }
-	.semester li .index-numeral { flex: none; width: 2.2rem; height: 2.2rem; font-size: 0.95rem; }
-	.semester li p { min-width: 0; font-size: 1rem; line-height: 1.55; color: var(--fg); }
-	.repo { display: inline-block; margin-top: 1.4rem; font-family: var(--font-display); font-weight: 700; color: var(--accent); }
+	/* ---- slide 2 ---- */
+	.points {
+		display: grid;
+		gap: clamp(0.75rem, 1.6svh, 1rem);
+		margin-top: clamp(1.1rem, 3.5svh, 2.25rem);
+		list-style: none;
+		padding: 0;
+	}
+	@media (min-width: 700px) { .points { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+	.point {
+		display: flex;
+		flex-direction: column;
+		gap: clamp(0.5rem, 1.6svh, 1rem);
+		min-width: 0;
+		padding: clamp(1.1rem, min(2vw, 3.2svh), 1.75rem);
+	}
+	.point:first-child { background: linear-gradient(140deg, var(--accent-surface), var(--surface) 70%); border-color: var(--accent-border); }
+	.num {
+		font-family: var(--font-sans);
+		font-size: clamp(1.9rem, min(3.4vw, 6svh), 3.1rem);
+		font-weight: 900;
+		line-height: 0.85;
+		letter-spacing: -0.05em;
+		font-variant-numeric: tabular-nums;
+		color: var(--accent);
+	}
+	.point p { font-size: clamp(1rem, min(1.4vw, 2.5svh), 1.25rem); line-height: 1.5; color: var(--fg); }
+	.repo { display: inline-block; margin-top: clamp(0.9rem, 2.4svh, 1.4rem); font-family: var(--font-sans); font-size: 1.05rem; font-weight: 700; color: var(--accent); }
 	.repo:hover, .repo:focus-visible { text-decoration: underline; text-underline-offset: 3px; }
 
-	.builders { margin-top: clamp(2.5rem, 5vw, 3.5rem); }
-	.builders h2 { font-size: clamp(1.4rem, 2.6vw, 1.8rem); }
+	.builders { margin-top: clamp(1.5rem, 5svh, 3.25rem); padding-top: clamp(1.1rem, 3.5svh, 2rem); border-top: 1px solid var(--line-strong); }
+	.builders h2 { font-family: var(--font-sans); font-size: clamp(1.3rem, min(2.2vw, 4svh), 1.9rem); font-weight: 800; letter-spacing: -0.02em; }
 	.builders h2 a { color: var(--fg); }
 	.builders h2 a:hover, .builders h2 a:focus-visible { color: var(--accent); }
-	.builders .go { display: inline-block; color: var(--accent); transition: transform 0.2s ease; }
+	.go { display: inline-block; color: var(--accent); transition: transform 0.2s ease; }
 	.builders h2 a:hover .go, .builders h2 a:focus-visible .go { transform: translateX(3px); }
-	.builders ul { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; list-style: none; padding: 0; }
-	.chip {
-		display: inline-flex;
+	.tiles {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: clamp(0.5rem, 1.4vw, 1rem);
+		margin-top: clamp(0.9rem, 2.6svh, 1.4rem);
+		list-style: none;
+		padding: 0;
+	}
+	@media (min-width: 900px) { .tiles { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+	/* narrow phones: two to a row so every team name fits on one line */
+	@media (max-width: 370px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+	.tile {
+		display: flex;
+		flex-direction: column;
 		align-items: center;
-		gap: 0.4rem;
-		padding: 0.3rem 0.85rem 0.3rem 0.4rem;
-		border-radius: 999px;
-		border: 1.5px solid var(--line-strong);
+		gap: 0.55rem;
+		height: 100%;
+		padding: clamp(0.7rem, 2svh, 1.1rem) 0.5rem;
+		border-radius: var(--r-lg);
+		border: 1px solid var(--line);
 		background: var(--surface);
-		font-family: var(--font-display);
-		font-weight: 600;
-		color: var(--fg);
+		text-align: center;
 		transition: border-color 0.2s ease;
 	}
-	.chip:hover, .chip:focus-visible { border-color: var(--accent); }
-	@media (prefers-reduced-motion: reduce) { .builders .go { transition: none; } }
+	.tile:hover, .tile:focus-visible { border-color: var(--accent); }
+	.ring {
+		display: grid;
+		place-items: center;
+		width: clamp(3.25rem, min(7vw, 9svh), 5.25rem);
+		aspect-ratio: 1;
+		padding: 0.35rem;
+		border-radius: 999px;
+		background: var(--surface-2);
+		border: 1.5px solid var(--line-strong);
+	}
+	.tile-name { font-family: var(--font-sans); font-size: clamp(0.95rem, 1.3vw, 1.1rem); font-weight: 700; line-height: 1.2; color: var(--fg); overflow-wrap: break-word; }
+
+	@media (prefers-reduced-motion: reduce) {
+		.cue span { animation: none; }
+		.go { transition: none; }
+	}
 </style>
