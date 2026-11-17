@@ -112,7 +112,7 @@ function Brand({ size = 28 }: { size?: number }) {
 		<a href="/" class="brand">
 			<img src="/favicon.svg" alt="" width={size} height={size} />
 			<span class="brand-text">
-				Agentic AI UW <span class="brand-hub">Hub</span>
+				The <span class="brand-hub">Hub</span>
 			</span>
 		</a>
 	);
