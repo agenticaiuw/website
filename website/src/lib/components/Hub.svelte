@@ -2,6 +2,7 @@
 	import AgentGraph from './AgentGraph.svelte';
 	import PressFeature from './PressFeature.svelte';
 	import Reasons from './Reasons.svelte';
+	import Story from './Story.svelte';
 	import ExecTeam from './ExecTeam.svelte';
 	import Badge from './Badge.svelte';
 	import { site } from '$lib/site';
@@ -48,6 +49,8 @@
 		</div>
 	</div>
 </section>
+
+<Story />
 
 <Reasons />
 

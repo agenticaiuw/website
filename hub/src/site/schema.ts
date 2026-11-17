@@ -5,6 +5,8 @@ export type Field =
 	| { t: 'text' | 'long' | 'rich' | 'url' | 'date'; k: string; label: string; hint?: string; max?: number; optional?: boolean }
 	| { t: 'number'; k: string; label: string; hint?: string }
 	| { t: 'bool'; k: string; label: string; hint?: string }
+	/** A project team in the hub, stored by its id. */
+	| { t: 'team'; k: string; label: string; hint?: string }
 	| { t: 'group'; k: string; label: string; fields: Field[] }
 	| { t: 'list'; k: string; label: string; item: string; fields: Field[]; title?: string; hint?: string }
 	| { t: 'strings'; k: string; label: string; item: string; hint?: string };
@@ -116,6 +118,66 @@ export const SECTIONS: Section[] = [
 		fields: [text('eyebrow', 'Label'), text('name', 'Publication'), long('headline', 'Headline'), text('credit', 'Credit'), { t: 'date', k: 'date', label: 'Date' }, url('href', 'Article link'), text('cta', 'Button')]
 	},
 	{
+		key: 'story',
+		title: 'Why we exist',
+		page: 'Home',
+		where: 'The section under the press card: mainframes to PCs, today’s parallels, student founders, the problems we work on and what the club is for beyond the project.',
+		fields: [
+			text('heading', 'Heading'),
+			{
+				t: 'group',
+				k: 'then',
+				label: 'Then',
+				fields: [
+					text('label', 'Label'),
+					text('heading', 'Heading'),
+					text('quote', 'Quote'),
+					text('quoteBy', 'Quote source'),
+					long('body', 'Text'),
+					{ t: 'list', k: 'shifts', label: 'Shifts', item: 'shift', title: 'to', fields: [text('from', 'From'), text('to', 'To')] }
+				]
+			},
+			{
+				t: 'group',
+				k: 'now',
+				label: 'Now',
+				fields: [
+					text('label', 'Label'),
+					text('heading', 'Heading'),
+					{ t: 'strings', k: 'points', label: 'Quoted points', item: 'point' },
+					text('quoteBy', 'Quote source'),
+					url('quoteHref', 'Quote source link', undefined, true),
+					long('note', 'Note', undefined, true)
+				]
+			},
+			{
+				t: 'group',
+				k: 'students',
+				label: 'Students',
+				fields: [
+					text('label', 'Label'),
+					long('quote', 'Quote'),
+					{ t: 'list', k: 'people', label: 'Founders', item: 'founder', title: 'name', fields: [text('name', 'Name'), text('age', 'Age')] },
+					text('peopleNote', 'Under the ages', undefined, true)
+				]
+			},
+			{
+				t: 'group',
+				k: 'problems',
+				label: 'The problems we work on',
+				fields: [text('label', 'Label'), long('body', 'Text'), { t: 'strings', k: 'items', label: 'Problems', item: 'problem' }]
+			},
+			{
+				t: 'list',
+				k: 'beyond',
+				label: 'Beyond the project',
+				item: 'card',
+				title: 'title',
+				fields: [text('title', 'Title'), { t: 'strings', k: 'points', label: 'Points', item: 'point' }]
+			}
+		]
+	},
+	{
 		key: 'reasons',
 		title: 'Why we’re different',
 		page: 'Home',
@@ -148,7 +210,7 @@ export const SECTIONS: Section[] = [
 				fields: [
 					text('name', 'Name'),
 					text('title', 'Title'),
-					text('leads', 'Team they lead'),
+					text('leads', 'Team they head'),
 					text('subteam', 'Team key', 'The team’s key from Teams, like hardware. Links the card to that team.'),
 					url('linkedin', 'LinkedIn'),
 					url('officeHours', 'Office hours booking link'),
@@ -160,153 +222,32 @@ export const SECTIONS: Section[] = [
 	},
 	{
 		key: 'project',
-		title: 'Hivemind: intro',
+		title: 'Hive',
 		page: 'Teams',
-		where: 'The top of the Teams page: the project, its two ways in, hardware and software.',
+		where: 'The top of the Teams page: the project’s goal, this semester’s plan and the link to the code.',
 		fields: [
-			text('status', 'Status'),
+			text('eyebrow', 'Label'),
 			text('title', 'Project name'),
-			text('tagline', 'Tagline'),
-			text('taglineAccent', 'Tagline, colored part'),
-			long('intro', 'Intro'),
+			rich('goal', 'Goal', 'Wrap words in **double asterisks** to bold them.'),
+			long('why', 'Why it’s needed', 'Optional. Shown under the goal.', true),
 			long('summary', 'Summary', 'Shown in the AI briefing at /llms.txt.'),
-			long('accessNote', 'Note under the intro'),
-			text('primaryCta', 'Main button'),
-			url('primaryHref', 'Main button link'),
-			text('secondaryCta', 'Second link'),
-			url('secondaryHref', 'Second link target'),
-			long('welcomeNote', 'Welcome note'),
-			text('journeyEyebrow', 'Workflow label'),
-			text('journeyLabel', 'Workflow tag'),
-			{
-				t: 'list',
-				k: 'scenarios',
-				label: 'Ways in',
-				item: 'way in',
-				title: 'label',
-				fields: [
-					text('label', 'Tab name'),
-					text('prompt', 'Example request'),
-					text('entry', 'Step 1'),
-					long('entryDetail', 'Step 1 detail'),
-					text('context', 'Step 2'),
-					long('contextDetail', 'Step 2 detail'),
-					text('action', 'Step 3'),
-					long('actionDetail', 'Step 3 detail'),
-					text('result', 'Step 4'),
-					long('resultDetail', 'Step 4 detail')
-				]
-			},
-			long('diagramNote', 'Note under the workflow'),
-			card('hardware', 'Hardware card'),
-			card('software', 'Software card')
-		]
-	},
-	{
-		key: 'project_why',
-		title: 'Hivemind: why it exists',
-		page: 'Teams',
-		where: 'The “Why Hivemind if Hermes exists?” section and the engineering goals.',
-		fields: [
-			text('eyebrow', 'Label'),
-			lines('heading', 'Heading'),
-			lines('thesis', 'Thesis'),
-			long('intent', 'Intent'),
-			{ t: 'strings', k: 'path', label: 'Context steps', item: 'step' },
-			card('base', 'Hermes card'),
-			card('goal', 'Hivemind card'),
-			long('answer', 'Answer'),
-			text('sourceLabel', 'Source link text'),
-			url('sourceHref', 'Source link'),
-			text('goalsEyebrow', 'Goals label'),
-			text('goalsLede', 'Goals intro'),
-			{
-				t: 'list',
-				k: 'goals',
-				label: 'Engineering goals',
-				item: 'goal',
-				title: 'verb',
-				fields: [text('verb', 'Verb'), text('title', 'Title'), long('body', 'Text'), rich('mechanism', 'How it works', 'Optional. **Bold** the term it introduces.', true)]
-			},
-			long('note', 'Note under the goals'),
-			text('researchTitle', 'Research box title'),
-			text('researchSubtitle', 'Research box subtitle'),
-			{
-				t: 'list',
-				k: 'research',
-				label: 'Research proposals',
-				item: 'proposal',
-				title: 'title',
-				fields: [text('title', 'Title'), long('body', 'Text'), long('limit', 'Limits'), text('linkLabel', 'Source link text'), url('linkHref', 'Source link')]
-			},
-			long('researchDate', 'Research note')
-		]
-	},
-	{
-		key: 'project_details',
-		title: 'Hivemind: under the hood',
-		page: 'Teams',
-		where: 'The three expandable boxes: how the pieces fit, what each team builds and the hard parts.',
-		fields: [
-			text('eyebrow', 'Label'),
-			text('heading', 'Heading'),
-			lines('aside', 'Side note'),
-			text('architectureTitle', 'First box title'),
-			text('architectureSubtitle', 'First box subtitle'),
-			{ t: 'list', k: 'architecture', label: 'How the pieces fit', item: 'piece', title: 'title', fields: [text('title', 'Title'), text('summary', 'Summary'), long('body', 'Text')] },
-			text('buildTitle', 'Second box title'),
-			text('buildSubtitle', 'Second box subtitle'),
-			{ t: 'list', k: 'buildAreas', label: 'What each team will build', item: 'team', title: 'name', fields: [text('name', 'Team'), long('detail', 'What they build')] },
-			text('prioritiesTitle', 'Third box title'),
-			text('prioritiesSubtitle', 'Third box subtitle'),
-			{ t: 'list', k: 'priorities', label: 'The hard parts', item: 'question', title: 'question', fields: [text('question', 'Question'), long('answer', 'Answer')] },
-			long('status', 'Project status')
-		]
-	},
-	{
-		key: 'project_beginner',
-		title: 'Hivemind: beginners welcome',
-		page: 'Teams',
-		where: 'The “Learn. Build. Belong.” card.',
-		fields: [
-			text('eyebrow', 'Label'),
-			{ t: 'strings', k: 'words', label: 'Heading words', item: 'word' },
-			rich('body', 'Text', '**Bold** with double asterisks.'),
-			text('cta', 'Button'),
-			url('ctaHref', 'Button link'),
-			{ t: 'list', k: 'support', label: 'Support points', item: 'point', title: 'title', fields: [text('title', 'Title'), rich('body', 'Text', 'Links: [text](https://…).')] }
-		]
-	},
-	{
-		key: 'project_goals',
-		title: 'Hivemind: goals and northstar',
-		page: 'Teams',
-		where: 'The semester targets and the northstar metrics.',
-		fields: [
-			text('label', 'Goals heading'),
-			long('lede', 'Goals intro'),
-			{
-				t: 'list',
-				k: 'items',
-				label: 'Targets',
-				item: 'target',
-				title: 'when',
-				fields: [text('when', 'When'), text('people', 'Number'), text('unit', 'Unit'), text('saving', 'Target')]
-			},
-			text('northstarLabel', 'Northstar heading'),
-			long('northstarLede', 'Northstar intro'),
-			{ t: 'list', k: 'northstar', label: 'Northstar metrics', item: 'metric', title: 'metric', fields: [text('metric', 'Metric'), long('body', 'Question')] }
+			text('semesterLabel', 'This semester heading'),
+			{ t: 'strings', k: 'semester', label: 'This semester', item: 'point' },
+			text('repoCta', 'Code link text'),
+			url('repoHref', 'Code link', 'The GitHub repository. Team code folders link into it.')
 		]
 	},
 	{
 		key: 'teams',
 		title: 'Project teams',
 		page: 'Teams',
-		where: 'The team picker on the Teams page. Also used in the FAQ.',
+		where: 'The team picker and team goals on the Teams page, and each team’s own page. Also used in the FAQ.',
 		fields: [
 			text('label', 'Label'),
 			text('heading', 'Heading'),
 			long('lede', 'Intro'),
+			text('goalsLabel', 'Goals heading'),
+			text('codeLabel', 'Code heading'),
 			{
 				t: 'list',
 				k: 'items',
@@ -314,11 +255,13 @@ export const SECTIONS: Section[] = [
 				item: 'team',
 				title: 'name',
 				fields: [
-					text('k', 'Key', 'Short id used in links and for the badger artwork: hardware, cloud, os, browser, architecture, ux or business.'),
+					text('k', 'Key', 'Short id for the team’s page (/teams/key/) and its badger artwork: hardware, automation, cloud, research, design or business.'),
 					text('name', 'Name'),
 					text('short', 'Short name'),
-					text('lead', 'Lead'),
-					long('line', 'Description')
+					{ t: 'team', k: 'team', label: 'Hub team', hint: 'The site shows this team’s head (its exec) and leads, as set on the team’s page in the hub.' },
+					long('line', 'Description'),
+					{ t: 'strings', k: 'goals', label: 'Goals this semester', item: 'goal' },
+					{ t: 'strings', k: 'code', label: 'Code folders', item: 'folder', hint: 'Folders in the project’s repository, like desktop. Each links to it on GitHub.' }
 				]
 			}
 		]
@@ -420,7 +363,7 @@ export const TOKENS: [string, string][] = [
 	['{{vision_source}}', 'The vision’s source link'],
 	['{{stat:discord}}', 'A community number, by its key'],
 	['{{stats_sentence}}', 'All community numbers in one sentence'],
-	['{{teams_sentence}}', 'Every team and its lead'],
+	['{{teams_sentence}}', 'Every team and its head'],
 	['{{board_sentence}}', 'Every board member, title and team'],
 	['{{social:Discord}}', 'A social link, by its name']
 ];

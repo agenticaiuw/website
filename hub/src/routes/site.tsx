@@ -6,7 +6,7 @@ import { formatTimestamp } from '../dates';
 import { id, readForm, str } from '../form';
 import { isExec } from '../perm';
 import { type Field, PAGES, type Section, SECTIONS, TOKENS, sectionByKey } from '../site/schema';
-import { type Change, type VersionRow, coerce, defaultsFor, diffSection, history, latestRows, saveSection, sectionData, siteContent, versionById, wordDiff } from '../site/store';
+import { type Change, type HubTeam, type TeamNames, type VersionRow, coerce, defaultsFor, diffSection, history, hubTeams, latestRows, saveSection, sectionData, siteContent, teamNames, versionById, withHubTeams, wordDiff } from '../site/store';
 import type { AppEnv } from '../types';
 import { Notice, page } from '../views/layout';
 import { Empty, PageHead } from '../views/ui';
@@ -15,7 +15,9 @@ import { Empty, PageHead } from '../views/ui';
 export const publicSiteRoutes = new Hono<AppEnv>();
 
 publicSiteRoutes.get('/api/site', async (c) => {
-	const content = await siteContent(c.env.DB);
+	const [content, teams] = await Promise.all([siteContent(c.env.DB), hubTeams(c.env.DB)]);
+	// Teams come with their head and leads from the hub's own teams, so they are never typed twice.
+	content.sections.teams = withHubTeams(content.sections.teams, teams);
 	c.header('Access-Control-Allow-Origin', '*');
 	return c.json(content);
 });
@@ -120,16 +122,16 @@ function DiffText({ before, after }: { before: string; after: string }) {
 	);
 }
 
-function changesOf(r: VersionRow & { prev: string | null }) {
+function changesOf(r: VersionRow & { prev: string | null }, teams: TeamNames) {
 	const section = sectionByKey(r.section);
 	if (!section) return [];
 	const before = r.prev ? { ...defaultsFor(r.section), ...JSON.parse(r.prev) } : defaultsFor(r.section);
-	return diffSection(section, before, { ...defaultsFor(r.section), ...JSON.parse(r.data) });
+	return diffSection(section, before, { ...defaultsFor(r.section), ...JSON.parse(r.data) }, teams);
 }
 
-function HistoryEntry({ r, tz, showSection, latestId }: { r: VersionRow & { prev: string | null }; tz: string; showSection: boolean; latestId?: number }) {
+function HistoryEntry({ r, tz, showSection, latestId, teams }: { r: VersionRow & { prev: string | null }; tz: string; showSection: boolean; latestId?: number; teams: TeamNames }) {
 	const section = sectionByKey(r.section);
-	const changes = changesOf(r);
+	const changes = changesOf(r, teams);
 	return (
 		<li class="card site-entry">
 			<div class="site-entry-head">
@@ -162,6 +164,7 @@ async function historyPage(c: Context<AppEnv>, section?: Section) {
 	const more = rows.length > PER_PAGE;
 	const shown = rows.slice(0, PER_PAGE);
 	const latest = await latestRows(c.env.DB);
+	const teams = await teamNames(c.env.DB);
 	const tz = c.env.TIMEZONE;
 	const base = section ? `/site/${section.key}/history` : '/site/history';
 	return page(
@@ -177,7 +180,7 @@ async function historyPage(c: Context<AppEnv>, section?: Section) {
 			{shown.length ? (
 				<ol class="site-history">
 					{shown.map((r) => (
-						<HistoryEntry r={r} tz={tz} showSection={!section} latestId={latest.get(r.section)?.id} />
+						<HistoryEntry r={r} tz={tz} showSection={!section} latestId={latest.get(r.section)?.id} teams={teams} />
 					))}
 					{section && !more && (
 						<li class="card site-entry">
@@ -216,6 +219,7 @@ siteRoutes.get('/site/v/:id', async (c) => {
 	if (!v || !section) return c.notFound();
 	const latest = await latestRows(c.env.DB);
 	const isLive = latest.get(v.section)?.id === v.id;
+	const teams = await teamNames(c.env.DB);
 	const tz = c.env.TIMEZONE;
 	return page(
 		c,
@@ -246,7 +250,7 @@ siteRoutes.get('/site/v/:id', async (c) => {
 			/>
 			<section class="card">
 				<h2 class="site-h2">What changed</h2>
-				<ChangeList changes={changesOf(v)} />
+				<ChangeList changes={changesOf(v, teams)} />
 			</section>
 		</>
 	);
@@ -281,7 +285,9 @@ siteRoutes.get('/site/:key', async (c) => {
 	if (!section) return c.notFound();
 	const { row, data } = await sectionData(c.env.DB, section.key);
 	const recent = await history(c.env.DB, { section: section.key, limit: 5 });
-	return editor(c, section, data, row, recent);
+	const teams = await hubTeams(c.env.DB);
+	// Teams saved before they were linked to the hub open already matched by name.
+	return editor(c, section, section.key === 'teams' ? withHubTeams(data, teams) : data, row, recent, { teams });
 });
 
 siteRoutes.post('/site/:key', async (c) => {
@@ -299,21 +305,22 @@ siteRoutes.post('/site/:key', async (c) => {
 	}
 	const { row, data: current } = await sectionData(c.env.DB, section.key);
 	const recent = await history(c.env.DB, { section: section.key, limit: 5 });
-	if (!input) return editor(c, section, current, row, recent, { errors: ['The editor needs JavaScript turned on to save.'] });
+	const teams = await hubTeams(c.env.DB);
+	if (!input) return editor(c, section, current, row, recent, { teams, errors: ['The editor needs JavaScript turned on to save.'] });
 	const errors: string[] = [];
 	const data = coerce(section.fields, input, errors);
-	if (errors.length) return editor(c, section, data, row, recent, { errors, note, base });
+	if (errors.length) return editor(c, section, data, row, recent, { teams, errors, note, base });
 	// Someone else saved while this person was editing: show their work, don't overwrite it silently.
 	if ((row?.id ?? null) !== base && str(form.force) !== '1') {
-		return editor(c, section, data, row, recent, { stale: row, note, base });
+		return editor(c, section, data, row, recent, { teams, stale: row, note, base });
 	}
 	const saved = await saveSection(c.env.DB, section.key, data, c.get('viewer').id, note);
 	return c.redirect(`/site/${section.key}?ok=${saved ? 'site-saved' : 'site-unchanged'}`);
 });
 
-type EditorState = { errors?: string[]; stale?: VersionRow | null; note?: string; base?: number | null };
+type EditorState = { teams: HubTeam[]; errors?: string[]; stale?: VersionRow | null; note?: string; base?: number | null };
 
-function editor(c: Context<AppEnv>, section: Section, data: Record<string, unknown>, row: VersionRow | null, recent: (VersionRow & { prev: string | null })[], state: EditorState = {}) {
+function editor(c: Context<AppEnv>, section: Section, data: Record<string, unknown>, row: VersionRow | null, recent: (VersionRow & { prev: string | null })[], state: EditorState) {
 	const tz = c.env.TIMEZONE;
 	const status = state.errors?.length || state.stale ? 400 : 200;
 	if (status !== 200) c.status(status);
@@ -367,7 +374,7 @@ function editor(c: Context<AppEnv>, section: Section, data: Record<string, unkno
 					<input type="hidden" name="base" value={String(row?.id ?? '')} />
 					{state.stale !== undefined && <input type="hidden" name="force" value="1" />}
 					<div class="site-root card" data-site-root>
-						<Fields fields={section.fields} data={data} />
+						<Fields fields={section.fields} data={data} teams={state.teams} />
 					</div>
 					<div class="site-savebar">
 						<label class="site-note">
@@ -426,11 +433,11 @@ function editor(c: Context<AppEnv>, section: Section, data: Record<string, unkno
 
 const rowsFor = (s: string, min = 2) => Math.min(14, Math.max(min, Math.ceil(s.length / 70) + s.split('\n').length - 1));
 
-function Fields({ fields, data }: { fields: Field[]; data: Record<string, unknown> }): Out {
+function Fields({ fields, data, teams }: { fields: Field[]; data: Record<string, unknown>; teams: HubTeam[] }): Out {
 	return (
 		<>
 			{fields.map((f) => (
-				<FieldInput f={f} value={data?.[f.k]} />
+				<FieldInput f={f} value={data?.[f.k]} teams={teams} />
 			))}
 		</>
 	);
@@ -440,13 +447,22 @@ function Hint({ text }: { text?: string }) {
 	return text ? <span class="hint">{text}</span> : null;
 }
 
-function FieldInput({ f, value }: { f: Field; value: unknown }): Out {
+/** "Head: …" and "Leads: …" for a hub team, as the site will show them. */
+const peopleLine = (t?: HubTeam) =>
+	t
+		? [
+				`Head: ${t.heads.join(', ') || 'none yet'}`,
+				`Leads: ${t.leads.map((l) => (l.title ? `${l.name} (${l.title})` : l.name)).join(', ') || 'none yet'}`
+			].join(' · ')
+		: '';
+
+function FieldInput({ f, value, teams }: { f: Field; value: unknown; teams: HubTeam[] }): Out {
 	switch (f.t) {
 		case 'group':
 			return (
 				<fieldset class="site-group" data-obj data-k={f.k}>
 					<legend>{f.label}</legend>
-					<Fields fields={f.fields} data={(value as Record<string, unknown>) ?? {}} />
+					<Fields fields={f.fields} data={(value as Record<string, unknown>) ?? {}} teams={teams} />
 				</fieldset>
 			);
 		case 'list': {
@@ -462,11 +478,11 @@ function FieldInput({ f, value }: { f: Field; value: unknown }): Out {
 					<Hint text={f.hint} />
 					<ol class="site-items" data-items>
 						{items.map((item, i) => (
-							<ListItem f={f} item={item} i={i} />
+							<ListItem f={f} item={item} i={i} teams={teams} />
 						))}
 					</ol>
 					<template data-tpl>
-						<ListItem f={f} item={{}} i={-1} open />
+						<ListItem f={f} item={{}} i={-1} open teams={teams} />
 					</template>
 					<button type="button" class="btn small site-add" data-add>
 						+ Add {f.item}
@@ -505,6 +521,28 @@ function FieldInput({ f, value }: { f: Field; value: unknown }): Out {
 					{f.hint && <span class="hint"> {f.hint}</span>}
 				</label>
 			);
+		case 'team': {
+			const chosen = teams.find((t) => t.id === Number(value));
+			return (
+				<label class="field">
+					<span class="label">{f.label}</span>
+					<select data-k={f.k} data-team-select>
+						<option value="" selected={!chosen}>
+							Choose a team
+						</option>
+						{teams.map((t) => (
+							<option value={String(t.id)} selected={t === chosen} data-people={peopleLine(t)}>
+								{t.name}
+							</option>
+						))}
+					</select>
+					<span class="hint site-team-people" data-team-people>
+						{peopleLine(chosen)}
+					</span>
+					<Hint text={f.hint} />
+				</label>
+			);
+		}
 		case 'number':
 			return (
 				<label class="field">
@@ -559,7 +597,7 @@ function ItemTools({ item }: { item: string }) {
 	);
 }
 
-function ListItem({ f, item, i, open }: { f: Extract<Field, { t: 'list' }>; item: Record<string, unknown>; i: number; open?: boolean }) {
+function ListItem({ f, item, i, open, teams }: { f: Extract<Field, { t: 'list' }>; item: Record<string, unknown>; i: number; open?: boolean; teams: HubTeam[] }) {
 	const title = (f.title && String(item?.[f.title] ?? '').trim()) || (i >= 0 ? `${f.item.charAt(0).toUpperCase() + f.item.slice(1)} ${i + 1}` : `New ${f.item}`);
 	return (
 		<li class="site-item" data-item>
@@ -570,7 +608,7 @@ function ListItem({ f, item, i, open }: { f: Extract<Field, { t: 'list' }>; item
 					</span>
 				</summary>
 				<div class="site-item-body">
-					<Fields fields={f.fields} data={item} />
+					<Fields fields={f.fields} data={item} teams={teams} />
 				</div>
 			</details>
 			<ItemTools item={f.item} />

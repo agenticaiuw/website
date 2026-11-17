@@ -27,21 +27,27 @@ Source for the quoted figure: ${vision.source.label} ${vision.source.href}
 - Founded: ${club.founded}
 - Size: ${stats.items.map((i) => `${i.approx ? 'about ' : ''}${i.n} ${i.label}`).join('; ')}
 - Project: ${project.title}. ${project.summary}
-- Teams: ${work.subteams.items.map((s) => `${s.name} (${s.lead})`).join('; ')}
+- Project goal: ${project.goal.replace(/\*\*/g, '')}
+- Code: ${project.repoHref}
+- Teams: ${work.subteams.items.map((s) => `${s.name} (${[s.heads.length ? `${s.heads.length > 1 ? 'heads' : 'head'}: ${s.heads.join(', ')}` : '', s.leads.length ? `${s.leads.length > 1 ? 'leads' : 'lead'}: ${s.leads.map((l) => (l.title ? `${l.name} (${l.title})` : l.name)).join(', ')}` : ''].filter(Boolean).join('; ')})`).join('; ')}
 - Who can join: every major and every level; no CS major or prior AI experience required
 - How to join: ${join.lede} Book office hours: ${siteUrl}/join/#office-hours
 - Email: ${contact.email}
 - Press: ${press.name}, ${press.dateLabel}: ${press.href}
 ${social.filter((s) => s.href).map((s) => `- ${s.name}: ${s.href}`).join('\n')}
 
+## Teams
+
+${work.subteams.items.map((t) => [`### ${t.name}`, '', t.line, `Page: ${siteUrl}/teams/${t.k}/`, ...(t.goals.length ? ['', `${work.subteams.goalsLabel}:`, ...t.goals.map((g) => `- ${g}`)] : [])].join('\n')).join('\n\n')}
+
 ## Founding board
 
-${team.members.map((m) => `- ${m.name}, ${m.title}. Leads the ${m.leads} team. LinkedIn: ${m.linkedin}`).join('\n')}
+${team.members.map((m) => `- ${m.name}, ${m.title}. Heads the ${m.leads} team. LinkedIn: ${m.linkedin}`).join('\n')}
 
 ## Pages
 
 ${nav.map((n) => `- [${n.label}](${page(n.href)}): ${n.blurb}`).join('\n')}
-- [Join](${siteUrl}/join/): Book office hours with a team lead, or join the Discord
+- [Join](${siteUrl}/join/): Book office hours with a team head, or join the Discord
 - [FAQ](${siteUrl}/faq/): ${faq.lede}
 - [${memberHub.label}](${memberHub.href}): ${memberHub.blurb}
 

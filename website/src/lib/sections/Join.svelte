@@ -8,7 +8,7 @@
 
 {#snippet field()}<AuroraWaves strength={0.8} speed={0.4} glow={12} />{/snippet}
 <Section id="join" heading={join.heading} lede={join.lede} illuminated background={field} mascot={{ wave: true, mood: 'happy' }}>
-	<!-- One card per team: booking office hours with its lead is how you join. -->
+	<!-- One card per team: booking office hours with its head is how you join. -->
 	<section id="office-hours" class="scroll-mt-24" aria-labelledby="office-hours-heading">
 		<h2 id="office-hours-heading" class="sr-only">{join.officeHoursHeading}</h2>
 		<ul class="oh-grid" role="list" data-stagger>
@@ -21,7 +21,7 @@
 							<span class="oh-lead">with {m.name}</span>
 						</span>
 						<span class="oh-cta">
-							{join.officeHoursCta} <span aria-hidden="true">↗</span><span class="sr-only"> with {m.name}, who leads the {m.leads} team (opens in a new tab)</span>
+							{join.officeHoursCta} <span aria-hidden="true">↗</span><span class="sr-only"> with {m.name}, who heads the {m.leads} team (opens in a new tab)</span>
 						</span>
 					</a>
 				</li>

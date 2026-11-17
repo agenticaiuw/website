@@ -8,9 +8,12 @@
 	const TILE: Record<string, string> = {
 		hardware: '#4a3812',
 		cloud: '#1d3350',
+		automation: '#26324a',
 		os: '#26324a',
 		browser: '#1f3a28',
+		research: '#33284a',
 		architecture: '#33284a',
+		design: '#4a2233',
 		ux: '#4a2233',
 		business: '#2b3a1c'
 	};
@@ -20,7 +23,7 @@
 	{#each team.members as m (m.name)}
 		<li data-reveal class="card member">
 			<div class="art" style:--tile={TILE[m.subteam] ?? 'var(--surface-2)'}>
-				<Badge size={128} prop={m.subteam} mood={m.subteam === 'business' || m.subteam === 'ux' ? 'happy' : 'rest'} />
+				<Badge size={128} prop={m.subteam} mood={['business', 'ux', 'design'].includes(m.subteam) ? 'happy' : 'rest'} />
 				{#if m.photo}
 					<img src={m.photo} alt="" width="64" height="64" loading="lazy" class="photo" />
 				{/if}
@@ -28,8 +31,8 @@
 			<div class="body">
 				<h3>{m.name}</h3>
 				<p class="role">{m.title}</p>
-				<p class="leads-label">Leads</p>
-				<a href="/teams/#team-{m.subteam}" class="team-link">
+				<p class="leads-label">Heads</p>
+				<a href="/teams/{m.subteam}/" class="team-link">
 					{m.leads} team <span aria-hidden="true">→</span>
 				</a>
 				{#if m.blurb}

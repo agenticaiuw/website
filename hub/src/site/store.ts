@@ -49,6 +49,52 @@ export async function siteContent(db: D1Database) {
 	return { version, updatedAt, sections };
 }
 
+/** A project team as the website shows it: its head (the exec on it) and its leads. */
+export type HubTeam = { id: number; name: string; heads: string[]; leads: { name: string; title: string }[] };
+
+export async function hubTeams(db: D1Database): Promise<HubTeam[]> {
+	const [teams, people] = await Promise.all([
+		all<{ id: number; name: string }>(db, "SELECT id, name FROM teams WHERE kind = 'project' AND archived = 0 ORDER BY name"),
+		all<{ team_id: number; name: string; title: string; role: string; is_lead: number }>(
+			db,
+			`SELECT tm.team_id, m.name, tm.title, m.role, tm.is_lead FROM team_members tm JOIN members m ON m.id = tm.member_id
+			 WHERE m.active = 1 AND (m.role = 'exec' OR tm.is_lead = 1) ORDER BY m.name`
+		)
+	]);
+	return teams.map((t) => {
+		const mine = people.filter((p) => p.team_id === t.id);
+		return {
+			...t,
+			heads: mine.filter((p) => p.role === 'exec').map((p) => p.name),
+			leads: mine.filter((p) => p.role !== 'exec' && p.is_lead).map((p) => ({ name: p.name, title: p.title }))
+		};
+	});
+}
+
+/** Every team's name by id, archived ones too, for reading old versions in the history. */
+export async function teamNames(db: D1Database): Promise<TeamNames> {
+	const rows = await all<{ id: number; name: string }>(db, 'SELECT id, name FROM teams');
+	return new Map(rows.map((r) => [r.id, r.name]));
+}
+
+const plain = (s: unknown) => String(s ?? '').trim().toLowerCase();
+
+/**
+ * Fills each website team with its hub team's head and leads. A team saved before teams were
+ * linked (no id) is matched by name, so the site never loses its heads.
+ */
+export function withHubTeams(section: Data, teams: HubTeam[]): Data {
+	const byId = new Map(teams.map((t) => [t.id, t]));
+	const items = ((section.items as Data[]) ?? []).map((item) => {
+		const hub =
+			byId.get(Number(item.team)) ??
+			teams.find((t) => [item.short, item.name, plain(item.name).replace(/ (team|agent)$/, '')].some((n) => plain(n) === plain(t.name)));
+		const { lead: _old, ...rest } = item;
+		return { ...rest, team: hub?.id ?? null, heads: hub?.heads ?? [], leads: hub?.leads ?? [] };
+	});
+	return { ...section, items };
+}
+
 export async function sectionData(db: D1Database, key: string) {
 	const row = await first<VersionRow>(db, 'SELECT v.*, m.name FROM site_content_versions v LEFT JOIN members m ON m.id = v.edited_by WHERE v.section = ? ORDER BY v.id DESC LIMIT 1', key);
 	return { row, data: row ? withDefaults(key, JSON.parse(row.data)) : defaultsFor(key) };
@@ -119,6 +165,12 @@ export function coerce(fields: Field[], input: unknown, errors: string[], path =
 			case 'bool':
 				out[f.k] = v === true || v === 'true' || v === 'on' || v === '1';
 				break;
+			case 'team': {
+				const n = Number(v);
+				out[f.k] = Number.isInteger(n) && n > 0 ? n : null;
+				if (out[f.k] === null) errors.push(`${label}: choose a team.`);
+				break;
+			}
 			case 'group':
 				out[f.k] = coerce(f.fields, v, errors, label);
 				break;
@@ -155,13 +207,19 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export type Change = { label: string; before: string; after: string };
 
+/** Hub team names by id, so a change of team reads as names in the history. */
+export type TeamNames = Map<number, string>;
+
 /** Field-by-field changes between two versions of a section. List items are matched by their title. */
-export function diffSection(section: Section, before: Data, after: Data): Change[] {
+export function diffSection(section: Section, before: Data, after: Data, teams: TeamNames = new Map()): Change[] {
 	const out: Change[] = [];
+	names = teams;
 	diffFields(section.fields, before, after, '', out);
 	return out;
 }
 
+let names: TeamNames = new Map();
+const showField = (f: Field, v: unknown) => (f.t === 'team' && v != null ? names.get(Number(v)) ?? `Team ${v}` : show(v));
 const show = (v: unknown) => (typeof v === 'boolean' ? (v ? 'Yes' : 'No') : v == null ? '' : String(v));
 
 function diffFields(fields: Field[], a: Data, b: Data, path: string, out: Change[]) {
@@ -175,7 +233,7 @@ function diffFields(fields: Field[], a: Data, b: Data, path: string, out: Change
 			const s = ((x as string[]) ?? []).join('\n');
 			const t = ((y as string[]) ?? []).join('\n');
 			if (s !== t) out.push({ label, before: s, after: t });
-		} else if (show(x) !== show(y)) out.push({ label, before: show(x), after: show(y) });
+		} else if (showField(f, x) !== showField(f, y)) out.push({ label, before: showField(f, x), after: showField(f, y) });
 	}
 }
 
@@ -222,7 +280,7 @@ function summary(fields: Field[], d: Data): string {
 		if (f.t === 'group') lines.push(summary(f.fields, (v as Data) ?? {}));
 		else if (f.t === 'list') for (const item of (v as Data[]) ?? []) lines.push(`${f.label}: ${summary(f.fields, item).replace(/\n/g, ', ')}`);
 		else if (f.t === 'strings') lines.push(`${f.label}: ${((v as string[]) ?? []).join(', ')}`);
-		else if (show(v)) lines.push(`${f.label}: ${show(v)}`);
+		else if (showField(f, v)) lines.push(`${f.label}: ${showField(f, v)}`);
 	}
 	return lines.filter(Boolean).join('\n');
 }

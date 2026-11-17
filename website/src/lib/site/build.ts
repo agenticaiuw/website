@@ -11,6 +11,28 @@ export type Sections = typeof fallback;
 type Link = { label: string; href: string };
 export type Run = { t: string; strong?: boolean; cite?: boolean };
 export type ClubEvent = { date: string; dateEnd?: string; time?: string; kind: string; name: string; location?: string; body: string };
+/** A team's people come from the hub's own team: its head (the exec on it) and its leads. */
+export type TeamLead = { name: string; title: string };
+/** A folder in the project's repository, linked on GitHub. */
+export type CodeLink = { label: string; href: string };
+export type Team = { k: string; name: string; short: string; line: string; heads: string[]; leads: TeamLead[]; goals: string[]; code: CodeLink[] };
+type RawTeam = Omit<Team, 'heads' | 'leads' | 'goals' | 'code'> & { heads?: string[]; leads?: TeamLead[]; lead?: string; goals?: string[]; code?: string[] };
+const toTeam =
+	(repo: string) =>
+	(t: RawTeam): Team => ({
+		k: t.k,
+		name: t.name,
+		short: t.short,
+		line: t.line,
+		heads: t.heads ?? (t.lead ? [t.lead] : []),
+		leads: t.leads ?? [],
+		goals: t.goals ?? [],
+		code: (t.code ?? []).map((folder) => {
+			const path = folder.replace(/^\/+|\/+$/g, '');
+			return { label: `${path}/`, href: repo ? `${repo.replace(/\/+$/, '')}/tree/main/${path}` : '#' };
+		})
+	});
+
 export type Exec = { name: string; title: string; leads: string; subteam: string; linkedin: string; officeHours: string; photo?: string; blurb?: string };
 
 /** "a, b and c". */
@@ -95,8 +117,8 @@ export function buildContent(input: Partial<Sections>) {
 	const all: Record<string, string> = {
 		vision: visionText.replace(/\*\*(.+?)\*\*/g, '$1').replace(/\[\^1\]/g, ''),
 		stats_sentence: andList(raw.stats.items.map((i) => `${i.approx ? 'nearly ' : ''}${i.n} ${i.prose}`)),
-		teams_sentence: andList(raw.teams.items.map((t) => `${t.name} (led by ${t.lead})`)),
-		board_sentence: andList(raw.board.members.map((m) => `${m.name} (${m.title}, leads the ${m.leads} team)`))
+		teams_sentence: andList((raw.teams.items as RawTeam[]).map(toTeam('')).map((t) => (t.heads.length ? `${t.name} (headed by ${andList(t.heads)})` : t.name))),
+		board_sentence: andList(raw.board.members.map((m) => `${m.name} (${m.title}, heads the ${m.leads} team)`))
 	};
 	const s = mapStrings(raw, (x) => tokens(x, all));
 
@@ -122,11 +144,9 @@ export function buildContent(input: Partial<Sections>) {
 			items: s.reasons.items.map((r) => ({ title: r.title, body: r.body, link: r.linkLabel && r.linkHref ? { label: r.linkLabel, href: safeHref(r.linkHref) } : undefined }))
 		},
 		team,
-		project: s.project,
-		why: s.project_why,
-		details: s.project_details,
-		beginner: s.project_beginner,
-		work: { goals: s.project_goals, subteams: s.teams },
+		story: { ...s.story, now: { ...s.story.now, quoteHref: safeHref(s.story.now.quoteHref) } },
+		project: { ...s.project, repoHref: safeHref(s.project.repoHref) },
+		work: { subteams: { ...s.teams, items: (s.teams.items as RawTeam[]).map(toTeam(safeHref(s.project.repoHref))) } },
 		events: { ...s.events, items: s.events.items.map((e): ClubEvent => ({ date: e.date, dateEnd: opt(e.dateEnd), time: opt(e.time), kind: e.kind, name: e.name, location: opt(e.location), body: e.body })) },
 		join: { ...s.join, discordHref: safeHref(s.join.discordHref) },
 		partners: s.partners,

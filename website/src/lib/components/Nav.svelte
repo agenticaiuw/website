@@ -9,7 +9,8 @@
 	let open = $state(false);
 
 	const path = $derived(page.url.pathname.replace(/\/$/, '') || '/');
-	const isActive = (href: string) => path === href;
+	/* A team's page (/teams/<key>) lights up Teams too. */
+	const isActive = (href: string) => path === href || (href !== '/' && path.startsWith(`${href}/`));
 
 	onMount(() => {
 		const onScroll = () => (scrolled = window.scrollY > 24);

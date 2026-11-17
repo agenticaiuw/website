@@ -12,7 +12,10 @@
 		label?: string;
 		class?: string;
 	}
-	let { size = 160, mood = 'rest', wave = false, prop, sticker = true, label, class: cls = '' }: Props = $props();
+	let { size = 160, mood = 'rest', wave = false, prop: given, sticker = true, label, class: cls = '' }: Props = $props();
+	/* Teams renamed since the artwork was drawn keep their old prop. */
+	const SAME: Record<string, Prop> = { automation: 'os', research: 'architecture', design: 'ux' };
+	const prop = $derived(given && SAME[given] ? SAME[given] : given);
 
 	const uid = $props.id();
 	const INK = '#1d1b19';

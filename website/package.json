@@ -19,7 +19,6 @@
     "@sveltejs/kit": "^2.63.0",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@tailwindcss/vite": "^4.3.3",
-    "@types/three": "^0.185.4",
     "svelte": "^5.56.1",
     "svelte-check": "^4.6.0",
     "tailwindcss": "^4.3.3",
@@ -27,8 +26,6 @@
     "vite": "^8.0.16"
   },
   "dependencies": {
-    "@splinetool/runtime": "^2.0.37",
-    "gsap": "^3.15.0",
-    "three": "^0.185.1"
+    "gsap": "^3.15.0"
   }
 }

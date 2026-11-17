@@ -455,7 +455,14 @@ for (const form of document.querySelectorAll('[data-site-form]')) {
 		const item = e.target.closest('[data-item]');
 		if (item) titleOf(item);
 	});
-	root.addEventListener('change', () => (dirty = true));
+	root.addEventListener('change', (e) => {
+		dirty = true;
+		// A team's head and leads, as the site will show them.
+		if (e.target.matches('[data-team-select]')) {
+			const line = e.target.parentElement.querySelector('[data-team-people]');
+			if (line) line.textContent = e.target.selectedOptions[0]?.dataset.people ?? '';
+		}
+	});
 	root.addEventListener('click', (e) => {
 		const add = e.target.closest('[data-add]');
 		if (add) {

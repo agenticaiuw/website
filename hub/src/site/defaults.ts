@@ -50,6 +50,96 @@ export default {
 		"href": "https://www.dailycardinal.com/article/2026/09/agentic-ai-uw-brings-next-step-in-artificial-intelligence-to-uw-madison",
 		"cta": "Read the article"
 	},
+	"story": {
+		"heading": "Why does Agentic AI UW exist?",
+		"then": {
+			"label": "Then",
+			"heading": "Mainframes to personal computers",
+			"quote": "Computing power grows with the square of cost.",
+			"quoteBy": "Grosch’s law",
+			"body": "So bigger, more expensive machines shared between many people were the economical choice. Microprocessors, circuits printed onto silicon layer by layer, broke Grosch’s law.",
+			"shifts": [
+				{
+					"from": "Command line",
+					"to": "Graphical interface"
+				},
+				{
+					"from": "Time-sharing and batched requests",
+					"to": "Computers people own"
+				},
+				{
+					"from": "Computer hobbyists",
+					"to": "Everyone"
+				},
+				{
+					"from": "IBM",
+					"to": "Apple and Microsoft"
+				}
+			]
+		},
+		"now": {
+			"label": "Now",
+			"heading": "This moment looks a lot like that one",
+			"points": [
+				"Chat interfaces are today’s command line.",
+				"Models running in the cloud with batching are today’s time-shared mainframes.",
+				"The GUI for the AI era hasn’t been invented yet."
+			],
+			"quoteBy": "Andrej Karpathy, YC AI Startup School 2025",
+			"quoteHref": "https://www.youtube.com/watch?v=LCEmiRjPEtQ",
+			"note": "We’d add one more: developers know what agents like Codex and Claude Code can do, but most people don’t."
+		},
+		"students": {
+			"label": "Who shapes it",
+			"quote": "When a huge paradigm shift happens in an industry, college students like you and me can come in and shape the future.",
+			"people": [
+				{
+					"name": "Steve Jobs",
+					"age": "21"
+				},
+				{
+					"name": "Steve Wozniak",
+					"age": "25"
+				},
+				{
+					"name": "Bill Gates",
+					"age": "19"
+				},
+				{
+					"name": "Paul Allen",
+					"age": "22"
+				}
+			],
+			"peopleNote": "Their ages when they started Apple and Microsoft."
+		},
+		"problems": {
+			"label": "What we work on",
+			"body": "As a club, we’re shaping how people will use computers and do their work. In particular:",
+			"items": [
+				"How can we reimagine agents at the operating system layer?",
+				"What changes when agents run locally on personal computers?",
+				"How can we bring the power of coding agents to everyone?"
+			]
+		},
+		"beyond": [
+			{
+				"title": "A startup incubator",
+				"points": [
+					"Gain the skills, experience and judgment that come from building a large project with a team.",
+					"Meet like-minded people who could become your cofounders.",
+					"Start something from your own work in the club, or from other members’ work."
+				]
+			},
+			{
+				"title": "An alumni community",
+				"points": [
+					"A strong alumni network that stays connected after graduation.",
+					"Links between industry, departments, professors, labs, students and clubs.",
+					"A reputation as a flagship club: when a company meets someone from this club, they know they’re getting great talent."
+				]
+			}
+		]
+	},
 	"reasons": {
 		"heading": "Five reasons we’re different",
 		"items": [
@@ -101,8 +191,8 @@ export default {
 			{
 				"name": "Joslyn DeGuzman",
 				"title": "Vice President",
-				"leads": "Design / Product",
-				"subteam": "ux",
+				"leads": "Product Design",
+				"subteam": "design",
 				"linkedin": "https://www.linkedin.com/in/joslyn-deguzman/",
 				"officeHours": "https://cal.com/joslyn-deguzman-thpsg1/15min?overlayCalendar=true&date=2026-09-23",
 				"photo": "",
@@ -112,7 +202,7 @@ export default {
 				"name": "Ryan Khalili",
 				"title": "Founding Member",
 				"leads": "Research",
-				"subteam": "architecture",
+				"subteam": "research",
 				"linkedin": "https://www.linkedin.com/in/ryan-khalili/",
 				"officeHours": "https://cal.com/ryan-khalili2/30min?overlayCalendar=true",
 				"photo": "",
@@ -131,8 +221,8 @@ export default {
 			{
 				"name": "Ife Solarin",
 				"title": "Founding Member",
-				"leads": "PC",
-				"subteam": "os",
+				"leads": "Automation",
+				"subteam": "automation",
 				"linkedin": "https://www.linkedin.com/in/ifesol/",
 				"officeHours": "https://cal.com/ife-solarin-j1xfse/office-hours?overlayCalendar=true",
 				"photo": "",
@@ -141,8 +231,8 @@ export default {
 			{
 				"name": "Bala Shukla",
 				"title": "Founding Member",
-				"leads": "Browser",
-				"subteam": "browser",
+				"leads": "Automation",
+				"subteam": "automation",
 				"linkedin": "https://www.linkedin.com/in/bala-shukla/",
 				"officeHours": "https://cal.com/bala-shukla-z5su5x/15min?overlayCalendar=true",
 				"photo": "",
@@ -161,314 +251,106 @@ export default {
 		]
 	},
 	"project": {
-		"status": "In planning · Come build it with us",
-		"title": "Hivemind",
-		"tagline": "One assistant.",
-		"taglineAccent": "From wrist to world.",
-		"intro": "We’re building an open source architecture for personal AI, together with a voice wristband. The ambition: turn the context you choose to share into useful memory and coordinated action across your digital world.",
-		"summary": "We’re building open source software that connects agents, shared context and your devices. A planned wristband brings voice access into your day, while a cloud web app offers a starting point of its own. A mobile app is also being considered.",
-		"accessNote": "A physical wristband. A cloud architecture. A web application. Mobile is under consideration.",
-		"primaryCta": "Join the build",
-		"primaryHref": "/join/",
-		"secondaryCta": "Explore the teams",
-		"secondaryHref": "#subteams",
-		"welcomeNote": "No prior AI experience required. You’ll have people to learn with.",
-		"journeyEyebrow": "Picture the possibility",
-		"journeyLabel": "Planned workflow",
-		"scenarios": [
-			{
-				"label": "Software Architecture",
-				"prompt": "“What do I need for our next project meeting?”",
-				"entry": "Ask in the web application",
-				"entryDetail": "A planned home for your assistant, connected nodes and task activity.",
-				"context": "Connect what you already shared",
-				"contextDetail": "Find the relevant decisions, notes and updates in your chosen sources.",
-				"action": "Work through connected tools",
-				"actionDetail": "The cloud agent gathers material it has permission to access.",
-				"result": "Review your meeting brief",
-				"resultDetail": "See the result, activity and any approval requests in one dashboard."
-			},
-			{
-				"label": "Voice wristband",
-				"prompt": "“What do I need for our next project meeting?”",
-				"entry": "Ask while walking to class",
-				"entryDetail": "The wristband we’re building will carry your voice request through your phone.",
-				"context": "Connect what you already shared",
-				"contextDetail": "Recall a permitted conversation and the latest update in your team space.",
-				"action": "Coordinate across devices",
-				"actionDetail": "The browser checks a project page; your computer retrieves a permitted local file.",
-				"result": "Review your meeting brief",
-				"resultDetail": "Follow the same task in one dashboard, wherever it ran."
-			}
+		"eyebrow": "The club project",
+		"title": "Hive",
+		"goal": "Have agents that can do **all the tasks a person can do digitally**, with access to **all of their data** on **all their devices**, as if **another you** (or several of you) **is doing the work**.",
+		"why": "Today’s agents only see part of your digital life. A coding agent works on your computer; others work only inside their own virtual machine. So you end up copying and pasting between windows to give them context. Hive should see everything you share with it and act everywhere you can: your computer, your phone and your browser.",
+		"summary": "Hive is the club’s main project: agents with access to all of your digital context that can do any digital task you can, on your computer, phone and browser. Every team builds it together in one GitHub repository.",
+		"semesterLabel": "By the end of this semester",
+		"semester": [
+			"Every team works in one GitHub repository: the browser extensions, the desktop app, the mobile app, the cloud server and the virtual machine agent.",
+			"A public website where anyone can download the browser extension, the desktop app and the mobile app.",
+			"A first prototype with the basic structure in place, to keep improving next semester."
 		],
-		"diagramNote": "Two ways into the same Hivemind. The software can also run without the wristband.",
-		"hardware": {
-			"eyebrow": "The hardware",
-			"title": "A wristband built for voice.",
-			"body": "Screenless, lightweight and ready for life away from a keyboard. The hardware work will cover electronics, sound, battery and enclosure alongside the intelligence it connects to."
-		},
-		"software": {
-			"eyebrow": "The software architecture",
-			"title": "Intelligence that connects the pieces.",
-			"body": "Cloud execution, a web application, shared context and connected agents. The architecture will be open source, so people can run it independently or build new nodes around it."
-		}
-	},
-	"project_why": {
-		"eyebrow": "Building on open source",
-		"heading": "Why Hivemind\nif Hermes exists?",
-		"thesis": "Less briefing.\nMore follow through.",
-		"intent": "Our ambition is personal AI that carries the context of your day into the work you need done.",
-		"path": [
-			"Context you allow",
-			"Memory that stays relevant",
-			"Help across your devices"
-		],
-		"base": {
-			"eyebrow": "Hermes · the agent foundation",
-			"title": "A capable engine to build on.",
-			"body": "Hermes already brings tools, skills, delegation and automatic memory. Our cloud proposal builds on that foundation."
-		},
-		"goal": {
-			"eyebrow": "Hivemind · our design goal",
-			"title": "A connected personal AI system.",
-			"body": "Design the wristband, context architecture and connected agents together. Carry a request from your voice to the right tools, with the relevant memory and one place to follow the work."
-		},
-		"answer": "You can extend Hermes yourself. Hivemind’s ambition is to make these pieces work as one open source system, so you spend less time assembling context and managing handoffs.",
-		"sourceLabel": "Explore the Hermes foundation",
-		"sourceHref": "https://github.com/NousResearch/hermes-agent",
-		"goalsEyebrow": "Where we want to push further",
-		"goalsLede": "Context, continuity and control. Our engineering goals.",
-		"goals": [
-			{
-				"verb": "Capture",
-				"title": "Context before the next prompt.",
-				"body": "Connect conversations, tasks and sources you allow. Background processing would organize useful details, so you have less to explain next time.",
-				"mechanism": ""
-			},
-			{
-				"verb": "Continue",
-				"title": "Pick up where the task stopped.",
-				"body": "Your laptop sleeps. The cloud finishes its part. When the laptop returns, Hivemind would check what actually completed before continuing, with a clear receipt for each result.",
-				"mechanism": "**Action receipts** would record and verify each step, prevent duplicate actions where supported and flag uncertain outcomes."
-			},
-			{
-				"verb": "Control",
-				"title": "Useful context. On your terms.",
-				"body": "“Use these notes for this project until Friday.” Give context a purpose and expiry, then see which memories depend on it and where its removal is still pending.",
-				"mechanism": "**Context permissions** would follow data into derived memories, device caches and waiting tasks within Hivemind."
-			}
-		],
-		"note": "These are proposed system capabilities. Hermes already has durable task queues, and its memory providers offer provenance and deletion. Our aim is to connect those foundations across devices, with verified outcomes and enforceable context permissions.",
-		"researchTitle": "What would we add to Hermes?",
-		"researchSubtitle": "The technical distinction, with sources",
-		"research": [
-			{
-				"title": "Recover actions, beyond saving a task.",
-				"body": "Hermes documents persistent queues, but a running delegated task becomes uncertain after a process restart. We propose a shared action protocol: record intent, check the external result after reconnection, then resume or ask for review. A receipt means evidence of the outcome, rather than an agent’s completion message.",
-				"limit": "First scope: cloud and laptop, with one supported file action. We cannot guarantee duplicate prevention on every website.",
-				"linkLabel": "Hermes delegation and recovery",
-				"linkHref": "https://hermes-agent.nousresearch.com/docs/user-guide/features/delegation/"
-			},
-			{
-				"title": "Withdraw permission across the system.",
-				"body": "Hindsight, a Hermes memory provider, already tracks sources and removes derived observations. We propose an additional permission layer that checks purpose and expiry before retrieval or action, cancels affected waiting work and collects removal acknowledgments from managed nodes.",
-				"limit": "The dashboard would show pending devices. This cannot erase information already exported or sent to another service.",
-				"linkLabel": "Hindsight sources and deletion",
-				"linkHref": "https://hindsight.vectorize.io/developer/api/documents"
-			}
-		],
-		"researchDate": "Research reviewed September 11, 2026. We found no documented, integrated Hermes flow covering these complete proposals. These are integration goals, not claims of exclusive inventions or demonstrated advantages."
-	},
-	"project_details": {
-		"eyebrow": "Go a little deeper",
-		"heading": "The idea, under the hood.",
-		"aside": "Open what interests you.\nExplore at your own pace.",
-		"architectureTitle": "How the pieces fit",
-		"architectureSubtitle": "Nodes, memory, tools and the dashboard",
-		"architecture": [
-			{
-				"title": "Nodes & coordination",
-				"summary": "Different environments, one task.",
-				"body": "A node is a connected part of the system with its own context and abilities, such as the wristband, cloud, browser or computer. Hivemind is the software architecture connecting these parts. We plan cloud execution and a web application for requests, connected nodes and activity, with a mobile application under consideration. A node contract is a shared format for capabilities, status and results, so teams can build parts that work together."
-			},
-			{
-				"title": "Memory & context",
-				"summary": "Useful continuity, with a choice about sharing.",
-				"body": "The proposal separates your personal memory from explicitly chosen team spaces. Retrieval means finding the pieces of past context that matter for a request. We’re exploring a background process that organizes useful facts, connects related information and updates outdated details, with consent and deletion rules to define before external use."
-			},
-			{
-				"title": "Tools & permissions",
-				"summary": "Access you understand and control.",
-				"body": "The cloud proposal builds around Hermes and tool connections such as MCP, a common way for an agent to communicate with other software. We plan credentials limited to the access each task needs, approval before irreversible actions and a record of tool activity. Testing these controls is part of the engineering work ahead."
-			},
-			{
-				"title": "One dashboard",
-				"summary": "A place to ask, follow and review.",
-				"body": "The web application will bring together four core views: a registry of connected nodes, a detail page for each node, an activity feed and a command bar for requests. Shared status labels and panels for each device should make the whole system understandable as each team’s integration arrives."
-			}
-		],
-		"buildTitle": "What each team will build",
-		"buildSubtitle": "Seven entry points into the same project",
-		"buildAreas": [
-			{
-				"name": "Hardware",
-				"detail": "Build a small, screenless voice wristband: microphones and speakers, Bluetooth connectivity, efficient power use, a custom circuit board and a comfortable enclosure. Also explore a USB device for mouse, keyboard and screen interaction on Mac and Windows, coordinated with the PC agent."
-			},
-			{
-				"name": "Cloud",
-				"detail": "Build the cloud side of Hivemind: agent execution, memory, user separation and task routing. Work with Design/Product on the web application and explore a possible mobile application. Research reliable tool connections and websites that restrict traffic from data centers."
-			},
-			{
-				"name": "PC",
-				"detail": "Connect local files and applications with permission. Account for OS restrictions and the fact that this node is available only while the computer is running."
-			},
-			{
-				"name": "Browser",
-				"detail": "Explore Chrome and Safari extensions using page and tab context. Work on finding relevant content, choosing between direct software connections (APIs) and actions on the page, and completing tasks efficiently."
-			},
-			{
-				"name": "Research",
-				"detail": "Design memory, agent tools and context handling. Compare models for task quality, speed and cost, and test the system against real outcomes."
-			},
-			{
-				"name": "Design / Product",
-				"detail": "Create the dashboard’s four views and reusable interface components. Define the data each view needs, design device panels and help teams resolve integration gaps."
-			},
-			{
-				"name": "Business",
-				"detail": "Run outreach, marketing, finance and operations, and keep the club running smoothly."
-			}
-		],
-		"prioritiesTitle": "The hard parts we want to get right",
-		"prioritiesSubtitle": "Useful memory, understandable actions and real value",
-		"priorities": [
-			{
-				"question": "Will it remember what matters?",
-				"answer": "Explore selective retrieval: bring in relevant facts, update outdated context and keep personal and shared memory properly scoped."
-			},
-			{
-				"question": "Can I understand what it’s doing?",
-				"answer": "Design a clear activity trail and approval steps for consequential actions. A confident answer still needs to be checked against the actual result."
-			},
-			{
-				"question": "Will it save more than it costs?",
-				"answer": "Measure task completion time, correctness and model usage together. Test model choices and context size instead of assuming a cheaper model is enough."
-			}
-		],
-		"status": "We’re at the planning stage. Implementation hasn’t started and there’s no public release yet. We’re building toward a physical wristband and an open source software architecture, with cloud execution and a web application. A mobile application is under consideration."
-	},
-	"project_beginner": {
-		"eyebrow": "Your first AI project is welcome here",
-		"words": [
-			"Learn.",
-			"Build.",
-			"Belong."
-		],
-		"body": "**No prior AI experience required.** We’ll pair you with a subteam lead. Bring your questions, your perspective and a willingness to try.",
-		"cta": "Find your place",
-		"ctaHref": "/join/",
-		"support": [
-			{
-				"title": "People to learn with",
-				"body": "Educational workshops, speaker events and a [Discord community of nearly {{stat:discord}}]({{social:Discord}}) where questions are welcome."
-			},
-			{
-				"title": "More than coding",
-				"body": "Design, product, outreach, marketing, operations and finance all have a place in the project."
-			},
-			{
-				"title": "Build thoughtfully with AI",
-				"body": "Vibe coding is welcome. Learn what the code does, test it and review it with your team."
-			}
-		]
-	},
-	"project_goals": {
-		"label": "What we’re aiming for",
-		"lede": "Semester targets for real time saved. We’ll validate these with users as we build.",
-		"items": [
-			{
-				"when": "End of Fall",
-				"people": "30",
-				"unit": "people using Hivemind",
-				"saving": "Target: 2.5 hours saved per person, per week on average"
-			},
-			{
-				"when": "End of Spring",
-				"people": "200",
-				"unit": "people using Hivemind",
-				"saving": "Target: 5 hours saved per person, per week on average"
-			}
-		],
-		"northstarLabel": "Northstar",
-		"northstarLede": "We’ll measure task speed, accuracy and cost against real outcomes. These are research goals, not proven gains.",
-		"northstar": [
-			{
-				"metric": "Speed",
-				"body": "How fast can we have agents complete tasks?"
-			},
-			{
-				"metric": "Accuracy",
-				"body": "How accurately can agents complete tasks?"
-			},
-			{
-				"metric": "Cost",
-				"body": "How cheaply can agents complete tasks?"
-			}
-		]
+		"repoCta": "See the code on GitHub",
+		"repoHref": "https://github.com/agenticaiuw/hive"
 	},
 	"teams": {
 		"label": "Teams",
-		"heading": "Find your part of the Hivemind.",
-		"lede": "Seven teams, one per board member, building one connected system. Explore a team below; you can contribute across areas as you learn.",
+		"heading": "The teams building Hive",
+		"lede": "Each team is headed by a board member, and every team works in the same repository. You can join a team any time and sit in on any team’s meeting.",
+		"goalsLabel": "Goals this semester",
+		"codeLabel": "Code",
 		"items": [
 			{
 				"k": "hardware",
-				"name": "Hardware",
+				"name": "Hardware Team",
 				"short": "Hardware",
-				"lead": "Evan Liu",
-				"line": "Build a screenless wristband for talking to agents, and a USB device that lets agents operate a Mac or PC through mouse, keyboard and screen."
+				"team": 2,
+				"line": "Build a screenless wearable device as a much more convenient physical form of interacting with agents",
+				"goals": [],
+				"code": []
+			},
+			{
+				"k": "automation",
+				"name": "Automation Team",
+				"short": "Automation",
+				"team": 9,
+				"line": "Let agents use your computer, phone and browser the way you do. The PC and Browser teams merged into this one.",
+				"goals": [
+					"A desktop app for Mac and Windows, like Codex, that can also control the real keyboard and mouse.",
+					"A mobile app for iOS (Android not decided yet) that can control your phone: touch, swipe and screenshots.",
+					"Browser extensions for Chrome and Safari, so agents work in the browser you already use."
+				],
+				"code": [
+					"desktop",
+					"mobile",
+					"browser"
+				]
 			},
 			{
 				"k": "cloud",
-				"name": "Cloud Agent",
+				"name": "Cloud Team",
 				"short": "Cloud",
-				"lead": "Anand Indukuri",
-				"line": "Build the assistant’s cloud service and web app, with a mobile app also being considered."
+				"team": 3,
+				"line": "Build the server that connects all your devices, an agent that runs on a virtual machine, and the storage behind them.",
+				"goals": [
+					"A cloud server that connects all your devices: the browser extension, the desktop app and the mobile app.",
+					"A virtual machine agent, plus connectors to other services.",
+					"Storage and retrieval for tools, memories and session history."
+				],
+				"code": [
+					"cloud"
+				]
 			},
 			{
-				"k": "os",
-				"name": "PC Agent",
-				"short": "PC",
-				"lead": "Ife Solarin",
-				"line": "Lives on your computer with access to your files, doing what the cloud cannot reach."
-			},
-			{
-				"k": "browser",
-				"name": "Browser Extension Agent",
-				"short": "Browser",
-				"lead": "Bala Shukla",
-				"line": "Safari and Chrome extensions that act across your tabs, in sessions you are already signed into."
-			},
-			{
-				"k": "architecture",
-				"name": "Research",
+				"k": "research",
+				"name": "Research Team",
 				"short": "Research",
-				"lead": "Ryan Khalili",
-				"line": "Design memory, choose models and build the tools that help the connected agents work together."
+				"team": 6,
+				"line": "Work out how Hive should fit together and how its agents handle context, and run models on our own hardware.",
+				"goals": [
+					"The overall architecture of Hive, worked out with the Cloud team so no work is repeated.",
+					"The agent loop: how an agent retrieves and offloads context while it runs (context engineering).",
+					"Local models: run a model on club hardware and serve it as an API or coding agent for everyone in the club."
+				],
+				"code": [
+					"cloud/docs"
+				]
 			},
 			{
-				"k": "ux",
-				"name": "Design / Product",
+				"k": "design",
+				"name": "Product Design Team",
 				"short": "Design",
-				"lead": "Joslyn DeGuzman",
-				"line": "Shape the dashboard, views for connected devices and how the whole Hivemind feels to use."
+				"team": 7,
+				"line": "Design how people use every part of Hive, and test the whole system on real tasks.",
+				"goals": [
+					"The UI and UX for each part of Hive: the desktop app, the mobile app and the browser extension.",
+					"Dashboards for the agents’ current tasks, past sessions and stored files, plus custom views for each feature.",
+					"Stress-test the whole system with their own tasks and tell the engineering teams what it can’t do yet."
+				],
+				"code": [
+					"dashboard"
+				]
 			},
 			{
 				"k": "business",
-				"name": "Business",
+				"name": "Business Team",
 				"short": "Business",
-				"lead": "Zahra Moosani",
-				"line": "Outreach, marketing, finance and operations: keeping the club running smoothly."
+				"team": 8,
+				"line": "Outreach, marketing, finance and operations: keeping the club running smoothly.",
+				"goals": [],
+				"code": []
 			}
 		]
 	},
@@ -511,8 +393,8 @@ export default {
 	},
 	"join": {
 		"heading": "Join any time of year.",
-		"lede": "Book office hours with the lead of the team you want to join. That’s the only step: no application, no cutoff, no recruiting season. Every major and every level is welcome.",
-		"officeHoursHeading": "Book office hours with a team lead",
+		"lede": "Book office hours with the head of the team you want to join. That’s the only step: no application, no cutoff, no recruiting season. Every major and every level is welcome.",
+		"officeHoursHeading": "Book office hours with a team head",
 		"officeHoursCta": "Book office hours",
 		"discordTitle": "Join the Discord",
 		"discordBody": "Where day-to-day discussion and questions happen.",
@@ -533,7 +415,7 @@ export default {
 			},
 			{
 				"title": "Faculty and researchers",
-				"body": "Work with our Research team on memory, model choice and agent tools."
+				"body": "Work with our Research team on Hive’s architecture, context engineering and local models."
 			},
 			{
 				"title": "Speakers",
@@ -573,17 +455,21 @@ export default {
 			},
 			{
 				"q": "What is the club building?",
-				"a": "Hivemind, an open source AI assistant in development. It connects agents, shared context and your devices: a planned screenless wristband for voice access, a cloud service and web app, an agent on your computer and browser extensions. A mobile app is also being considered.",
+				"a": "Hive: agents with access to all of your digital context that can do any digital task you can, on your computer, phone and browser. Every team builds it together in one GitHub repository.",
 				"links": [
 					{
 						"label": "See the project",
 						"href": "/teams/"
+					},
+					{
+						"label": "Code on GitHub",
+						"href": "https://github.com/agenticaiuw/hive"
 					}
 				]
 			},
 			{
 				"q": "What are the project teams?",
-				"a": "Seven teams build Hivemind, one per board member: {{teams_sentence}}. Members can contribute across areas as they learn.",
+				"a": "The teams building Hive are {{teams_sentence}}. Members can contribute across teams as they learn.",
 				"links": [
 					{
 						"label": "Book office hours with a team",
@@ -593,7 +479,7 @@ export default {
 			},
 			{
 				"q": "Who runs Agentic AI UW?",
-				"a": "A seven-person founding board: {{board_sentence}}. Each board member leads a project team and holds office hours.",
+				"a": "A seven-person founding board: {{board_sentence}}. Each board member heads a project team and holds office hours.",
 				"links": [
 					{
 						"label": "Meet the founding board",
@@ -608,7 +494,7 @@ export default {
 			},
 			{
 				"q": "How do I join Agentic AI UW?",
-				"a": "Book office hours with the lead of the team you want to join. You can join any time of year; there is no application, no cutoff and no recruiting season.",
+				"a": "Book office hours with the head of the team you want to join. You can join any time of year; there is no application, no cutoff and no recruiting season.",
 				"links": [
 					{
 						"label": "Book office hours",
@@ -699,8 +585,8 @@ export default {
 		},
 		"teams": {
 			"title": "Teams · {{club}}",
-			"description": "Seven teams building Hivemind, an open source AI assistant, at {{university}}: Hardware, Cloud, PC, Browser, Research, Design / Product and Business. No prior AI experience required.",
-			"blurb": "Hivemind, and the seven teams building it"
+			"description": "Hive, the agent project of {{club}} at {{university}}, and the teams building it: Hardware, Automation, Cloud, Research, Product Design and Business. No prior AI experience required.",
+			"blurb": "Hive, and the teams building it"
 		},
 		"events": {
 			"title": "Events · {{club}}",
@@ -714,7 +600,7 @@ export default {
 		},
 		"join": {
 			"title": "How to join · {{club}}",
-			"description": "Join {{club}} at UW–Madison any time of year: book office hours with the lead of the team you want to join. No application, no cutoff."
+			"description": "Join {{club}} at UW–Madison any time of year: book office hours with the head of the team you want to join. No application, no cutoff."
 		},
 		"faq": {
 			"title": "FAQ · {{club}}",
