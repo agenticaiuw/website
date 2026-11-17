@@ -263,6 +263,7 @@ taskRoutes.post('/tasks', async (c) => {
 /** How often a task can repeat. On each one's due date the next is made and everyone on it is emailed. */
 const TASK_REPEATS: [string, string][] = [
 	['0', 'Doesn’t repeat'],
+	['1', 'Daily'],
 	['7', 'Weekly'],
 	['14', 'Every 2 weeks']
 ];
@@ -270,7 +271,7 @@ const TASK_REPEATS: [string, string][] = [
 function RepeatFields({ days, until }: { days: number; until: string | null }) {
 	return (
 		<>
-			<Choice name="repeat" label="Repeats" selected={String(days)} options={TASK_REPEATS} hint="On each due date the next one is made and everyone on it is emailed." />
+			<Choice name="repeat" label="Repeats" selected={String(days)} options={TASK_REPEATS} hint="Weekly ones: on each due date the next one is made and everyone on it is emailed. Daily ones: each day’s is made that morning and comes in the 9 AM reminder email." />
 			<label class="field until">
 				<span class="label">Until</span>
 				<input type="date" name="repeat_until" value={until ?? ''} />
@@ -283,13 +284,15 @@ function RepeatFields({ days, until }: { days: number; until: string | null }) {
 /** The repeat fields from a form: days (0 = doesn't repeat) and an optional end date. */
 function readRepeat(form: Record<string, unknown>, due: string) {
 	const days = Number(str(form.repeat));
-	const repeatDays = days === 7 || days === 14 ? days : 0;
+	const repeatDays = days === 1 || days === 7 || days === 14 ? days : 0;
 	const until = str(form.repeat_until);
 	return { repeatDays, repeatUntil: repeatDays && isDate(until) && until >= due ? until : null };
 }
 
+const repeatLabel = (days: number) => (days === 1 ? 'Every day' : days === 14 ? 'Every 2 weeks' : 'Every week');
+
 const repeatText = (t: { repeat_days: number; repeat_until: string | null }, today: string) =>
-	`${t.repeat_days === 14 ? 'Every 2 weeks' : 'Every week'}${t.repeat_until ? `, until ${formatDate(t.repeat_until, today)}` : ''}`;
+	`${repeatLabel(t.repeat_days)}${t.repeat_until ? `, until ${formatDate(t.repeat_until, today)}` : ''}`;
 
 // ---------- detail ----------
 

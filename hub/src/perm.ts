@@ -1,5 +1,15 @@
 import { meetingTeams } from './db';
-import type { MeetingRow, TaskRow, Viewer } from './types';
+import type { MeetingRow, Member, TaskRow, Viewer } from './types';
+
+/** The site owner has the highest authority: only they grant or remove exec access, and nobody else can change their account. */
+export const isOwner = (v: Pick<Member, 'is_owner'>) => !!v.is_owner;
+
+/** Until an owner is set, any exec may manage roles as before. */
+export async function canManageRoles(db: D1Database, v: Viewer) {
+	if (isOwner(v)) return true;
+	if (!isExec(v)) return false;
+	return !(await db.prepare('SELECT 1 FROM members WHERE is_owner = 1 LIMIT 1').first());
+}
 
 export const isExec = (v: Viewer) => v.role === 'exec';
 

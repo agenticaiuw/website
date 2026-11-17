@@ -1,0 +1,147 @@
+/**
+ * Site text comes from the member hub (hub.agenticaiuw.com/site), where execs edit it
+ * with a full history. This turns the hub's sections into what the pages render:
+ * placeholders like {{club}} filled in, the vision split into bold runs, and so on.
+ * fallback.json is a snapshot used whenever the hub can't be reached.
+ */
+import fallback from './fallback.json';
+
+export type Sections = typeof fallback;
+
+type Link = { label: string; href: string };
+export type Run = { t: string; strong?: boolean; cite?: boolean };
+export type ClubEvent = { date: string; dateEnd?: string; time?: string; kind: string; name: string; location?: string; body: string };
+export type Exec = { name: string; title: string; leads: string; subteam: string; linkedin: string; officeHours: string; photo?: string; blurb?: string };
+
+/** "a, b and c". */
+const andList = (items: string[]) => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`);
+
+/** Links from the hub are checked there too; this keeps anything odd off the page. */
+export const safeHref = (href: string) => (/^(https?:\/\/|mailto:|\/(?!\/)|#)/i.test(href) ? href : '#');
+
+const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/** Lines of plain text joined with line breaks, as HTML. */
+export const linesHtml = (s: string) => s.split('\n').map(escape).join('<br /> ');
+
+/** **bold**, [text](link) and line breaks, as HTML. Everything else is escaped. */
+export function richHtml(s: string) {
+	return s
+		.split('\n')
+		.map((line) =>
+			escape(line)
+				.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+				.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, text: string, href: string) => {
+					const url = safeHref(href.replace(/&amp;/g, '&'));
+					const external = /^https?:\/\//i.test(url);
+					return `<a href="${escape(url)}"${external ? ' target="_blank" rel="noopener noreferrer"' : ''}>${text}</a>`;
+				})
+		)
+		.join('<br /> ');
+}
+
+/** The vision with its **bold** phrases and the [^1] source marker. */
+function visionRuns(text: string): Run[] {
+	const runs: Run[] = [];
+	for (const part of text.split(/(\*\*.+?\*\*|\[\^1\])/)) {
+		if (!part) continue;
+		if (part === '[^1]') {
+			if (runs.length) runs[runs.length - 1].cite = true;
+		} else if (part.startsWith('**') && part.endsWith('**') && part.length > 4) runs.push({ t: part.slice(2, -2), strong: true });
+		else runs.push({ t: part });
+	}
+	return runs;
+}
+
+/** Replaces every string inside a value, keeping its shape. */
+function mapStrings<T>(value: T, fn: (s: string) => string): T {
+	if (typeof value === 'string') return fn(value) as T;
+	if (Array.isArray(value)) return value.map((v) => mapStrings(v, fn)) as T;
+	if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, mapStrings(v, fn)])) as T;
+	return value;
+}
+
+const opt = (s: string | undefined) => (s ? s : undefined);
+
+export function buildContent(input: Partial<Sections>) {
+	// A section the hub didn't send falls back to the snapshot.
+	const raw = { ...fallback, ...input } as Sections;
+
+	const base: Record<string, string> = {
+		club: raw.club.name,
+		short_name: raw.club.shortName,
+		university: raw.club.university,
+		founded: String(raw.club.founded),
+		motto: raw.club.motto,
+		summary: raw.club.summary,
+		email: raw.links.email,
+		vision_source: raw.vision.sourceHref
+	};
+	const tokens = (s: string, extra: Record<string, string> = {}) =>
+		s.replace(/\{\{\s*([a-z_]+)(?::([^}]+))?\s*\}\}/gi, (m, name: string, arg?: string) => {
+			const key = name.toLowerCase();
+			if (key === 'stat' && arg) {
+				const st = raw.stats.items.find((i) => i.key === arg.trim());
+				return st ? String(st.n) : m;
+			}
+			if (key === 'social' && arg) {
+				const so = raw.links.social.find((i) => i.name.toLowerCase() === arg.trim().toLowerCase());
+				return so ? so.href : m;
+			}
+			return extra[key] ?? base[key] ?? m;
+		});
+
+	const visionText = tokens(raw.vision.text);
+	const all: Record<string, string> = {
+		vision: visionText.replace(/\*\*(.+?)\*\*/g, '$1').replace(/\[\^1\]/g, ''),
+		stats_sentence: andList(raw.stats.items.map((i) => `${i.approx ? 'nearly ' : ''}${i.n} ${i.prose}`)),
+		teams_sentence: andList(raw.teams.items.map((t) => `${t.name} (led by ${t.lead})`)),
+		board_sentence: andList(raw.board.members.map((m) => `${m.name} (${m.title}, leads the ${m.leads} team)`))
+	};
+	const s = mapStrings(raw, (x) => tokens(x, all));
+
+	const club = { ...s.club };
+	const social = s.links.social.map((l) => ({ name: l.name, href: safeHref(l.href) }));
+	const team = {
+		heading: s.board.heading,
+		members: s.board.members.map((m): Exec => ({ ...m, linkedin: safeHref(m.linkedin), officeHours: safeHref(m.officeHours), photo: opt(m.photo), blurb: opt(m.blurb) }))
+	};
+	const pressDate = new Date(`${s.press.date}T12:00:00Z`);
+
+	return {
+		club,
+		vision: { label: s.vision.label, runs: visionRuns(visionText), text: all.vision, source: { label: s.vision.sourceLabel, href: safeHref(s.vision.sourceHref) } },
+		stats: s.stats,
+		press: {
+			...s.press,
+			href: safeHref(s.press.href),
+			dateLabel: Number.isNaN(pressDate.getTime()) ? s.press.date : pressDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
+		},
+		reasons: {
+			heading: s.reasons.heading,
+			items: s.reasons.items.map((r) => ({ title: r.title, body: r.body, link: r.linkLabel && r.linkHref ? { label: r.linkLabel, href: safeHref(r.linkHref) } : undefined }))
+		},
+		team,
+		project: s.project,
+		why: s.project_why,
+		details: s.project_details,
+		beginner: s.project_beginner,
+		work: { goals: s.project_goals, subteams: s.teams },
+		events: { ...s.events, items: s.events.items.map((e): ClubEvent => ({ date: e.date, dateEnd: opt(e.dateEnd), time: opt(e.time), kind: e.kind, name: e.name, location: opt(e.location), body: e.body })) },
+		join: { ...s.join, discordHref: safeHref(s.join.discordHref) },
+		partners: s.partners,
+		faq: { ...s.faq, items: s.faq.items.map((f) => ({ q: f.q, a: f.a, links: f.links.length ? f.links.map((l): Link => ({ label: l.label, href: safeHref(l.href) })) : undefined })) },
+		social,
+		contact: { heading: s.links.contactHeading, lede: s.links.contactLede, email: s.links.email },
+		memberHub: { label: s.links.hubLabel, href: safeHref(s.links.hubHref), blurb: s.links.hubBlurb },
+		pages: s.pages,
+		nav: [
+			{ label: 'Home', id: 'home', href: '/', blurb: s.pages.home.blurb },
+			{ label: 'Teams', id: 'teams', href: '/teams', blurb: s.pages.teams.blurb },
+			{ label: 'Events', id: 'events', href: '/events', blurb: s.pages.events.blurb },
+			{ label: 'Partners', id: 'partners', href: '/partners', blurb: s.pages.partners.blurb }
+		]
+	};
+}
+
+export type Site = ReturnType<typeof buildContent>;

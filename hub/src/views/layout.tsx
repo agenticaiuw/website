@@ -29,7 +29,10 @@ const FLASH: Record<string, string> = {
 	reminders: 'Reminder run finished. See the log below.',
 	digest: 'Digest sent to execs.',
 	test: 'Test email sent. Check the log below.',
-	invited: 'Sign-in invites sent. See the log below.'
+	invited: 'Sign-in invites sent. See the log below.',
+	'site-saved': 'Saved. The website shows it within a minute.',
+	'site-unchanged': 'Nothing changed, so no new version was saved.',
+	restored: 'Restored. That version is live again, and the text it replaced stays in the history.'
 };
 
 const ERRORS: Record<string, string> = {
@@ -56,11 +59,12 @@ const ERRORS: Record<string, string> = {
 	forbidden: "You don't have permission to do that.",
 	unsent: "It's saved, but the email to everyone didn't go out. They'll still get the usual reminder before it.",
 	self: "You can't remove your own exec access.",
+	owner: 'Only the site owner can change that.',
 	last: "They're the only one on it. Reassign the task to someone else, or drop it.",
 	partial: 'Some of the tasks were created, but not all. Check the list below.'
 };
 
-type NavKey = 'home' | 'tasks' | 'meetings' | 'people' | 'teams' | 'email' | 'collaboration';
+type NavKey = 'home' | 'tasks' | 'meetings' | 'people' | 'teams' | 'email' | 'collaboration' | 'site';
 
 /** Simple line icons for the sidebar, drawn on a 24px grid. */
 const ICONS: Record<NavKey, string> = {
@@ -70,7 +74,8 @@ const ICONS: Record<NavKey, string> = {
 	people: '<circle cx="12" cy="8" r="3.75"/><path d="M4.5 20.5c.6-3.9 3.6-6 7.5-6s6.9 2.1 7.5 6"/>',
 	teams: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.75"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.75"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.75"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.75"/>',
 	collaboration: '<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="m8.2 10.8 7.6-3.6M8.2 13.2l7.6 3.6"/>',
-	email: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 7 8.5 6 8.5-6"/>'
+	email: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 7 8.5 6 8.5-6"/>',
+	site: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 3.8 5.6 3.8 9s-1.2 6.4-3.8 9c-2.6-2.6-3.8-5.6-3.8-9S9.4 5.6 12 3Z"/>'
 };
 
 function Icon({ name }: { name: NavKey }) {
@@ -89,7 +94,7 @@ function Nav({ viewer, active }: { viewer: Viewer; active?: NavKey }) {
 		['people', '/people', 'People'],
 		['teams', '/teams', 'Teams']
 	];
-	if (isExec(viewer)) links.push(['collaboration', '/collaboration', 'Collaboration'], ['email', '/email', 'Email']);
+	if (isExec(viewer)) links.push(['site', '/site', 'Website'], ['collaboration', '/collaboration', 'Collaboration'], ['email', '/email', 'Email']);
 	return (
 		<nav class="nav" aria-label="Main">
 			{links.map(([key, href, label]) => (
@@ -128,9 +133,14 @@ export function Document({ title, children }: { title: string; children: Child }
 				<meta charset="utf-8" />
 				<meta name="viewport" content="width=device-width, initial-scale=1" />
 				<meta name="robots" content="noindex" />
+				<meta name="theme-color" content="#14110f" />
+				<meta name="color-scheme" content="dark" />
 				<title>{`${title} · Agentic AI UW Hub`}</title>
 				<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 				<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+				<link rel="preload" href="/fonts/figtree-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
+				<link rel="preload" href="/fonts/baloo-2-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
+				<link rel="stylesheet" href="/fonts/fonts.css" />
 				<link rel="stylesheet" href="/styles.css" />
 				<script dangerouslySetInnerHTML={{ __html: "document.documentElement.classList.add('js')" }} />
 				<script src="/app.js" defer></script>
@@ -160,6 +170,7 @@ export function page(c: Context<AppEnv>, opts: { title: string; active?: NavKey 
 						<aside class="sidebar">
 							<Brand />
 							<Nav viewer={viewer} active={opts.active} />
+							<img class="side-badge" src="/badge-wave.svg" alt="" width="76" height="70" />
 							<div class="who">
 								<a href={`/people/${viewer.id}`} class="who-name" title="Your profile">
 									<span class="avatar" aria-hidden="true">
@@ -190,6 +201,7 @@ export function plainPage(c: Context, title: string, body: Child, status: 200 | 
 				<Document title={title}>
 					<main class="solo">
 						<Brand size={36} />
+						<img class="solo-badge" src="/badge-wave.svg" alt="" width="116" height="106" />
 						<div class="card solo-card">{body}</div>
 					</main>
 				</Document>

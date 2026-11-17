@@ -6,11 +6,15 @@
 	import { expoOut } from 'svelte/easing';
 	import '../app.css';
 	import Nav from '$lib/components/Nav.svelte';
+	import CursorMark from '$lib/components/CursorMark.svelte';
+	import Badge from '$lib/components/Badge.svelte';
 	import SocialIcon from '$lib/components/SocialIcon.svelte';
 	import EmailLink from '$lib/components/EmailLink.svelte';
-	import { club, social, contact, memberHub } from '$lib/content';
+	import { provideSite, richHtml } from '$lib/site';
 
-	let { children } = $props();
+	let { children, data } = $props();
+	provideSite(() => data.site);
+	const { club, social, contact } = $derived(data.site);
 
 	let still = $state(false);
 	onMount(() => {
@@ -62,33 +66,28 @@
 	</main>
 {/key}
 
-<footer class="border-t py-16" style:border-color="var(--line)">
+<footer class="site-footer">
 	<div class="shell">
-		<div class="flex flex-col gap-10 md:flex-row md:items-start md:justify-between">
-			<div class="max-w-sm">
-				<div class="flex items-center gap-2.5 font-mono text-sm font-semibold">
-					<span class="inline-block h-2 w-2 rounded-full" style:background="var(--accent)"></span>
-					{club.name}
-				</div>
-				<p class="mt-4 text-sm leading-relaxed" style:color="var(--muted)">
-					A registered student organization at {club.university}. {club.motto}
-				</p>
+		<div class="footer-card">
+			<div class="f-brand">
+				<a href="/" class="f-logo"><CursorMark size={40} /><span>{club.name}</span></a>
+				<p class="f-motto">{club.footerLine}</p>
 			</div>
 
-			<div class="flex flex-col gap-8 sm:flex-row sm:gap-16">
+			<div class="f-cols">
 				<div>
-					<h4 class="eyebrow">Follow</h4>
-					<ul class="mt-4 grid gap-2.5">
+					<h2 class="f-head">Follow</h2>
+					<ul class="f-list">
 						{#each social as s (s.name)}
 							<li>
 								{#if s.href}
-									<a href={s.href} target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 text-sm transition-colors hover:underline" style:color="var(--muted)">
+									<a href={s.href} target="_blank" rel="noopener noreferrer" class="f-link">
 										<SocialIcon name={s.name} />
 										{s.name}
 									</a>
 								{:else}
-									<!-- Paste the URL into content.ts and this becomes a live link. -->
-									<span class="inline-flex items-center gap-2 text-sm" style:color="var(--line-strong)" title="URL not set yet">
+									<!-- Add the link in the hub and this becomes a live link. -->
+									<span class="f-link off" title="URL not set yet">
 										<SocialIcon name={s.name} />
 										{s.name}
 									</span>
@@ -97,26 +96,53 @@
 						{/each}
 					</ul>
 				</div>
-				<div>
-					<h4 class="eyebrow">{contact.heading}</h4>
-					<p class="mt-4 max-w-xs text-sm leading-relaxed" style:color="var(--muted)">{contact.lede}</p>
-					<span class="mt-3 inline-block text-sm font-medium" style:color="var(--accent)">
-						<EmailLink email={contact.email} class="font-medium" />
-					</span>
-				</div>
-				<div>
-					<h4 class="eyebrow">Members</h4>
-					<p class="mt-4 max-w-xs text-sm leading-relaxed" style:color="var(--muted)">{memberHub.blurb}</p>
-					<a href={memberHub.href} target="_blank" rel="noopener noreferrer" class="mt-3 inline-block text-sm font-medium hover:underline" style:color="var(--accent)">
-						{memberHub.label} ↗<span class="sr-only"> (opens in a new tab)</span>
-					</a>
+				<div class="f-contact">
+					<h2 class="f-head">{contact.heading}</h2>
+					<p>{contact.lede}</p>
+					<span class="f-email"><EmailLink email={contact.email} class="font-semibold" /></span>
 				</div>
 			</div>
+
+			<div class="f-badge" aria-hidden="true"><Badge size={150} mood="happy" /></div>
 		</div>
 
-		<div class="mt-14 flex flex-col gap-2 border-t pt-7 text-xs sm:flex-row sm:items-center sm:justify-between" style:border-color="var(--line)" style:color="var(--muted)">
+		<div class="f-bottom">
 			<span>© {new Date().getFullYear()} {club.name}. Founded {club.founded}.</span>
-			<a href="/faq/" class="hover:underline">Frequently asked questions</a>
+			<a href="/faq/">Frequently asked questions</a>
 		</div>
 	</div>
 </footer>
+
+<style>
+	.site-footer { padding: 2rem 0 2.5rem; }
+	.footer-card {
+		position: relative;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: 2.5rem 3rem;
+		padding: clamp(1.75rem, 4vw, 2.75rem);
+		padding-right: clamp(1.75rem, 14vw, 12rem);
+		border: 1px solid var(--line);
+		border-radius: var(--r-lg);
+		background: var(--surface);
+		box-shadow: var(--shadow);
+	}
+	.f-logo { display: inline-flex; align-items: center; gap: 0.7rem; font-family: var(--font-display); font-size: 1.3rem; font-weight: 700; line-height: 1.2; }
+	.f-motto { margin-top: 1rem; max-width: 24rem; font-size: 0.95rem; line-height: 1.6; color: var(--muted); }
+	.f-cols { display: flex; flex-wrap: wrap; gap: 2rem 3.5rem; }
+	.f-head { font-size: 1.05rem; font-weight: 700; }
+	.f-list { display: grid; gap: 0.6rem; margin-top: 0.9rem; list-style: none; padding: 0; }
+	.f-link { display: inline-flex; align-items: center; gap: 0.55rem; font-size: 0.95rem; color: var(--muted); transition: color 0.2s ease; }
+	.f-link:hover { color: var(--fg); }
+	.f-link.off { color: var(--faint); }
+	.f-contact { max-width: 17rem; }
+	.f-contact p { margin-top: 0.9rem; font-size: 0.95rem; line-height: 1.55; color: var(--muted); }
+	.f-email { display: inline-block; margin-top: 0.6rem; color: var(--accent); }
+	.f-badge { position: absolute; right: clamp(0.5rem, 2vw, 1.75rem); bottom: -0.5rem; transform: rotate(6deg); }
+	.f-bottom { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem 1.5rem; margin-top: 1.25rem; padding-inline: 0.5rem; font-size: 0.9rem; color: var(--muted); }
+	.f-bottom a:hover { color: var(--fg); text-decoration: underline; text-underline-offset: 3px; }
+	@media (max-width: 860px) {
+		.footer-card { grid-template-columns: minmax(0, 1fr); padding-right: clamp(1.75rem, 4vw, 2.75rem); padding-bottom: 8.5rem; }
+		.f-badge :global(svg) { width: 118px !important; }
+	}
+</style>

@@ -1,14 +1,14 @@
-import { club, vision, stats, team, work, join, contact, social, nav, faq, memberHub } from '$lib/content';
+import { loadSite } from '$lib/server/site';
 import { siteUrl } from '$lib/seo';
 
 // /llms.txt (https://llmstxt.org): a plain-text briefing for AI assistants,
 // built from the same copy as the site so the two never disagree.
-export const prerender = true;
 export const trailingSlash = 'never';
 
 const page = (href: string) => `${siteUrl}${href.replace(/\/?$/, '/')}`;
 
-export function GET() {
+export async function GET({ platform }) {
+	const { club, vision, stats, team, project, work, join, contact, social, nav, faq, memberHub, press } = await loadSite(platform);
 	const body = `# ${club.name}
 
 > ${club.summary}
@@ -26,12 +26,12 @@ Source for the quoted figure: ${vision.source.label} ${vision.source.href}
 - University: ${club.university} (Madison, Wisconsin, USA)
 - Founded: ${club.founded}
 - Size: ${stats.items.map((i) => `${i.approx ? 'about ' : ''}${i.n} ${i.label}`).join('; ')}
-- Project: ${work.heading}. ${work.lede}
+- Project: ${project.title}. ${project.summary}
 - Teams: ${work.subteams.items.map((s) => `${s.name} (${s.lead})`).join('; ')}
 - Who can join: every major and every level; no CS major or prior AI experience required
 - How to join: ${join.lede} Book office hours: ${siteUrl}/join/#office-hours
 - Email: ${contact.email}
-- Press: The Daily Cardinal, September 3, 2026: https://www.dailycardinal.com/article/2026/09/agentic-ai-uw-brings-next-step-in-artificial-intelligence-to-uw-madison
+- Press: ${press.name}, ${press.dateLabel}: ${press.href}
 ${social.filter((s) => s.href).map((s) => `- ${s.name}: ${s.href}`).join('\n')}
 
 ## Founding board

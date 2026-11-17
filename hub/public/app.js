@@ -422,3 +422,90 @@ for (const count of document.querySelectorAll('[data-live-count]')) {
 		} catch {}
 	}, 3000);
 }
+
+// Website editor: lists can be added to, reordered and trimmed, and on save the whole
+// form is written into one JSON field that the server checks against the schema.
+for (const form of document.querySelectorAll('[data-site-form]')) {
+	const root = form.querySelector('[data-site-root]');
+	const CONTAINER = '[data-obj], [data-item], [data-site-root]';
+	const ownFields = (box) => [...box.querySelectorAll('[data-k]')].filter((el) => el.parentElement.closest(CONTAINER) === box);
+	const items = (list) => [...list.querySelector(':scope > [data-items]').children].filter((el) => el.matches('[data-item]'));
+	const read = (el) => {
+		if (el.matches('[data-obj]')) return readObj(el);
+		if (el.matches('[data-list]')) {
+			return el.matches('[data-strings]') ? items(el).map((li) => li.querySelector('[data-k]').value) : items(el).map(readObj);
+		}
+		return el.type === 'checkbox' ? el.checked : el.value;
+	};
+	const readObj = (box) => Object.fromEntries(ownFields(box).map((el) => [el.dataset.k, read(el)]));
+	const count = (list) => {
+		const n = list.querySelector(':scope > .site-list-head [data-count]');
+		if (n) n.textContent = items(list).length;
+	};
+	const titleOf = (item) => {
+		const span = item.querySelector(':scope > details > summary [data-item-title]');
+		if (!span?.dataset.titleKey) return;
+		const body = item.querySelector(':scope > details > .site-item-body');
+		const input = ownFields(item).find((el) => el.dataset.k === span.dataset.titleKey);
+		if (input && body?.contains(input)) span.textContent = input.value.trim() || span.dataset.fallback;
+	};
+	let dirty = false;
+	root.addEventListener('input', (e) => {
+		dirty = true;
+		const item = e.target.closest('[data-item]');
+		if (item) titleOf(item);
+	});
+	root.addEventListener('change', () => (dirty = true));
+	root.addEventListener('click', (e) => {
+		const add = e.target.closest('[data-add]');
+		if (add) {
+			const list = add.closest('[data-list]');
+			const tpl = list.querySelector(':scope > template[data-tpl]');
+			const box = list.querySelector(':scope > [data-items]');
+			box.append(tpl.content.cloneNode(true));
+			const added = box.lastElementChild;
+			count(list);
+			dirty = true;
+			added.querySelector('input, textarea')?.focus();
+			return;
+		}
+		const item = e.target.closest('[data-item]');
+		if (!item) return;
+		if (e.target.closest('[data-remove]')) {
+			const list = item.closest('[data-list]');
+			item.remove();
+			count(list);
+			dirty = true;
+		} else if (e.target.closest('[data-move]')) {
+			const up = e.target.closest('[data-move]').dataset.move === '-1';
+			const sibling = up ? item.previousElementSibling : item.nextElementSibling;
+			if (!sibling) return;
+			up ? sibling.before(item) : sibling.after(item);
+			e.target.closest('[data-move]').focus();
+			dirty = true;
+		}
+	});
+	form.addEventListener('submit', () => {
+		form.querySelector('input[name="data"]').value = JSON.stringify(readObj(root));
+		dirty = false;
+	});
+	window.addEventListener('beforeunload', (e) => {
+		if (dirty) e.preventDefault();
+	});
+	// Grow text boxes with what's typed.
+	const fit = (t) => {
+		t.style.height = 'auto';
+		t.style.height = `${t.scrollHeight + 2}px`;
+	};
+	root.addEventListener('input', (e) => e.target.matches('textarea') && fit(e.target));
+	root.addEventListener('toggle', (e) => e.target.open && e.target.querySelectorAll('textarea').forEach(fit), true);
+	root.querySelectorAll('textarea').forEach((t) => t.offsetParent && fit(t));
+	// The change note is one line that wraps on narrow screens; Enter still saves, as it did.
+	const note = form.querySelector('[data-note]');
+	note?.addEventListener('keydown', (e) => {
+		if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+			e.preventDefault();
+			form.requestSubmit();
+		}
+	});
+}

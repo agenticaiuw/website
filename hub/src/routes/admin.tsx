@@ -1,14 +1,14 @@
 import { Hono } from 'hono';
-import { formatDate, formatTimestamp } from '../dates';
-import { all, getMeta } from '../db';
+import { formatTimestamp } from '../dates';
+import { all } from '../db';
 import { inviteEmail, testEmail } from '../emails';
 import { type Mail, sendMail, sendMails } from '../mail';
 import { id } from '../form';
 import { isExec } from '../perm';
-import { DAILY_OVERDUE_FOR, ESCALATE_AFTER, runDailyReminders, sendExecDigest, SOON_DAYS } from '../reminders';
+import { runDailyReminders, sendExecDigest } from '../reminders';
 import type { AppEnv } from '../types';
 import { page } from '../views/layout';
-import { Empty, PageHead, PostButton } from '../views/ui';
+import { Empty, PageHead } from '../views/ui';
 
 export const adminRoutes = new Hono<AppEnv>();
 
@@ -37,17 +37,13 @@ function inviteList(db: D1Database, onlyId?: number) {
 }
 
 adminRoutes.get('/email', async (c) => {
-	const [log, lastDigest, uninvited] = await Promise.all([
-		all<LogRow>(c.env.DB, 'SELECT * FROM email_log ORDER BY id DESC LIMIT 150'),
-		getMeta(c.env.DB, 'last_digest_on'),
-		inviteList(c.env.DB)
-	]);
+	const log = await all<LogRow>(c.env.DB, 'SELECT * FROM email_log ORDER BY id DESC LIMIT 150');
 	const configured = !!c.env.SMTP_PASSWORD;
 	return page(
 		c,
 		{ title: 'Email', active: 'email' },
 		<>
-			<PageHead title="Email and reminders" sub={`Everything is sent from ${c.env.MAIL_FROM}.`} />
+			<PageHead title="Email history" sub={`Everything the hub has sent from ${c.env.MAIL_FROM}, newest first.`} />
 			{c.env.DEV_MODE ? (
 				<p class="callout">Local dev mode: emails are written to this log and the terminal, not sent.</p>
 			) : (
@@ -57,60 +53,6 @@ adminRoutes.get('/email', async (c) => {
 					</p>
 				)
 			)}
-			<div class="grid-2">
-				<section class="card prose">
-					<h3>When people get emails</h3>
-					<ul>
-						<li>
-							<b>When assigned:</b> right away, one email per person listing what they were given.
-						</li>
-						<li>
-							<b>Coming up:</b> once, {SOON_DAYS} days before the due date.
-						</li>
-						<li>
-							<b>Due today:</b> the morning it's due.
-						</li>
-						<li>
-							<b>Overdue:</b> every morning for the first {DAILY_OVERDUE_FOR} days, then every 3 days until it's done or dropped.
-						</li>
-						<li>
-							<b>Escalation:</b> at {ESCALATE_AFTER} days overdue, whoever assigned it gets one email.
-						</li>
-						<li>
-							<b>Exec digest:</b> Monday mornings, to every exec. Last sent: {lastDigest ? formatDate(lastDigest) : 'never'}.
-						</li>
-						<li>
-							<b>Meetings:</b> 9 AM the day of, to the team. If it starts before noon, 6 PM the evening before. Club events go to everyone at 9 AM the day before.
-						</li>
-					</ul>
-					<p>Task reminders go out at 9 AM Central and combine everything for a person into one email. Each has a one-click “Mark done” button.</p>
-				</section>
-				<section class="card stack">
-					<h3 class="section-title">Run now</h3>
-					<p class="hint">Safe to press more than once: nobody gets the same reminder twice in a day.</p>
-					<PostButton action="/email/run" label="Send today’s reminders now" cls="btn primary" />
-					<PostButton action="/email/digest" label="Send the exec digest now" cls="btn" />
-					<PostButton action="/email/test" label="Send me a test email" cls="btn ghost" />
-					<h3 class="section-title">Sign-in invite</h3>
-					<p class="hint">
-						Lets each person know they're on the hub and how to sign in. Anyone sent one in the last {INVITE_COOLDOWN_DAYS} days is skipped.{' '}
-						<a href="/email/invite/preview" target="_blank">
-							Preview yours
-						</a>
-					</p>
-					{uninvited.length ? (
-						<PostButton
-							action="/email/invite"
-							label={`Send to ${uninvited.length} ${uninvited.length === 1 ? 'person' : 'people'}`}
-							cls="btn"
-							confirm={`Email a sign-in invite to ${uninvited.length} ${uninvited.length === 1 ? 'person' : 'people'}?`}
-						/>
-					) : (
-						<p class="hint">Everyone on the roster has one.</p>
-					)}
-				</section>
-			</div>
-			<h2 class="section-title">Log</h2>
 			{log.length ? (
 				<div class="table-wrap">
 					<table class="table">

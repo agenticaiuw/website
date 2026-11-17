@@ -6,7 +6,12 @@ declare global {
 		// interface Locals {}
 		// interface PageData {}
 		// interface PageState {}
-		// interface Platform {}
+		interface Platform {
+			env?: {
+				/** Optional service binding to the hub Worker. Without it the site fetches the hub's public URL. */
+				HUB?: { fetch: typeof fetch };
+			};
+		}
 	}
 }
 

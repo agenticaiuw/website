@@ -2,12 +2,14 @@
 	import Work from '$lib/sections/Work.svelte';
 	import PageNav from '$lib/components/PageNav.svelte';
 	import Meta from '$lib/components/Meta.svelte';
-	import { club } from '$lib/content';
+	import { site } from '$lib/site';
+
+	const { pages } = site();
 </script>
 
-<Meta title="Teams · {club.name}" description="Seven teams building Hivemind, an open source AI assistant, at {club.university}: Hardware, Cloud, PC, Browser, Research, Design / Product and Business. No prior AI experience required." />
+<Meta title={pages.teams.title} description={pages.teams.description} />
 
-<div class="pt-16">
+<div>
 	<Work />
 	<PageNav />
 </div>

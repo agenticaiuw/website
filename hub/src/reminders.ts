@@ -262,19 +262,26 @@ export async function sendMeetingReminders(env: Env, now = new Date()) {
 /**
  * Repeating tasks: on each one's due date, the next one is made for everyone still on it (not anyone
  * who dropped theirs) and they're emailed about it, like any new task. Stops after repeat_until.
+ * Daily tasks are made the morning they're due instead, with no separate email: the 9 AM reminder
+ * that follows lists them under today, so nobody gets two emails a day for one task.
  */
 export async function makeRepeatingTasks(env: Env, today: string) {
 	const db = env.DB;
-	const due = await all<TaskRow>(db, `${TASK_SELECT} WHERE t.repeat_days > 0 AND t.repeated = 0 AND t.due_date <= ? ORDER BY t.id`, today);
+	const due = await all<TaskRow>(
+		db,
+		`${TASK_SELECT} WHERE t.repeat_days > 0 AND t.repeated = 0 AND (t.due_date < ?1 OR (t.repeat_days > 1 AND t.due_date = ?1)) ORDER BY t.id`,
+		today
+	);
 	const groups = new Map<number, TaskRow[]>();
 	for (const t of due) groups.set(t.group_id ?? t.id, [...(groups.get(t.group_id ?? t.id) ?? []), t]);
 	let made = 0;
 	for (const copies of groups.values()) {
 		const t = copies[0];
 		await db.prepare('UPDATE tasks SET repeated = 1 WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(copies.map((o) => o.id))).run();
-		// The next date after today, in case a run was missed.
+		// The next date after today (daily: today), in case a run was missed.
+		const daily = t.repeat_days === 1;
 		let next = addDays(t.due_date, t.repeat_days);
-		while (next <= today) next = addDays(next, t.repeat_days);
+		while (daily ? next < today : next <= today) next = addDays(next, t.repeat_days);
 		if (t.repeat_until && next > t.repeat_until) continue;
 		const ids: number[] = [];
 		for (const o of copies) {
@@ -289,11 +296,12 @@ export async function makeRepeatingTasks(env: Env, today: string) {
 			if (!res.meta.changes) continue;
 			const id = Number(res.meta.last_row_id);
 			ids.push(id);
-			await logTask(db, id, null, 'created', `Repeats ${t.repeat_days === 14 ? 'every 2 weeks' : 'weekly'}: the one after ${o.due_date}`).run();
+			await logTask(db, id, null, 'created', `Repeats ${daily ? 'daily' : t.repeat_days === 14 ? 'every 2 weeks' : 'weekly'}: the one after ${o.due_date}`).run();
 		}
 		if (!ids.length) continue;
 		if (ids.length > 1) await db.prepare('UPDATE tasks SET group_id = ? WHERE id IN (SELECT value FROM json_each(?))').bind(ids[0], JSON.stringify(ids)).run();
 		made += ids.length;
+		if (daily) continue;
 		await notifyAssigned(env, { id: t.assigned_by ?? 0, name: t.assigner_name ?? 'The club hub' }, ids);
 	}
 	return made;

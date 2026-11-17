@@ -4,8 +4,8 @@ Code for the Agentic AI UW club's website, member hub and Discord bot. All three
 
 | Folder | What it is | Live at |
 | --- | --- | --- |
-| [`website/`](website/) | Club website: SvelteKit static site | https://agenticaiuw.com |
-| [`hub/`](hub/) | Task and meeting tracker for members: Cloudflare Workers + D1 | https://hub.agenticaiuw.com |
+| [`website/`](website/) | Club website: SvelteKit on Cloudflare Pages; its text is edited in the hub | https://agenticaiuw.com |
+| [`hub/`](hub/) | Task and meeting tracker for members, and the editor for the website's text: Cloudflare Workers + D1 | https://hub.agenticaiuw.com |
 | [`badger-bot/`](badger-bot/) | Badger Bot, the club's Discord bot: Cloudflare Workers + Durable Objects | The club's Discord server |
 
 Each folder is its own project with its own `package.json`. Run `npm install` inside the folder you're working on; its README covers development and deployment.

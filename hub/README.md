@@ -6,6 +6,7 @@ Task and meeting tracker for the club, live at https://hub.agenticaiuw.com.
 - **Meetings** (exec and project) keep the agenda, notes, who attended and the action items that came out of them.
 - **Forms**: a meeting can have one (feedback, say) that people open from a QR code without signing in. Show on screen puts the QR code and a live count on the projector; roster members who fill it out are checked off as there.
 - **People** shows execs who has open and overdue work and each person's attendance.
+- **Website** (`/site`, execs only) edits every word, link and number on agenticaiuw.com. Each save is a new row in `site_content_versions`, so History shows who changed what and any version can be restored. The site reads the newest version from the public `/api/site`; `src/site/defaults.ts` holds the original text. The owner (`members.is_owner`) is the only one who can change roles.
 
 Sign-in is by a 6-digit code sent to your email (no passwords). Only people on the roster can sign in. Exec meetings and exec tasks are visible to execs only; project team members see their team's meetings and tasks.
 

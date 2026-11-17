@@ -1,10 +1,13 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import Section from '$lib/components/Section.svelte';
-	import { events, social, type ClubEvent } from '$lib/content';
+	import Badge from '$lib/components/Badge.svelte';
+	import { site } from '$lib/site';
+	import type { ClubEvent } from '$lib/site';
+	const { events, social } = site();
 
-	/* The page is prerendered, so the split is redone in the browser with
-	   today's date. Club time is America/Chicago. */
+	/* Split by today's date, redone in the browser in case the page sat open
+	   overnight. Club time is America/Chicago. */
 	const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(new Date());
 	let now = $state(today());
 	onMount(() => (now = today()));
@@ -25,47 +28,86 @@
 </script>
 
 {#snippet list(items: ClubEvent[])}
-	<ul class="grid gap-px overflow-hidden rounded-lg border" style:border-color="var(--line)" style:background="var(--line)" data-stagger>
+	<ul class="event-list" data-stagger>
 		{#each items as e (e.date + e.name)}
 			{@const d = fmtDate(e.date, e.dateEnd)}
-			<li data-reveal class="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:gap-8 md:p-7" style:background="var(--surface)">
-				<div class="date-stamp flex shrink-0 items-baseline gap-2 sm:w-20 sm:flex-col sm:items-center sm:gap-1">
-					<span class="text-[0.7rem] font-medium tracking-[0.12em]" style:color="var(--accent)">{d.month}</span>
-					<span class="font-semibold tabular-nums leading-none whitespace-nowrap {d.day.length > 2 ? 'text-sm' : 'text-2xl'}">{d.day}</span>
+			<li data-reveal class="card event">
+				<div class="date-stamp">
+					<span class="month">{d.month}</span>
+					<span class="day" class:range={d.day.length > 2}>{d.day}</span>
 				</div>
 				<div class="min-w-0 flex-1">
-					<div class="flex flex-wrap items-center gap-2">
-						<span class="rounded px-2 py-0.5 text-[0.68rem] font-medium tracking-[0.08em] uppercase" style:background="var(--accent-surface)" style:color="var(--accent)">{e.kind}</span>
-						<span class="text-xs" style:color="var(--muted)">{[d.weekday, e.time, e.location].filter(Boolean).join(' · ')}</span>
+					<div class="meta">
+						<span class="tag-pill red kind">{e.kind}</span>
+						<span class="when">{[d.weekday, e.time, e.location].filter(Boolean).join(' · ')}</span>
 					</div>
-					<h3 class="mt-2 text-lg">{e.name}</h3>
-					<p class="mt-1 text-sm leading-relaxed" style:color="var(--muted)">{e.body}</p>
+					<h3>{e.name}</h3>
+					<p class="body">{e.body}</p>
 				</div>
 			</li>
 		{/each}
 	</ul>
 {/snippet}
 
-<Section id="events" heading={events.heading} lede={events.lede}>
-	<h2 class="text-xl font-medium">Upcoming</h2>
+<Section id="events" heading={events.heading} lede={events.lede} mascot={{ wave: true, mood: 'happy' }}>
+	<h2 class="group-title">{events.upcomingLabel}</h2>
 	<div class="mt-5">
 		{#if upcoming.length}
 			{@render list(upcoming)}
 		{:else}
-			<p class="rounded-lg border p-6 text-[0.95rem] leading-relaxed" style:border-color="var(--line)" style:color="var(--muted)">
-				{events.empty}
-				{#if discord}<a href={discord} target="_blank" rel="noopener noreferrer" class="ml-1 font-medium whitespace-nowrap hover:underline" style:color="var(--accent)">Join the Discord ↗</a>{/if}
-			</p>
+			<div class="card empty">
+				<Badge size={84} prop="cloud" />
+				<p>
+					{events.empty}
+					{#if discord}<a href={discord} target="_blank" rel="noopener noreferrer" class="discord">{events.discordCta} ↗</a>{/if}
+				</p>
+			</div>
 		{/if}
 	</div>
 
 	{#if past.length}
-		<h2 class="mt-14 text-xl font-medium">Past</h2>
-		<div class="mt-5">{@render list(past)}</div>
+		<h2 class="group-title past">{events.pastLabel}</h2>
+		<div class="mt-5 past-list">{@render list(past)}</div>
 	{/if}
 </Section>
 
 <style>
-	.date-stamp { border: 1px solid var(--accent-border); border-top: 3px solid var(--accent); border-radius: 5px; padding: .9rem .8rem; background: var(--accent-surface); width: fit-content; }
-	@media (min-width: 640px) { .date-stamp { width: 5.5rem; min-height: 5rem; justify-content: center; } }
+	.group-title { font-size: 1.6rem; }
+	.group-title.past { margin-top: 3.5rem; }
+	.event-list { display: grid; gap: 0.75rem; list-style: none; padding: 0; }
+	.event { display: flex; gap: clamp(1rem, 3vw, 1.75rem); align-items: flex-start; padding: clamp(1.1rem, 3vw, 1.5rem); }
+	.date-stamp {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		min-width: 4.75rem;
+		padding: 0.6rem 0.7rem 0.7rem;
+		border-radius: var(--r);
+		background: var(--cream);
+		color: var(--ink);
+		box-shadow: 0 8px 18px -12px rgb(0 0 0 / .9);
+		transform: rotate(-3deg);
+	}
+	.month { font-family: var(--font-display); font-size: 0.85rem; font-weight: 700; line-height: 1.2; color: #b3060d; }
+	.day { font-family: var(--font-display); font-size: 2rem; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; }
+	.day.range { font-size: 1.05rem; line-height: 1.25; text-align: center; }
+	.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.75rem; }
+	.kind { padding: 0.15rem 0.7rem; font-size: 0.8rem; text-transform: lowercase; }
+	.when { font-size: 0.95rem; line-height: 1.45; color: var(--muted); }
+	h3 { margin-top: 0.55rem; font-size: 1.35rem; line-height: 1.2; }
+	.body { margin-top: 0.35rem; font-size: 1rem; line-height: 1.6; color: var(--muted); }
+	.past-list :global(.event) { background: transparent; box-shadow: none; }
+	.past-list :global(.date-stamp) { background: var(--surface-2); color: var(--fg); box-shadow: none; transform: none; }
+	.past-list :global(.month) { color: var(--muted); }
+	.past-list :global(.kind) { background: var(--surface-2); border-color: var(--line-strong); color: var(--muted); }
+	.empty { display: flex; align-items: center; gap: 1.25rem; padding: 1.5rem; }
+	.empty p { font-size: 1.05rem; line-height: 1.6; color: var(--muted); }
+	.discord { margin-left: 0.25rem; font-weight: 600; color: var(--accent); }
+	.discord:hover { text-decoration: underline; text-underline-offset: 3px; }
+	@media (max-width: 480px) {
+		.event { flex-direction: column; }
+		.empty { flex-direction: column; align-items: flex-start; }
+	}
 </style>

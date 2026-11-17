@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { onMount, tick, untrack } from 'svelte';
 	import Robot from './Robot.svelte';
-	import { work } from '$lib/content';
+	import Badge from './Badge.svelte';
+	import { site } from '$lib/site';
+	const { work } = site();
 
 	const teams = work.subteams.items;
 	const WIDE = 780;
@@ -236,7 +238,7 @@
 					aria-label={t.name}
 					aria-current={i === active}
 				>
-					<span class="ring"><span class="initials">{t.initials}</span></span>
+					<span class="ring"><Badge size={46} prop={t.k} sticker={false} /></span>
 					<span class="tag">{t.short}</span>
 				</button>
 			{/each}
@@ -253,7 +255,7 @@
 				<div class="bubble-in">
 					{#each teams as t, i (t.k)}
 						<div class="bubble-content" class:visible={i === active} aria-hidden={i !== active || !cardVisible}>
-							<p class="eyebrow">{t.name}</p>
+							<p class="bubble-name">{t.name}</p>
 							<p class="line">{t.line}</p>
 							<p class="lead"><span class="dot"></span>Led by {t.lead}</p>
 						</div>
@@ -280,9 +282,9 @@
 		{#each teams as t (t.k)}
 			<li id="team-{t.k}" class="scroll-mt-24">
 				<div class="row">
-					<span class="ring sm"><span class="initials">{t.initials}</span></span>
-					<div>
-						<p class="eyebrow">{t.name}</p>
+					<span class="ring sm"><Badge size={52} prop={t.k} sticker={false} /></span>
+					<div class="min-w-0">
+						<p class="team-name">{t.name}</p>
 						<p class="lead-sm">{t.lead}</p>
 					</div>
 				</div>
@@ -329,8 +331,8 @@
 		position: absolute;
 		display: grid;
 		place-items: center;
-		width: 54px;
-		height: 54px;
+		width: 64px;
+		height: 64px;
 		transform: translate(-50%, -50%);
 		z-index: 6;
 		cursor: pointer;
@@ -341,37 +343,41 @@
 	.ring {
 		display: grid;
 		place-items: center;
-		width: 54px;
-		height: 54px;
+		width: 64px;
+		height: 64px;
 		border-radius: 999px;
-		border: 1px solid var(--line-strong);
-		background: var(--surface);
+		border: 3px solid var(--line-strong);
+		background: var(--cream);
+		overflow: hidden;
 		transition:
 			border-color 0.3s ease,
 			box-shadow 0.4s ease,
 			transform 0.3s var(--ease-out-expo);
 	}
 	.ring.sm {
-		width: 42px;
-		height: 42px;
-	}
-	.initials {
-		font-family: var(--font-mono);
-		font-size: 0.72rem;
-		letter-spacing: 0.06em;
-		color: var(--muted);
+		flex-shrink: 0;
+		width: 60px;
+		height: 60px;
+		border-width: 2px;
+		border-radius: 18px;
 	}
 	.tag {
 		position: absolute;
-		top: calc(100% + 0.4rem);
+		top: calc(100% + 0.35rem);
 		left: 50%;
 		transform: translateX(-50%);
-		font-family: var(--font-mono);
-		font-size: 0.58rem;
-		letter-spacing: 0.12em;
-		text-transform: uppercase;
+		padding: 0.1rem 0.6rem;
+		border-radius: 999px;
+		background: var(--surface-2);
+		border: 1px solid var(--line-strong);
+		font-family: var(--font-display);
+		font-size: 0.85rem;
+		font-weight: 600;
+		line-height: 1.35;
 		color: var(--muted);
-		white-space: nowrap;
+		width: max-content;
+		max-width: 9rem;
+		text-align: center;
 	}
 
 	.avatar:hover .ring {
@@ -385,27 +391,22 @@
 
 	/* Dark: a genuine emitted halo. */
 	.avatar.active .ring {
-		border-color: var(--accent);
-		box-shadow: 0 0 22px 3px rgb(var(--glow) / 0.5);
+		border-color: var(--red);
+		box-shadow: 0 0 0 4px rgb(var(--glow) / 0.25), 0 0 26px 4px rgb(var(--glow) / 0.4);
+		transform: scale(1.08);
 	}
-	.avatar.active .initials,
 	.avatar.active .tag {
-		color: var(--accent);
-	}
-	/* Light: a halo on near-white reads as a smudge, so depth comes from a
-	   coloured drop shadow and a tinted ring instead. */
-	:global(:root[data-theme='light']) .avatar.active .ring {
-		box-shadow:
-			0 10px 20px -6px rgb(var(--glow) / 0.45),
-			0 0 0 3px rgb(var(--glow) / 0.13);
+		background: var(--red);
+		border-color: var(--red);
+		color: #fff;
 	}
 
 	/* ---------- bubble ---------- */
 	.bubble {
 		position: absolute;
 		z-index: 5;
-		width: 258px;
-		margin-left: -129px;
+		width: 280px;
+		margin-left: -140px;
 		transform: translateY(-100%);
 		pointer-events: none;
 		opacity: 0;
@@ -416,11 +417,11 @@
 	}
 	.bubble-in {
 		display: grid;
-		padding: 0.85rem 0.95rem 0.9rem;
+		padding: 1rem 1.1rem 1.05rem;
 		border: 1px solid var(--line-strong);
-		border-radius: 11px;
+		border-radius: var(--r);
 		background: var(--surface);
-		box-shadow: 0 18px 40px -18px rgb(0 0 0 / 0.5);
+		box-shadow: var(--shadow-lift);
 	}
 	.bubble-content {
 		grid-area: 1 / 1;
@@ -432,22 +433,19 @@
 		visibility: visible;
 		opacity: 1;
 	}
-	:global(:root[data-theme='light']) .bubble-in {
-		box-shadow: 0 14px 30px -12px rgb(var(--glow) / 0.28);
-	}
 
-	.eyebrow {
-		font-family: var(--font-mono);
-		font-size: 0.6rem;
-		letter-spacing: 0.13em;
-		text-transform: uppercase;
-		color: var(--accent);
+	.bubble-name, .team-name {
+		font-family: var(--font-display);
+		font-size: 1.15rem;
+		font-weight: 700;
+		line-height: 1.25;
+		color: var(--fg);
 	}
 	.line {
-		margin-top: 0.5rem;
-		font-size: 0.83rem;
+		margin-top: 0.4rem;
+		font-size: 0.95rem;
 		line-height: 1.5;
-		color: var(--fg);
+		color: var(--muted);
 	}
 	.lead {
 		display: flex;
@@ -456,7 +454,7 @@
 		margin-top: 0.7rem;
 		padding-top: 0.6rem;
 		border-top: 1px solid var(--line);
-		font-size: 0.74rem;
+		font-size: 0.9rem;
 		color: var(--muted);
 	}
 	.dot {
@@ -511,10 +509,11 @@
 		padding: 0;
 	}
 	.stack li {
-		padding: 1rem 1.05rem 1.1rem;
+		padding: 1.1rem 1.15rem 1.2rem;
 		border: 1px solid var(--line);
-		border-radius: 10px;
+		border-radius: var(--r-lg);
 		background: var(--surface);
+		box-shadow: var(--shadow);
 	}
 	.row {
 		display: flex;
@@ -522,8 +521,8 @@
 		gap: 0.8rem;
 	}
 	.lead-sm {
-		margin-top: 0.15rem;
-		font-size: 0.78rem;
+		margin-top: 0.1rem;
+		font-size: 0.95rem;
 		color: var(--muted);
 	}
 	.stack .line {

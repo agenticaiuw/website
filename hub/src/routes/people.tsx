@@ -3,7 +3,7 @@ import { boardTasks } from '../board';
 import { addDays, formatDate, todayIn } from '../dates';
 import { activeMembers, all, groupStats, MEETING_SELECT, memberByEmail, memberById, MEETING_VISIBLE, run, TASK_ON_TEAM, TASK_SELECT, TASK_VISIBLE, teams, visible } from '../db';
 import { id, isEmail, readForm, str } from '../form';
-import { isExec } from '../perm';
+import { canManageRoles, isExec, isOwner } from '../perm';
 import type { AppEnv, AttendanceStatus, Member, MeetingRow, Role, Team, TaskRow } from '../types';
 import { page } from '../views/layout';
 import { BoardTaskList } from '../views/board';
@@ -101,7 +101,7 @@ peopleRoutes.get('/people', async (c) => {
 							<tr class={r.active ? '' : 'inactive'}>
 								<td>
 									<a href={`/people/${r.id}`}>{r.name}</a>
-									{r.role === 'exec' && <span class="tag exec">Exec</span>}
+									{r.is_owner ? <span class="tag exec">Owner</span> : r.role === 'exec' && <span class="tag exec">Exec</span>}
 									{r.title && <span class="tag">{r.title}</span>}
 									{!r.active && <span class="tag">Inactive</span>}
 									<div class="muted small">{r.email}</div>
@@ -145,17 +145,21 @@ peopleRoutes.get('/people', async (c) => {
 });
 
 peopleRoutes.post('/people/import', async (c) => {
-	if (!isExec(c.get('viewer'))) return forbidden(c);
+	const v = c.get('viewer');
+	if (!isExec(v)) return forbidden(c);
+	// Only the owner can make someone an exec, and the import never touches the owner's row.
+	const rolesOk = await canManageRoles(c.env.DB, v);
 	const lines = str((await readForm(c)).lines, 50_000).split(/\r?\n/);
 	const stmts: D1PreparedStatement[] = [];
 	for (const line of lines) {
 		const [name, email, role] = line.split(/[,\t]/).map((s) => s.trim());
 		if (!name || !email || !isEmail(email)) continue;
-		const isExecRow = /^exec/i.test(role ?? '');
+		const isExecRow = rolesOk && /^exec/i.test(role ?? '');
 		stmts.push(
 			c.env.DB.prepare(
 				`INSERT INTO members (name, email, role) VALUES (?, ?, ?)
-				 ON CONFLICT(email) DO UPDATE SET name = excluded.name, active = 1${isExecRow ? ", role = 'exec'" : ''}`
+				 ON CONFLICT(email) DO UPDATE SET name = excluded.name, active = 1${isExecRow ? ", role = 'exec'" : ''}
+				 WHERE members.is_owner = 0`
 			).bind(name.slice(0, 100), email.toLowerCase().slice(0, 200), isExecRow ? 'exec' : 'member')
 		);
 	}
@@ -170,6 +174,7 @@ peopleRoutes.get('/people/:id', async (c) => {
 	if (!person) return c.notFound();
 	const today = todayIn(c.env.TIMEZONE);
 	const self = person.id === v.id;
+	const rolesOk = isExec(v) && (await canManageRoles(c.env.DB, v));
 	const [tasks, meetings, memberships, allShared] = await Promise.all([
 		all<TaskRow>(
 			c.env.DB,
@@ -197,7 +202,7 @@ peopleRoutes.get('/people/:id', async (c) => {
 		{ title: person.name, active: 'people' },
 		<>
 			<PageHead
-				eyebrow={person.title || (person.role === 'exec' ? 'Exec' : 'Member')}
+				eyebrow={person.title || (isOwner(person) ? 'Owner' : person.role === 'exec' ? 'Exec' : 'Member')}
 				title={person.name}
 				sub={
 					<>
@@ -253,7 +258,7 @@ peopleRoutes.get('/people/:id', async (c) => {
 					) : (
 						<Empty>No attendance recorded.</Empty>
 					)}
-					{isExec(v) && (
+					{isExec(v) && (!isOwner(person) || isOwner(v)) && (
 						<details class="card disclose">
 							<summary>Edit profile</summary>
 							<form method="post" action={`/people/${person.id}`} class="stack">
@@ -269,15 +274,19 @@ peopleRoutes.get('/people/:id', async (c) => {
 								<Field label="Discord">
 									<input name="discord" maxlength={100} value={person.discord} />
 								</Field>
-								<Choice
-									name="role"
-									label="Role"
-									selected={person.role}
-									options={[
-										['member', 'Member'],
-										['exec', 'Exec']
-									]}
-								/>
+								{rolesOk ? (
+									<Choice
+										name="role"
+										label="Role"
+										selected={person.role}
+										options={[
+											['member', 'Member'],
+											['exec', 'Exec']
+										]}
+									/>
+								) : (
+									<p class="hint">Role: {person.role === 'exec' ? 'Exec' : 'Member'}. Only the site owner can change roles.</p>
+								)}
 								<label class="check">
 									<input type="checkbox" name="active" value="1" checked={!!person.active} /> Active: can sign in and gets reminders
 								</label>
@@ -301,11 +310,14 @@ peopleRoutes.post('/people/:id', async (c) => {
 	const form = await readForm(c);
 	const name = str(form.name, 100);
 	const email = str(form.email, 200).toLowerCase();
-	const role: Role = str(form.role) === 'exec' ? 'exec' : 'member';
+	// The role field is left out of the form for execs who can't change roles.
+	const role: Role = form.role === undefined ? person.role : str(form.role) === 'exec' ? 'exec' : 'member';
 	const active = str(form.active) === '1' ? 1 : 0;
 	if (!name) return c.redirect(`/people/${person.id}?error=missing`);
 	if (!isEmail(email)) return c.redirect(`/people/${person.id}?error=email`);
 	if (person.id === v.id && (role !== 'exec' || !active)) return c.redirect(`/people/${person.id}?error=self`);
+	if (isOwner(person) && !isOwner(v)) return c.redirect(`/people/${person.id}?error=owner`);
+	if (role !== person.role && !(await canManageRoles(c.env.DB, v))) return c.redirect(`/people/${person.id}?error=owner`);
 	const clash = await memberByEmail(c.env.DB, email);
 	if (clash && clash.id !== person.id) return c.redirect(`/people/${person.id}?error=exists`);
 	await run(c.env.DB, 'UPDATE members SET name = ?, email = ?, role = ?, title = ?, discord = ?, active = ? WHERE id = ?', name, email, role, str(form.title, 60), str(form.discord, 100), active, person.id);

@@ -4,8 +4,7 @@ Preview: http://localhost:5173/work/ · Homepage animation: http://localhost:517
 
 ## Content and editing map
 
-- `src/lib/content.ts`: interest form URL, social links, seven technical subteams, eight leaders and semester goals.
-- `src/lib/hivemind.ts`: planned workflow examples, architecture explanations, subteam build areas and research priorities.
+- Site text (formerly `src/lib/content.ts` and `src/lib/hivemind.ts`) is now edited in the hub at https://hub.agenticaiuw.com/site; see README.md.
 - `src/lib/components/HivemindOverview.svelte`: overview layout, cloud/device example switch, Hermes explanation, expandable details and beginner invitation.
 - `src/lib/components/Leadership.svelte`: roster on Project. The repeated Join roster was removed.
 - `src/lib/sections/Join.svelte`: interest form, Discord, existing office hours and mailing list cards, and the corrected kickoff link.

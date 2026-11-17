@@ -1,8 +1,11 @@
 <script lang="ts">
 	import Hub from '$lib/components/Hub.svelte';
 	import Meta from '$lib/components/Meta.svelte';
-	import { club, vision } from '$lib/content';
+	import { site } from '$lib/site';
 	import { siteUrl, jsonLd, organization } from '$lib/seo';
+
+	const c = site();
+	const { club, pages } = c;
 
 	// WebSite tells Google which name to show for the site in search results;
 	// Organization is the club's entry for search engines and AI assistants.
@@ -15,14 +18,14 @@
 				name: club.name,
 				alternateName: ['AgenticAIUW', `${club.shortName} at UW–Madison`],
 				url: `${siteUrl}/`,
-				publisher: { '@id': organization['@id'] }
+				publisher: { '@id': `${siteUrl}/#organization` }
 			},
-			organization
+			organization(c)
 		]
 	});
 </script>
 
-<Meta title="{club.name} · Agentic AI student club at UW–Madison" description={club.summary} shareDescription={vision.text} />
+<Meta title={pages.home.title} description={pages.home.description} shareDescription={pages.home.share} />
 
 <svelte:head>
 	{@html homeJsonLd}

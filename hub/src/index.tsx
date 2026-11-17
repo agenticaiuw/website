@@ -13,6 +13,7 @@ import { meetingContentRoutes } from './routes/meeting-content';
 import { meetingSummaryRoutes } from './routes/meeting-summary';
 import { peopleRoutes } from './routes/people';
 import { taskRoutes } from './routes/tasks';
+import { publicSiteRoutes, siteRoutes } from './routes/site';
 import { teamPageRoutes } from './routes/team-pages';
 import type { AppEnv, Env } from './types';
 import { page } from './views/layout';
@@ -25,7 +26,8 @@ app.use('*', async (c, next) => {
 	c.header('X-Frame-Options', 'DENY');
 	c.header('Referrer-Policy', 'same-origin');
 	c.header('X-Content-Type-Options', 'nosniff');
-	c.header('Cache-Control', 'no-store');
+	// The public website content is the same for everyone; let it be cached briefly.
+	c.header('Cache-Control', c.req.path === '/api/site' ? 'public, max-age=15' : 'no-store');
 });
 
 // Every form posts to this site. Refuse cross-site posts on top of SameSite cookies.
@@ -43,6 +45,8 @@ app.use('*', async (c, next) => {
 app.route('/', authRoutes);
 // Meeting forms are filled out without signing in.
 app.route('/', publicFormRoutes);
+// The public website reads its text from here.
+app.route('/', publicSiteRoutes);
 
 // Everything below needs a signed-in, active roster member.
 app.use('*', async (c, next) => {
@@ -67,6 +71,7 @@ app.route('/', formRoutes);
 app.route('/', peopleRoutes);
 app.route('/', teamPageRoutes);
 app.route('/', adminRoutes);
+app.route('/', siteRoutes);
 
 app.notFound((c) => {
 	if (!c.get('viewer')) return c.text('Not found', 404);

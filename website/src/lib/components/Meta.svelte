@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { siteUrl, ogImage } from '$lib/seo';
+	import { siteUrl, ogImage, ogImageAlt } from '$lib/seo';
+	import { site } from '$lib/site';
 
 	/* Title, description and the link-preview tags for one page. The canonical
 	   link lives in the layout. */
@@ -12,6 +13,7 @@
 		shareDescription?: string;
 	}
 	let { title, description, shareDescription = description }: Props = $props();
+	const imageAlt = ogImageAlt(site());
 </script>
 
 <svelte:head>
@@ -24,7 +26,7 @@
 	<meta property="og:image" content={ogImage.url} />
 	<meta property="og:image:width" content={String(ogImage.width)} />
 	<meta property="og:image:height" content={String(ogImage.height)} />
-	<meta property="og:image:alt" content={ogImage.alt} />
+	<meta property="og:image:alt" content={imageAlt} />
 	<meta name="twitter:card" content="summary_large_image" />
 	<meta name="twitter:site" content="@AgenticAIUW" />
 </svelte:head>

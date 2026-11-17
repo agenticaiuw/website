@@ -30,6 +30,8 @@ export type Member = {
 	discord: string;
 	active: number;
 	available_hours?: number | null;
+	/** The site owner: highest authority. Set by hand in the database. */
+	is_owner?: number;
 };
 
 export type Team = {

@@ -2,12 +2,14 @@
 	import Partners from '$lib/sections/Partners.svelte';
 	import PageNav from '$lib/components/PageNav.svelte';
 	import Meta from '$lib/components/Meta.svelte';
-	import { club } from '$lib/content';
+	import { site } from '$lib/site';
+
+	const { pages } = site();
 </script>
 
-<Meta title="Partner with us · {club.name}" description="Sponsor {club.name}, bring a real problem to our teams, collaborate on research or speak to our members. Email team@agenticaiuw.com." />
+<Meta title={pages.partners.title} description={pages.partners.description} />
 
-<div class="pt-16">
+<div>
 	<Partners />
 	<PageNav />
 </div>

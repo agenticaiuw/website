@@ -1,6 +1,6 @@
 # Agentic AI UW website
 
-The club website uses SvelteKit, Svelte 5, TypeScript, Tailwind CSS, GSAP, Spline and Three.js. It produces a static website for deployment at the root of a domain.
+The club website uses SvelteKit, Svelte 5, TypeScript, Tailwind CSS, GSAP, Spline and Three.js. It runs on Cloudflare Pages and reads its text from the member hub, so execs can edit the site without a code change.
 
 ## Run or edit
 
@@ -13,23 +13,36 @@ npm run dev -- --open
 
 ```sh
 npm run check
-npm run check:placeholders
 npm run build
 npm run preview -- --host localhost
 ```
 
-Upload the contents of `build/` to a static host. Serve directory indexes, preserve all `_app` files and use HTTPS. `static/_redirects` sends the removed and renamed pages (/premise, /why-now, /who-fits, /work, /contact) to their replacements on Cloudflare Pages. Do not upload this source folder or open `src/app.html` directly. That file is an unprocessed framework template. Do not rewrite missing JavaScript or model URLs to an HTML page.
+`npm run build` writes the site to `.svelte-kit/cloudflare`. Deploy it with:
+
+```sh
+npx wrangler pages deploy .svelte-kit/cloudflare --project-name agenticaiuw --branch main
+```
+
+`_redirects` sends the removed and renamed pages (/premise, /why-now, /who-fits, /work, /contact) to their replacements, and `src/hooks.server.ts` does the same for pages the server renders. Do not open `src/app.html` directly. That file is an unprocessed framework template. Do not rewrite missing JavaScript or model URLs to an HTML page.
+
+## Site text
+
+All of the site's words, links and numbers (the vision, board, teams, events, partners, FAQ, social links and each page's title) are edited in the hub at https://hub.agenticaiuw.com/site by any exec. Every save is kept with who made it and what changed, and any version can be restored. Pages pick up an edit within about a minute.
+
+* `src/lib/server/site.ts` fetches the text from `https://hub.agenticaiuw.com/api/site` (or `HUB_API`) on each request, keeping it for 10 seconds.
+* `src/lib/site/build.ts` fills in placeholders such as `{{club}}` and `{{stat:discord}}`.
+* `src/lib/site/fallback.json` is a copy shown only when the hub can't be reached. Refresh it with `npm run snapshot:content`.
+* Components read the text with `site()` from `$lib/site`.
 
 ## Where to make changes
 
-* `src/lib/content.ts`: site copy, the founding board (LinkedIn and office-hours links), social links and the FAQ.
 * `src/routes/`: the home, Project, Join and FAQ pages, plus generated `llms.txt` and `sitemap.xml`.
 * `src/lib/components/`: page components, backgrounds and robots.
 * `src/lib/animation/subteamRobot.ts`: full Spline robot animation and local runtime configuration.
 * `src/app.css`: shared styling and theme tokens.
 * `src/app.html`: HTML template and initial theme setup.
 * `static/`: the local Spline scene, fonts, logos and runtime support files.
-* `vite.config.ts`: SvelteKit static adapter and Tailwind configuration. This project intentionally supplies its SvelteKit configuration here.
+* `vite.config.ts`: SvelteKit Cloudflare adapter and Tailwind configuration. This project intentionally supplies its SvelteKit configuration here.
 
 ## Models and fonts
 
@@ -41,4 +54,4 @@ The existing responsive design shows the full robot at widths of at least 780 pi
 
 ## Joining
 
-Joining is by booking office hours with a team lead; each board member's booking link is `officeHours` in `src/lib/content.ts` and appears only on the Join page.
+Joining is by booking office hours with a team lead; each board member's booking link is their office hours link in the hub's Board members section and appears only on the Join page.
