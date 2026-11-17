@@ -110,6 +110,28 @@ p { text-wrap: pretty; }
 	padding-inline: clamp(1.25rem, 5vw, 4rem);
 }
 
+/* A full-screen slide: one idea to a screen, centered in the space under
+   the fixed nav bar (4.5rem). It grows rather than clips when its content
+   needs more room than a short screen has. */
+.slide {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	min-height: 100vh;
+	min-height: 100svh;
+	padding-block: calc(4.5rem + clamp(1rem, 4svh, 2.5rem)) clamp(2rem, 7svh, 4.5rem);
+}
+
+/* Slide headings: crisp and heavy, sized to the screen's width and height. */
+.slide-title {
+	font-family: var(--font-sans);
+	font-size: clamp(2.1rem, min(5.4vw, 8.5svh), 4.4rem);
+	font-weight: 800;
+	line-height: 1.04;
+	letter-spacing: -0.035em;
+}
+
 .font-display { font-family: var(--font-display); }
 
 .eyebrow {
@@ -205,12 +227,21 @@ p { text-wrap: pretty; }
 	transform: translate3d(0, 14px, 0);
 	will-change: opacity, transform;
 }
+/* Home hero words, the lines after them, and the mascot: motion.ts brings them in. */
+.js [data-word],
+.js [data-hero-after],
+.js [data-pop] {
+	opacity: 0;
+}
 
 /* ---------- reduced motion ---------- */
 
 @media (prefers-reduced-motion: reduce) {
 	html { scroll-behavior: auto; }
-	.js [data-reveal] {
+	.js [data-reveal],
+	.js [data-word],
+	.js [data-hero-after],
+	.js [data-pop] {
 		opacity: 1 !important;
 		transform: none !important;
 	}

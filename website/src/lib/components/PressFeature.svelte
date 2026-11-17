@@ -3,6 +3,7 @@
 	const { press } = site();
 </script>
 
+<!-- On the home page beside the numbers: the story drawn as a newspaper clipping. -->
 <a
 	class="press-feature"
 	href={press.href}
@@ -11,13 +12,12 @@
 	aria-labelledby="press-source press-headline"
 	aria-describedby="press-credit press-window"
 >
-	<div class="press-publication" id="press-source">
-		<span class="press-eyebrow">{press.eyebrow}</span>
-		<span class="press-name">{press.name}</span>
+	<div class="paper">
+		<div class="press-publication" id="press-source">
+			<span class="press-eyebrow">{press.eyebrow}</span>
+			<span class="press-name">{press.name}</span>
+		</div>
 		<span class="press-rule" aria-hidden="true"></span>
-	</div>
-
-	<div class="press-story">
 		<h2 id="press-headline">{press.headline}</h2>
 		<p class="press-credit" id="press-credit">
 			<span>{press.credit}</span>
@@ -28,7 +28,7 @@
 
 	<span class="press-action" aria-hidden="true">
 		<span>{press.cta}</span>
-		<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+		<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
 			<path d="M5 19 19 5M5 5h14v14" />
 		</svg>
 	</span>
@@ -37,144 +37,102 @@
 
 <style>
 	.press-feature {
-		position: relative;
-		display: grid;
-		grid-template-columns: minmax(10rem, 13rem) minmax(0, 1fr) auto;
-		align-items: center;
-		gap: clamp(1.25rem, 2.5vw, 2.25rem);
-		padding: 1.25rem 1.5rem 1.25rem 1.25rem;
-		border: 1px solid var(--line);
-		border-radius: var(--r-lg);
-		background: color-mix(in oklab, var(--surface) 92%, transparent);
-		box-shadow: var(--shadow);
-		color: var(--fg);
-		text-decoration: none;
-		transition: border-color 220ms ease, transform 300ms var(--ease-spring), box-shadow 220ms ease;
-		animation: press-appear 550ms var(--ease-out-expo) backwards;
-	}
-
-	.press-feature:hover,
-	.press-feature:focus-visible {
-		border-color: var(--line-strong);
-		box-shadow: var(--shadow-lift);
-		transform: translateY(-3px);
-	}
-
-	/* A little cream newspaper tile. */
-	.press-publication {
 		display: flex;
 		flex-direction: column;
-		align-items: flex-start;
-		gap: 0.35rem;
-		padding: 0.9rem 1rem 0.85rem;
+		align-items: center;
+		gap: clamp(1rem, 3svh, 1.75rem);
+		width: 100%;
+		max-width: 38rem;
 		border-radius: var(--r);
+		color: var(--fg);
+		text-decoration: none;
+	}
+
+	.paper {
+		width: 100%;
+		padding: clamp(1.1rem, min(3.4vw, 5.2svh), 2.75rem) clamp(1.1rem, 3vw, 2.5rem);
+		border-radius: 6px;
 		background: var(--cream);
 		color: var(--ink);
-		transform: rotate(-2deg);
-		box-shadow: 0 10px 22px -14px rgb(0 0 0 / 0.9);
+		text-align: center;
+		transform: rotate(-1.2deg);
+		box-shadow: 0 40px 70px -36px rgb(0 0 0 / 0.95), 0 12px 24px -16px rgb(0 0 0 / 0.7);
+		transition: transform 450ms var(--ease-spring);
 	}
+	.press-feature:hover .paper,
+	.press-feature:focus-visible .paper { transform: rotate(0deg) translateY(-4px); }
 
+	.press-publication { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; }
 	.press-eyebrow {
-		font-family: var(--font-display);
-		font-size: 0.85rem;
-		font-weight: 700;
+		font-family: var(--font-sans);
+		font-size: clamp(0.78rem, 1.1vw, 0.9rem);
+		font-weight: 800;
+		letter-spacing: 0.14em;
 		line-height: 1.2;
+		text-transform: uppercase;
 		color: #b3060d;
 	}
-
 	.press-name {
 		font-family: Georgia, 'Times New Roman', serif;
-		font-size: 1.35rem;
+		font-size: clamp(1.6rem, min(3.1vw, 6svh), 3rem);
 		font-weight: 700;
-		letter-spacing: -0.03em;
-		line-height: 1.15;
+		letter-spacing: -0.025em;
+		line-height: 1.05;
 	}
-
 	.press-rule {
+		display: block;
 		width: 100%;
-		height: 4px;
-		border-top: 1.5px solid var(--ink);
-		border-bottom: 1px solid #b9b1a3;
+		height: 6px;
+		margin-block: clamp(0.6rem, 2svh, 1.1rem);
+		border-top: 2px solid var(--ink);
+		border-bottom: 1px solid var(--ink);
 	}
-
-	.press-story h2 {
-		max-width: 36rem;
-		font-size: clamp(1.2rem, 2vw, 1.5rem);
+	.paper h2 {
+		font-family: Georgia, 'Times New Roman', serif;
+		font-size: clamp(1.15rem, min(2.4vw, 4.4svh), 2.2rem);
 		font-weight: 700;
-		line-height: 1.25;
-		text-wrap: pretty;
+		line-height: 1.16;
+		letter-spacing: -0.01em;
+		text-wrap: balance;
+		color: var(--ink);
 	}
-
 	.press-credit {
 		display: flex;
 		flex-wrap: wrap;
+		justify-content: center;
 		gap: 0.3rem 0.55rem;
-		margin-top: 0.5rem;
-		font-size: 0.9rem;
+		margin-top: clamp(0.6rem, 2svh, 1.1rem);
+		font-size: 0.92rem;
 		line-height: 1.45;
-		color: var(--muted);
+		color: #5d564c;
 	}
 
-	.press-separator { color: var(--line-strong); }
-
 	.press-action {
-		display: flex;
+		display: inline-flex;
 		align-items: center;
 		gap: 0.6rem;
-		padding: 0.6rem 1.1rem;
+		min-height: 3rem;
+		padding: 0.65rem 1.3rem;
 		border-radius: 999px;
 		background: var(--surface-2);
 		border: 1.5px solid var(--line-strong);
-		font-family: var(--font-display);
-		font-size: 0.95rem;
+		font-family: var(--font-sans);
+		font-size: 1rem;
 		font-weight: 700;
 		line-height: 1.2;
 		color: var(--fg);
-		transition: background-color 200ms ease, border-color 200ms ease;
+		transition: border-color 200ms ease;
 	}
-
-	.press-action svg {
-		flex-shrink: 0;
-		color: var(--accent);
-		transition: transform 220ms var(--ease-out-expo);
-	}
-
+	.press-action svg { flex-shrink: 0; color: var(--accent); transition: transform 220ms var(--ease-out-expo); }
 	.press-feature:hover .press-action,
 	.press-feature:focus-visible .press-action { border-color: var(--fg); }
-
 	.press-feature:hover .press-action svg,
-	.press-feature:focus-visible .press-action svg {
-		transform: translate(2px, -2px);
-	}
-
-	@keyframes press-appear {
-		from { opacity: 0; transform: translateY(5px); }
-		to { opacity: 1; transform: translateY(0); }
-	}
-
-	@media (max-width: 1023px) {
-		.press-action > span { display: none; }
-		.press-action { padding: 0.7rem; }
-	}
-
-	@media (max-width: 639px) {
-		.press-feature {
-			grid-template-columns: minmax(0, 1fr) auto;
-			gap: 1rem;
-			padding: 1.1rem;
-		}
-		.press-publication { grid-column: 1 / -1; justify-self: start; }
-		.press-name { font-size: 1.25rem; }
-		.press-story h2 { font-size: 1.15rem; }
-		.press-action { align-self: start; }
-	}
+	.press-feature:focus-visible .press-action svg { transform: translate(2px, -2px); }
 
 	@media (prefers-reduced-motion: reduce) {
-		.press-feature { animation: none; }
-		.press-feature,
-		.press-action svg { transition: none; }
-		.press-feature:hover,
-		.press-feature:focus-visible,
+		.paper, .press-action svg { transition: none; }
+		.press-feature:hover .paper,
+		.press-feature:focus-visible .paper { transform: rotate(-1.2deg); }
 		.press-feature:hover .press-action svg,
 		.press-feature:focus-visible .press-action svg { transform: none; }
 	}
