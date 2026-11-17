@@ -134,7 +134,7 @@ export function buildContent(input: Partial<Sections>) {
 
 	return {
 		club,
-		vision: { label: s.vision.label, runs: visionRuns(visionText), text: all.vision, source: { label: s.vision.sourceLabel, href: safeHref(s.vision.sourceHref) } },
+		vision: { label: s.vision.label.replace(/\*\*(.+?)\*\*/g, '$1'), labelRuns: visionRuns(s.vision.label), runs: visionRuns(visionText), text: all.vision, source: { label: s.vision.sourceLabel, href: safeHref(s.vision.sourceHref) } },
 		stats: s.stats,
 		press: {
 			...s.press,

@@ -9,7 +9,7 @@ export default {
 		"subMotto": "A community of builders, learners, entrepreneurs, techno optimists."
 	},
 	"vision": {
-		"label": "The flagship AI club at UW–Madison",
+		"label": "The flagship AI club at **UW–Madison**",
 		"text": "We expect the way **all of us interact with computers and do work** to **fundamentally change**, and **the members of Agentic AI UW are building that future.**",
 		"sourceLabel": "",
 		"sourceHref": ""

@@ -13,18 +13,15 @@
 	<div class="fade" aria-hidden="true"></div>
 
 	<div class="shell hero-inner">
-		<!-- The nav bar already shows the name, so the page's h1 is for search
-		     engines and screen readers only. -->
-		<h1 class="sr-only">{club.name}</h1>
-
 		<div class="hero-grid">
-			<!-- the home headline: a short label, then the statement; the first thing a visitor reads -->
-			<section class="vision" aria-labelledby="vision-label">
-				<h2 id="vision-label" class="vision-label">{vision.label}</h2>
+			<!-- the home headline, the first thing a visitor reads: the big line, then the statement.
+			     The nav bar already shows the club's name, so the h1 says it to search engines and screen readers only. -->
+			<header class="vision">
+				<h1 class="headline"><span class="sr-only">{`${club.name}: `}</span>{#each vision.labelRuns as r, i (i)}{#if r.strong}<span class="hl">{r.t}</span>{:else}{r.t}{/if}{/each}</h1>
 				<p class="vision-text">
 					{#each vision.runs as r, i (i)}{#if r.strong}<strong>{r.t}</strong>{:else}{r.t}{/if}{#if r.cite}<sup class="vision-cite"><a href={vision.source.href} target="_blank" rel="noopener noreferrer" aria-label="Source: {vision.source.label} (opens in a new tab)">[1]</a></sup>{/if}{/each}
 				</p>
-			</section>
+			</header>
 
 			<div class="mascot" aria-hidden="true">
 				<div class="spot"></div>
@@ -73,25 +70,31 @@
 
 	.hero-grid {
 		display: grid;
-		grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.9fr);
-		gap: clamp(2rem, 5vw, 4.5rem);
+		grid-template-columns: minmax(0, 1.55fr) minmax(0, 0.75fr);
+		gap: clamp(2rem, 4vw, 3.5rem);
 		align-items: center;
 	}
 
 	.vision { animation: rise 650ms var(--ease-out-expo) backwards; }
-	.vision-label {
-		font-size: 1.1rem;
-		font-weight: 700;
-		letter-spacing: 0.01em;
-		color: var(--accent);
-	}
-	.vision-text {
-		margin-top: 0.6rem;
+	.headline {
 		font-family: var(--font-display);
-		font-size: clamp(1.4rem, 2.4vw, 1.95rem);
+		font-size: clamp(2.9rem, 7.4vw, 6.4rem);
+		font-weight: 800;
+		line-height: 1;
+		letter-spacing: -0.035em;
+		text-wrap: balance;
+		color: var(--fg);
+		text-shadow: 0 0.04em 0.5em rgb(0 0 0 / 0.35);
+	}
+	.headline .hl { color: var(--accent); }
+	.vision-text {
+		margin-top: clamp(1.25rem, 2.6vw, 1.9rem);
+		max-width: 40rem;
+		font-family: var(--font-display);
+		font-size: clamp(1.15rem, 1.75vw, 1.5rem);
 		font-weight: 500;
-		line-height: 1.3;
-		letter-spacing: -0.01em;
+		line-height: 1.4;
+		letter-spacing: -0.005em;
 		color: var(--fg);
 	}
 	.vision-text strong { font-weight: 700; }
@@ -101,7 +104,7 @@
 
 	.mascot {
 		position: relative;
-		width: min(100%, 26rem);
+		width: min(100%, 23rem);
 		margin-inline: auto;
 		padding: 8% 6% 4%;
 		animation: pop 800ms var(--ease-spring) 120ms backwards;

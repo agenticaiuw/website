@@ -79,9 +79,9 @@ export const SECTIONS: Section[] = [
 		key: 'vision',
 		title: 'Home headline',
 		page: 'Home',
-		where: 'The first thing a visitor reads on the home page: a short label and the statement under it. Search results and link previews use the statement too.',
+		where: 'The first thing a visitor reads on the home page: the big headline and the statement under it. Search results and link previews use the statement too.',
 		fields: [
-			text('label', 'Label', 'Shown small above the statement.'),
+			text('label', 'Headline', 'The big line at the top of the home page. Wrap words in **double asterisks** to make them red.'),
 			rich('text', 'Statement', 'Wrap words in **double asterisks** to bold them. [^1] places a source marker that links to the source below.'),
 			text('sourceLabel', 'Source', 'Only needed with a [^1] marker.', true),
 			url('sourceHref', 'Source link', undefined, true)
