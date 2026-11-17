@@ -107,92 +107,36 @@
 		"cta": "Read the article"
 	},
 	"story": {
-		"heading": "Why does Agentic AI UW exist?",
-		"then": {
-			"label": "Then",
-			"heading": "Mainframes to personal computers",
-			"quote": "Computing power grows with the square of cost.",
-			"quoteBy": "Grosch’s law",
-			"body": "So bigger, more expensive machines shared between many people were the economical choice. Microprocessors, circuits printed onto silicon layer by layer, broke Grosch’s law.",
-			"shifts": [
-				{
-					"from": "Command line",
-					"to": "Graphical interface"
-				},
-				{
-					"from": "Time-sharing and batched requests",
-					"to": "Computers people own"
-				},
-				{
-					"from": "Computer hobbyists",
-					"to": "Everyone"
-				},
-				{
-					"from": "IBM",
-					"to": "Apple and Microsoft"
-				}
-			]
-		},
-		"now": {
-			"label": "Now",
-			"heading": "This moment looks a lot like that one",
-			"points": [
-				"Chat interfaces are today’s command line.",
-				"Models running in the cloud with batching are today’s time-shared mainframes.",
-				"The GUI for the AI era hasn’t been invented yet."
-			],
-			"quoteBy": "Andrej Karpathy, YC AI Startup School 2025",
-			"quoteHref": "https://www.youtube.com/watch?v=LCEmiRjPEtQ",
-			"note": "We’d add one more: developers know what agents like Codex and Claude Code can do, but most people don’t."
-		},
-		"students": {
-			"label": "Who shapes it",
-			"quote": "When a huge paradigm shift happens in an industry, college students like you and me can come in and shape the future.",
-			"people": [
-				{
-					"name": "Steve Jobs",
-					"age": "21"
-				},
-				{
-					"name": "Steve Wozniak",
-					"age": "25"
-				},
-				{
-					"name": "Bill Gates",
-					"age": "19"
-				},
-				{
-					"name": "Paul Allen",
-					"age": "22"
-				}
-			],
-			"peopleNote": "Their ages when they started Apple and Microsoft."
-		},
-		"problems": {
-			"label": "What we work on",
-			"body": "As a club, we’re shaping how people will use computers and do their work. In particular:",
-			"items": [
-				"How can we reimagine agents at the operating system layer?",
-				"What changes when agents run locally on personal computers?",
-				"How can we bring the power of coding agents to everyone?"
-			]
-		},
-		"beyond": [
+		"heading": "Why we started Agentic AI UW",
+		"parts": [
 			{
-				"title": "A startup incubator",
+				"title": "We’ve seen a shift like this before",
+				"body": "Fifty years ago, computers were mainframes: big, expensive machines that many people shared, sending in jobs and waiting for the results. Then the microprocessor made computers cheap enough for one person to own. The graphical interface replaced the command line, and computers went from a hobby to something everyone used.",
+				"points": []
+			},
+			{
+				"title": "AI is at the same point now",
+				"body": "As [Andrej Karpathy has pointed out](https://www.youtube.com/watch?v=LCEmiRjPEtQ), using AI today looks a lot like computing before the PC. You type to a model in a chat box, much like typing commands, and the model runs on shared machines in the cloud, the way people once shared a mainframe. AI’s version of the graphical interface hasn’t been invented yet. And while developers already use agents like Codex and Claude Code for real work, most people don’t know what these agents can do.",
+				"points": []
+			},
+			{
+				"title": "Students can shape what comes next",
+				"body": "The last shift was led by people our age. Bill Gates was 19 and Paul Allen 22 when they started Microsoft, and Steve Jobs was 21 and Steve Wozniak 25 when they started Apple. When an industry changes this much, nobody has the answers yet, so college students can work on the open problems as well as anyone.",
+				"points": []
+			},
+			{
+				"title": "What we’re working on",
+				"body": "As a club, we focus on three questions, and our project, [Hive](/teams/), is how we work on them together:",
 				"points": [
-					"Gain the skills, experience and judgment that come from building a large project with a team.",
-					"Meet like-minded people who could become your cofounders.",
-					"Start something from your own work in the club, or from other members’ work."
+					"What does a computer look like when agents are built into its operating system?",
+					"What changes when agents run locally, on hardware you own?",
+					"How can people who don’t code use what coding agents can do?"
 				]
 			},
 			{
-				"title": "An alumni community",
-				"points": [
-					"A strong alumni network that stays connected after graduation.",
-					"Links between industry, departments, professors, labs, students and clubs.",
-					"A reputation as a flagship club: when a company meets someone from this club, they know they’re getting great talent."
-				]
+				"title": "Beyond Hive",
+				"body": "We hope many members go on to start companies. Here you learn to build something large with a team, meet people you could start one with, and can keep building on your own work or other members’. And when you graduate, you stay part of the club: we want a strong alumni network that stays close and helps the members who come next.",
+				"points": []
 			}
 		]
 	},
@@ -310,13 +254,13 @@
 		"eyebrow": "The club project",
 		"title": "Hive",
 		"goal": "Have agents that can do **all the tasks a person can do digitally**, with access to **all of their data** on **all their devices**, as if **another you** (or several of you) **is doing the work**.",
-		"why": "Today’s agents only see part of your digital life. A coding agent works on your computer; others work only inside their own virtual machine. So you end up copying and pasting between windows to give them context. Hive should see everything you share with it and act everywhere you can: your computer, your phone and your browser.",
-		"summary": "Hive is the club’s main project: agents with access to all of your digital context that can do any digital task you can, on your computer, phone and browser. Every team builds it together in one GitHub repository.",
+		"why": "Right now, each AI agent only reaches one corner of your digital life. One works in your files, another only in your browser, another on a server in the cloud. Hive brings them together, so your agents can use what’s on your laptop, phone and browser, and get work done on any of them.",
+		"summary": "Hive is the club’s main project: AI agents that can use your laptop, phone and browser and do the digital work you do. Every team builds a part of it, all in one open GitHub repository.",
 		"semesterLabel": "By the end of this semester",
 		"semester": [
-			"Every team works in one GitHub repository: the browser extensions, the desktop app, the mobile app, the cloud server and the virtual machine agent.",
-			"A public website where anyone can download the browser extension, the desktop app and the mobile app.",
-			"A first prototype with the basic structure in place, to keep improving next semester."
+			"One codebase for all of Hive: the desktop app, mobile app, browser extensions and cloud server.",
+			"A website where anyone can download Hive for their computer, phone and browser.",
+			"A working first version with the basic pieces in place, ready to build on next semester."
 		],
 		"repoCta": "See the code on GitHub",
 		"repoHref": "https://github.com/agenticaiuw/hive"
@@ -346,11 +290,11 @@
 				"name": "Automation Team",
 				"short": "Automation",
 				"team": 9,
-				"line": "Let agents use your computer, phone and browser the way you do. The PC and Browser teams merged into this one.",
+				"line": "Let agents use your computer, phone and browser the way you do.",
 				"goals": [
-					"A desktop app for Mac and Windows, like Codex, that can also control the real keyboard and mouse.",
-					"A mobile app for iOS (Android not decided yet) that can control your phone: touch, swipe and screenshots.",
-					"Browser extensions for Chrome and Safari, so agents work in the browser you already use."
+					"A desktop app for Mac and Windows that can use the keyboard and mouse the way you would.",
+					"A mobile app for iPhone that can tap, swipe and read the screen.",
+					"Extensions for Chrome and Safari, so agents can work in the browser you already use."
 				],
 				"code": [
 					"desktop",
@@ -377,11 +321,11 @@
 				"name": "Cloud Team",
 				"short": "Cloud",
 				"team": 3,
-				"line": "Build the server that connects all your devices, an agent that runs on a virtual machine, and the storage behind them.",
+				"line": "Build the server that ties your devices together, the agents that run in the cloud, and the storage behind them.",
 				"goals": [
-					"A cloud server that connects all your devices: the browser extension, the desktop app and the mobile app.",
-					"A virtual machine agent, plus connectors to other services.",
-					"Storage and retrieval for tools, memories and session history."
+					"A server that connects the desktop app, the mobile app and the browser extensions.",
+					"Agents that run on their own computer in the cloud and connect to the other services you use.",
+					"Storage for each agent’s tools, memories and past sessions, and quick ways to search it."
 				],
 				"code": [
 					"cloud"
@@ -401,11 +345,11 @@
 				"name": "Research Team",
 				"short": "Research",
 				"team": 6,
-				"line": "Work out how Hive should fit together and how its agents handle context, and run models on our own hardware.",
+				"line": "Work out how Hive fits together and how its agents handle what they know, and run AI models on the club’s own hardware.",
 				"goals": [
-					"The overall architecture of Hive, worked out with the Cloud team so no work is repeated.",
-					"The agent loop: how an agent retrieves and offloads context while it runs (context engineering).",
-					"Local models: run a model on club hardware and serve it as an API or coding agent for everyone in the club."
+					"Hive’s overall design, planned with the Cloud team so no one builds the same thing twice.",
+					"How an agent decides what to keep in mind and what to set aside while it works.",
+					"AI models running on club hardware that every member can use in their own projects."
 				],
 				"code": [
 					"cloud/docs"
@@ -437,11 +381,11 @@
 				"name": "Product Design Team",
 				"short": "Design",
 				"team": 7,
-				"line": "Design how people use every part of Hive, and test the whole system on real tasks.",
+				"line": "Design how people use every part of Hive, and test it on real work.",
 				"goals": [
-					"The UI and UX for each part of Hive: the desktop app, the mobile app and the browser extension.",
-					"Dashboards for the agents’ current tasks, past sessions and stored files, plus custom views for each feature.",
-					"Stress-test the whole system with their own tasks and tell the engineering teams what it can’t do yet."
+					"The design of the desktop app, the mobile app and the browser extensions.",
+					"Dashboards that show what your agents are doing, what they’ve done and the files they’ve saved.",
+					"Using Hive for their own work and telling the other teams what it can’t do yet."
 				],
 				"code": [
 					"dashboard"
@@ -567,7 +511,7 @@
 			},
 			{
 				"q": "What is the club building?",
-				"a": "Hive: agents with access to all of your digital context that can do any digital task you can, on your computer, phone and browser. Every team builds it together in one GitHub repository.",
+				"a": "Hive: AI agents that can use your laptop, phone and browser and do the digital work you do. Every team builds a part of it, all in one open GitHub repository.",
 				"links": [
 					{
 						"label": "See the project",

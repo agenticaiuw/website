@@ -121,59 +121,20 @@ export const SECTIONS: Section[] = [
 		key: 'story',
 		title: 'Why we exist',
 		page: 'Home',
-		where: 'The section under the press card: mainframes to PCs, today’s parallels, student founders, the problems we work on and what the club is for beyond the project.',
+		where: 'The section under the press card: why the club exists, told in short headed paragraphs.',
 		fields: [
 			text('heading', 'Heading'),
 			{
-				t: 'group',
-				k: 'then',
-				label: 'Then',
-				fields: [
-					text('label', 'Label'),
-					text('heading', 'Heading'),
-					text('quote', 'Quote'),
-					text('quoteBy', 'Quote source'),
-					long('body', 'Text'),
-					{ t: 'list', k: 'shifts', label: 'Shifts', item: 'shift', title: 'to', fields: [text('from', 'From'), text('to', 'To')] }
-				]
-			},
-			{
-				t: 'group',
-				k: 'now',
-				label: 'Now',
-				fields: [
-					text('label', 'Label'),
-					text('heading', 'Heading'),
-					{ t: 'strings', k: 'points', label: 'Quoted points', item: 'point' },
-					text('quoteBy', 'Quote source'),
-					url('quoteHref', 'Quote source link', undefined, true),
-					long('note', 'Note', undefined, true)
-				]
-			},
-			{
-				t: 'group',
-				k: 'students',
-				label: 'Students',
-				fields: [
-					text('label', 'Label'),
-					long('quote', 'Quote'),
-					{ t: 'list', k: 'people', label: 'Founders', item: 'founder', title: 'name', fields: [text('name', 'Name'), text('age', 'Age')] },
-					text('peopleNote', 'Under the ages', undefined, true)
-				]
-			},
-			{
-				t: 'group',
-				k: 'problems',
-				label: 'The problems we work on',
-				fields: [text('label', 'Label'), long('body', 'Text'), { t: 'strings', k: 'items', label: 'Problems', item: 'problem' }]
-			},
-			{
 				t: 'list',
-				k: 'beyond',
-				label: 'Beyond the project',
-				item: 'card',
+				k: 'parts',
+				label: 'Paragraphs',
+				item: 'paragraph',
 				title: 'title',
-				fields: [text('title', 'Title'), { t: 'strings', k: 'points', label: 'Points', item: 'point' }]
+				fields: [
+					text('title', 'Heading'),
+					rich('body', 'Text', '**Bold** and [links](https://…) work.'),
+					{ t: 'strings', k: 'points', label: 'List under the text (optional)', item: 'item' }
+				]
 			}
 		]
 	},

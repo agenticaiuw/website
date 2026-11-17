@@ -144,7 +144,8 @@ export function buildContent(input: Partial<Sections>) {
 			items: s.reasons.items.map((r) => ({ title: r.title, body: r.body, link: r.linkLabel && r.linkHref ? { label: r.linkLabel, href: safeHref(r.linkHref) } : undefined }))
 		},
 		team,
-		story: { ...s.story, now: { ...s.story.now, quoteHref: safeHref(s.story.now.quoteHref) } },
+		/* An older saved shape (no parts) hides the section rather than breaking the page. */
+		story: { heading: s.story.heading, parts: (s.story.parts ?? []).map((p) => ({ ...p, points: p.points ?? [] })) },
 		project: { ...s.project, repoHref: safeHref(s.project.repoHref) },
 		work: { subteams: { ...s.teams, items: (s.teams.items as RawTeam[]).map(toTeam(safeHref(s.project.repoHref))) } },
 		events: { ...s.events, items: s.events.items.map((e): ClubEvent => ({ date: e.date, dateEnd: opt(e.dateEnd), time: opt(e.time), kind: e.kind, name: e.name, location: opt(e.location), body: e.body })) },
