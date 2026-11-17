@@ -128,6 +128,7 @@ export function buildContent(input: Partial<Sections>) {
 		heading: s.board.heading,
 		members: s.board.members.map((m): Exec => ({ ...m, linkedin: safeHref(m.linkedin), officeHours: safeHref(m.officeHours), photo: opt(m.photo), blurb: opt(m.blurb) }))
 	};
+	const pages = { ...mapStrings(fallback.pages, (x) => tokens(x, all)), ...s.pages };
 	const pressDate = new Date(`${s.press.date}T12:00:00Z`);
 
 	return {
@@ -155,12 +156,14 @@ export function buildContent(input: Partial<Sections>) {
 		social,
 		contact: { heading: s.links.contactHeading, lede: s.links.contactLede, email: s.links.email },
 		memberHub: { label: s.links.hubLabel, href: safeHref(s.links.hubHref), blurb: s.links.hubBlurb },
-		pages: s.pages,
+		/* A page the hub doesn't have text for yet uses the snapshot's. */
+		pages,
 		nav: [
-			{ label: 'Home', id: 'home', href: '/', blurb: s.pages.home.blurb },
-			{ label: 'Teams', id: 'teams', href: '/teams', blurb: s.pages.teams.blurb },
-			{ label: 'Events', id: 'events', href: '/events', blurb: s.pages.events.blurb },
-			{ label: 'Partners', id: 'partners', href: '/partners', blurb: s.pages.partners.blurb }
+			{ label: 'Home', id: 'home', href: '/', blurb: pages.home.blurb },
+			{ label: s.project.title, id: 'hive', href: '/hive', blurb: pages.hive.blurb },
+			{ label: 'Teams', id: 'teams', href: '/teams', blurb: pages.teams.blurb },
+			{ label: 'Events', id: 'events', href: '/events', blurb: pages.events.blurb },
+			{ label: 'Partners', id: 'partners', href: '/partners', blurb: pages.partners.blurb }
 		]
 	};
 }

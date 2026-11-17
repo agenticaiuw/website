@@ -12,9 +12,9 @@ export default {
 	},
 	"vision": {
 		"label": "Our vision",
-		"text": "With **Moore’s Law** and the fact “**models with the same capability are decreasing in size many times a year**”[^1], we predict that we’ll be able to run capable agents locally on mass-consumer hardware in a few years. With this, we believe there’s going to be a whole new way to interact with computers and do work, and **Agentic AI UW is building for the future.**",
-		"sourceLabel": "Xiao et al., “Densing law of LLMs,” Nature Machine Intelligence 7, 1823–1833 (2025)",
-		"sourceHref": "https://doi.org/10.1038/s42256-025-01137-0"
+		"text": "We expect the way **all of us interact with computers and do work** to **fundamentally change**, and **the members of Agentic AI UW are building that future.**",
+		"sourceLabel": "",
+		"sourceHref": ""
 	},
 	"stats": {
 		"items": [
@@ -70,7 +70,7 @@ export default {
 			},
 			{
 				"title": "What we’re working on",
-				"body": "As a club, we focus on three questions, and our project, [Hive](/teams/), is how we work on them together:",
+				"body": "As a club, we focus on three questions, and our project, [Hive](/hive/), is how we work on them together:",
 				"points": [
 					"What does a computer look like when agents are built into its operating system?",
 					"What changes when agents run locally, on hardware you own?",
@@ -91,7 +91,7 @@ export default {
 				"title": "One club, one large-scale project",
 				"body": "We’re the only CS club on campus where the whole club collaborates on one large-scale project.",
 				"linkLabel": "See the project",
-				"linkHref": "/teams/"
+				"linkHref": "/hive/"
 			},
 			{
 				"title": "An industry-like environment",
@@ -385,12 +385,7 @@ export default {
 			{
 				"q": "What is the club’s vision?",
 				"a": "{{vision}}",
-				"links": [
-					{
-						"label": "Source",
-						"href": "{{vision_source}}"
-					}
-				]
+				"links": []
 			},
 			{
 				"q": "What is agentic AI?",
@@ -403,7 +398,7 @@ export default {
 				"links": [
 					{
 						"label": "See the project",
-						"href": "/teams/"
+						"href": "/hive/"
 					},
 					{
 						"label": "Code on GitHub",
@@ -527,10 +522,15 @@ export default {
 			"share": "{{vision}}",
 			"blurb": "{{motto}}"
 		},
+		"hive": {
+			"title": "Hive · {{club}}",
+			"description": "Hive is the club project of {{club}} at {{university}}: AI agents that can use your laptop, phone and browser and do the digital work you do. See what we plan to finish this semester and the code on GitHub.",
+			"blurb": "The project the whole club builds together"
+		},
 		"teams": {
 			"title": "Teams · {{club}}",
-			"description": "Hive, the agent project of {{club}} at {{university}}, and the teams building it: Hardware, Automation, Cloud, Research, Product Design and Business. No prior AI experience required.",
-			"blurb": "Hive, and the teams building it"
+			"description": "The teams of {{club}} at {{university}}: Hardware, Automation, Cloud, Research, Product Design and Business. See who heads each team and what it is working on. No prior AI experience required.",
+			"blurb": "Who heads each team and what it is working on"
 		},
 		"events": {
 			"title": "Events · {{club}}",

@@ -18,15 +18,13 @@ ${club.name} is a student organization at the ${club.university}, founded in ${c
 ## Vision
 
 ${vision.text}
-
-Source for the quoted figure: ${vision.source.label} ${vision.source.href}
-
+${vision.source.label ? `\nSource for the quoted figure: ${vision.source.label} ${vision.source.href}\n` : ''}
 ## Key facts
 
 - University: ${club.university} (Madison, Wisconsin, USA)
 - Founded: ${club.founded}
 - Size: ${stats.items.map((i) => `${i.approx ? 'about ' : ''}${i.n} ${i.label}`).join('; ')}
-- Project: ${project.title}. ${project.summary}
+- Project: ${project.title}. ${project.summary} Page: ${page('/hive')}
 - Project goal: ${project.goal.replace(/\*\*/g, '')}
 - Code: ${project.repoHref}
 - Teams: ${work.subteams.items.map((s) => `${s.name} (${[s.heads.length ? `${s.heads.length > 1 ? 'heads' : 'head'}: ${s.heads.join(', ')}` : '', s.leads.length ? `${s.leads.length > 1 ? 'leads' : 'lead'}: ${s.leads.map((l) => (l.title ? `${l.name} (${l.title})` : l.name)).join(', ')}` : ''].filter(Boolean).join('; ')})`).join('; ')}

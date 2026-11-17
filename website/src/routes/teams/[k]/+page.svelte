@@ -27,7 +27,7 @@
 		<header class="head" data-reveal>
 			<span class="ring"><Badge size={88} prop={t.k} sticker={false} /></span>
 			<div class="min-w-0">
-				<p class="eyebrow accent">{project.title}</p>
+				<a href="/hive/" class="eyebrow accent project">{project.title}</a>
 				<h1>{t.name}</h1>
 				<p class="line">{t.line}</p>
 			</div>
@@ -110,6 +110,8 @@
 
 	.head { display: flex; align-items: center; gap: clamp(1rem, 3vw, 1.75rem); margin-top: 1.5rem; }
 	.ring { display: grid; place-items: center; flex: none; width: clamp(88px, 14vw, 120px); aspect-ratio: 1; border-radius: 999px; background: var(--surface-2); border: 1.5px solid var(--line-strong); }
+	.project { display: inline-block; }
+	.project:hover, .project:focus-visible { text-decoration: underline; text-underline-offset: 3px; }
 	h1 { margin-top: 0.15rem; font-size: clamp(2.3rem, 6vw, 4rem); font-weight: 800; line-height: 1.05; letter-spacing: -0.03em; }
 	.line { margin-top: 0.6rem; max-width: 42rem; font-size: 1.1rem; line-height: 1.6; color: var(--muted); }
 

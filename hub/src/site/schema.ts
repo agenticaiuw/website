@@ -69,6 +69,7 @@ export const SECTIONS: Section[] = [
 		where: 'Browser tab titles, search result snippets and link previews.',
 		fields: [
 			{ t: 'group', k: 'home', label: 'Home', fields: [text('title', 'Title'), long('description', 'Search description'), long('share', 'Link preview text'), text('blurb', 'One-line description')] },
+			{ t: 'group', k: 'hive', label: 'Hive', fields: [text('title', 'Title'), long('description', 'Search description'), text('blurb', 'One-line description')] },
 			{ t: 'group', k: 'teams', label: 'Teams', fields: [text('title', 'Title'), long('description', 'Search description'), text('blurb', 'One-line description')] },
 			{ t: 'group', k: 'events', label: 'Events', fields: [text('title', 'Title'), long('description', 'Search description'), text('blurb', 'One-line description')] },
 			{ t: 'group', k: 'partners', label: 'Partners', fields: [text('title', 'Title'), long('description', 'Search description'), text('blurb', 'One-line description')] },
@@ -83,9 +84,9 @@ export const SECTIONS: Section[] = [
 		where: 'The first thing a visitor reads on the home page.',
 		fields: [
 			text('label', 'Label'),
-			rich('text', 'Vision', 'Wrap words in **double asterisks** to bold them. [^1] places the source marker.'),
-			text('sourceLabel', 'Source'),
-			url('sourceHref', 'Source link')
+			rich('text', 'Vision', 'Wrap words in **double asterisks** to bold them. [^1] places a source marker that links to the source below.'),
+			text('sourceLabel', 'Source', 'Only needed with a [^1] marker.', true),
+			url('sourceHref', 'Source link', undefined, true)
 		]
 	},
 	{
