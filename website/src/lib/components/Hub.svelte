@@ -2,7 +2,6 @@
 	import AgentGraph from './AgentGraph.svelte';
 	import PressFeature from './PressFeature.svelte';
 	import Reasons from './Reasons.svelte';
-	import Story from './Story.svelte';
 	import ExecTeam from './ExecTeam.svelte';
 	import Badge from './Badge.svelte';
 	import { site } from '$lib/site';
@@ -19,7 +18,7 @@
 		<h1 class="sr-only">{club.name}</h1>
 
 		<div class="hero-grid">
-			<!-- the vision: the first thing a visitor reads -->
+			<!-- the home headline: a short label, then the statement; the first thing a visitor reads -->
 			<section class="vision" aria-labelledby="vision-label">
 				<h2 id="vision-label" class="vision-label">{vision.label}</h2>
 				<p class="vision-text">
@@ -49,8 +48,6 @@
 		</div>
 	</div>
 </section>
-
-<Story />
 
 <Reasons />
 
@@ -95,9 +92,9 @@
 		font-weight: 500;
 		line-height: 1.3;
 		letter-spacing: -0.01em;
-		color: var(--muted);
+		color: var(--fg);
 	}
-	.vision-text strong { font-weight: 700; color: var(--fg); }
+	.vision-text strong { font-weight: 700; }
 	.vision-cite { font-size: 0.5em; line-height: 0; margin-left: 0.1em; }
 	.vision-cite a { color: var(--muted); }
 	.vision-cite a:hover, .vision-cite a:focus-visible { color: var(--accent); }

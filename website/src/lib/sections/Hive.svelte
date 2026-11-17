@@ -54,9 +54,9 @@
 		font-weight: 500;
 		line-height: 1.3;
 		letter-spacing: -0.01em;
-		color: var(--muted);
+		color: var(--fg);
 	}
-	.goal :global(strong) { font-weight: 700; color: var(--fg); }
+	.goal :global(strong) { font-weight: 700; }
 	.why { margin-top: 1.25rem; max-width: 44rem; font-size: 1.05rem; line-height: 1.65; color: var(--muted); }
 
 	.semester { margin-top: clamp(2rem, 4vw, 2.75rem); padding: clamp(1.4rem, 3vw, 2rem); background: linear-gradient(140deg, var(--accent-surface), var(--surface) 70%); border-color: var(--accent-border); }

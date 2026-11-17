@@ -71,7 +71,6 @@
 		<div class="footer-card">
 			<div class="f-brand">
 				<a href="/" class="f-logo"><CursorMark size={40} /><span>{club.name}</span></a>
-				<p class="f-motto">{club.footerLine}</p>
 			</div>
 
 			<div class="f-cols">
@@ -128,7 +127,6 @@
 		box-shadow: var(--shadow);
 	}
 	.f-logo { display: inline-flex; align-items: center; gap: 0.7rem; font-family: var(--font-display); font-size: 1.3rem; font-weight: 700; line-height: 1.2; }
-	.f-motto { margin-top: 1rem; max-width: 24rem; font-size: 0.95rem; line-height: 1.6; color: var(--muted); }
 	.f-cols { display: flex; flex-wrap: wrap; gap: 2rem 3.5rem; }
 	.f-head { font-size: 1.05rem; font-weight: 700; }
 	.f-list { display: grid; gap: 0.6rem; margin-top: 0.9rem; list-style: none; padding: 0; }

@@ -11,14 +11,10 @@ export async function GET({ platform }) {
 	const { club, vision, stats, team, project, work, join, contact, social, nav, faq, memberHub, press } = await loadSite(platform);
 	const body = `# ${club.name}
 
-> ${club.summary}
+> ${vision.text}
 
 ${club.name} is a student organization at the ${club.university}, founded in ${club.founded}. Its motto: “${club.motto}” ${club.subMotto}
 
-## Vision
-
-${vision.text}
-${vision.source.label ? `\nSource for the quoted figure: ${vision.source.label} ${vision.source.href}\n` : ''}
 ## Key facts
 
 - University: ${club.university} (Madison, Wisconsin, USA)
@@ -29,7 +25,7 @@ ${vision.source.label ? `\nSource for the quoted figure: ${vision.source.label} 
 - Code: ${project.repoHref}
 - Teams: ${work.subteams.items.map((s) => `${s.name} (${[s.heads.length ? `${s.heads.length > 1 ? 'heads' : 'head'}: ${s.heads.join(', ')}` : '', s.leads.length ? `${s.leads.length > 1 ? 'leads' : 'lead'}: ${s.leads.map((l) => (l.title ? `${l.name} (${l.title})` : l.name)).join(', ')}` : ''].filter(Boolean).join('; ')})`).join('; ')}
 - Who can join: every major and every level; no CS major or prior AI experience required
-- How to join: ${join.lede} Book office hours: ${siteUrl}/join/#office-hours
+- How to join: ${join.lede} Discord (${join.discordLabel.toLowerCase()}): ${join.discordHref} Book office hours: ${siteUrl}/join/#office-hours
 - Email: ${contact.email}
 - Press: ${press.name}, ${press.dateLabel}: ${press.href}
 ${social.filter((s) => s.href).map((s) => `- ${s.name}: ${s.href}`).join('\n')}
@@ -45,7 +41,7 @@ ${team.members.map((m) => `- ${m.name}, ${m.title}. Heads the ${m.leads} team. L
 ## Pages
 
 ${nav.map((n) => `- [${n.label}](${page(n.href)}): ${n.blurb}`).join('\n')}
-- [Join](${siteUrl}/join/): Book office hours with a team head, or join the Discord
+- [Join](${siteUrl}/join/): ${join.discordTitle}, then ${join.officeHoursHeading.charAt(0).toLowerCase()}${join.officeHoursHeading.slice(1)}
 - [FAQ](${siteUrl}/faq/): ${faq.lede}
 - [${memberHub.label}](${memberHub.href}): ${memberHub.blurb}
 

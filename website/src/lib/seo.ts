@@ -8,7 +8,7 @@ export const ogImageAlt = (c: Site) => `${c.club.name}, a student club at the ${
 export const jsonLd = (data: unknown) =>
 	`<script type="application/ld+json">${JSON.stringify(data).replace(/</g, '\\u003c')}</` + 'script>';
 
-export const organization = ({ club, contact, social, team }: Site) => ({
+export const organization = ({ club, vision, contact, social, team }: Site) => ({
 	'@type': 'Organization',
 	'@id': `${siteUrl}/#organization`,
 	name: club.name,
@@ -16,7 +16,7 @@ export const organization = ({ club, contact, social, team }: Site) => ({
 	url: `${siteUrl}/`,
 	logo: `${siteUrl}/logo.png`,
 	image: ogImage.url,
-	description: club.summary,
+	description: vision.text,
 	slogan: club.motto,
 	foundingDate: String(club.founded),
 	email: contact.email,

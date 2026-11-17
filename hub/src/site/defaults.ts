@@ -6,12 +6,10 @@ export default {
 		"university": "University of Wisconsin–Madison",
 		"founded": 2026,
 		"motto": "Build products that make a difference in everyday life.",
-		"subMotto": "A community of builders, learners, entrepreneurs, techno optimists.",
-		"summary": "Agentic AI UW is a UW–Madison student club building for a new way to use computers: capable AI agents that run on everyday machines. Every major welcome.",
-		"footerLine": "A registered student organization at {{university}}. {{motto}}"
+		"subMotto": "A community of builders, learners, entrepreneurs, techno optimists."
 	},
 	"vision": {
-		"label": "Our vision",
+		"label": "The flagship AI club at UW–Madison",
 		"text": "We expect the way **all of us interact with computers and do work** to **fundamentally change**, and **the members of Agentic AI UW are building that future.**",
 		"sourceLabel": "",
 		"sourceHref": ""
@@ -50,42 +48,8 @@ export default {
 		"href": "https://www.dailycardinal.com/article/2026/09/agentic-ai-uw-brings-next-step-in-artificial-intelligence-to-uw-madison",
 		"cta": "Read the article"
 	},
-	"story": {
-		"heading": "Why we started Agentic AI UW",
-		"parts": [
-			{
-				"title": "We’ve seen a shift like this before",
-				"body": "Fifty years ago, computers were mainframes: big, expensive machines that many people shared, sending in jobs and waiting for the results. Then the microprocessor made computers cheap enough for one person to own. The graphical interface replaced the command line, and computers went from a hobby to something everyone used.",
-				"points": []
-			},
-			{
-				"title": "AI is at the same point now",
-				"body": "As [Andrej Karpathy has pointed out](https://www.youtube.com/watch?v=LCEmiRjPEtQ), using AI today looks a lot like computing before the PC. You type to a model in a chat box, much like typing commands, and the model runs on shared machines in the cloud, the way people once shared a mainframe. AI’s version of the graphical interface hasn’t been invented yet. And while developers already use agents like Codex and Claude Code for real work, most people don’t know what these agents can do.",
-				"points": []
-			},
-			{
-				"title": "Students can shape what comes next",
-				"body": "The last shift was led by people our age. Bill Gates was 19 and Paul Allen 22 when they started Microsoft, and Steve Jobs was 21 and Steve Wozniak 25 when they started Apple. When an industry changes this much, nobody has the answers yet, so college students can work on the open problems as well as anyone.",
-				"points": []
-			},
-			{
-				"title": "What we’re working on",
-				"body": "As a club, we focus on three questions, and our project, [Hive](/hive/), is how we work on them together:",
-				"points": [
-					"What does a computer look like when agents are built into its operating system?",
-					"What changes when agents run locally, on hardware you own?",
-					"How can people who don’t code use what coding agents can do?"
-				]
-			},
-			{
-				"title": "Beyond Hive",
-				"body": "We hope many members go on to start companies. Here you learn to build something large with a team, meet people you could start one with, and can keep building on your own work or other members’. And when you graduate, you stay part of the club: we want a strong alumni network that stays close and helps the members who come next.",
-				"points": []
-			}
-		]
-	},
 	"reasons": {
-		"heading": "Five reasons we’re different",
+		"heading": "Why we started {{club}}",
 		"items": [
 			{
 				"title": "One club, one large-scale project",
@@ -337,11 +301,12 @@ export default {
 	},
 	"join": {
 		"heading": "Join any time of year.",
-		"lede": "Book office hours with the head of the team you want to join. That’s the only step: no application, no cutoff, no recruiting season. Every major and every level is welcome.",
+		"lede": "Start with our Discord, then book office hours with the head of the team you want to join. There’s no application, no cutoff and no recruiting season, and every major and every level is welcome.",
 		"officeHoursHeading": "Book office hours with a team head",
 		"officeHoursCta": "Book office hours",
-		"discordTitle": "Join the Discord",
-		"discordBody": "Where day-to-day discussion and questions happen.",
+		"discordLabel": "Our official channel of communication",
+		"discordTitle": "Join our Discord",
+		"discordBody": "Meetings, events and club news are shared on Discord, and it’s where members talk and ask questions every day.",
 		"discordCta": "Join Discord",
 		"discordHref": "{{social:Discord}}"
 	},
@@ -374,7 +339,7 @@ export default {
 		"items": [
 			{
 				"q": "What is Agentic AI UW?",
-				"a": "{{club}} is a student organization at the {{university}}, founded in {{founded}}. We build agentic AI products that make a difference in everyday life. We are a community of builders, learners, entrepreneurs and techno optimists, open to every major.",
+				"a": "{{club}} is the flagship AI club at the {{university}}, founded in {{founded}}. We build agentic AI products that make a difference in everyday life. We are a community of builders, learners, entrepreneurs and techno optimists, open to every major.",
 				"links": []
 			},
 			{
@@ -383,7 +348,7 @@ export default {
 				"links": []
 			},
 			{
-				"q": "What is the club’s vision?",
+				"q": "Why does the club exist?",
 				"a": "{{vision}}",
 				"links": []
 			},
@@ -433,15 +398,15 @@ export default {
 			},
 			{
 				"q": "How do I join Agentic AI UW?",
-				"a": "Book office hours with the head of the team you want to join. You can join any time of year; there is no application, no cutoff and no recruiting season.",
+				"a": "Join our Discord, the club’s official channel of communication, then book office hours with the head of the team you want to join. You can join any time of year; there is no application, no cutoff and no recruiting season.",
 				"links": [
-					{
-						"label": "Book office hours",
-						"href": "/join/#office-hours"
-					},
 					{
 						"label": "Discord",
 						"href": "{{social:Discord}}"
+					},
+					{
+						"label": "Book office hours",
+						"href": "/join/#office-hours"
 					}
 				]
 			},
@@ -517,8 +482,8 @@ export default {
 	},
 	"pages": {
 		"home": {
-			"title": "{{club}} · Agentic AI student club at UW–Madison",
-			"description": "{{summary}}",
+			"title": "{{club}} · The flagship AI club at UW–Madison",
+			"description": "{{vision}}",
 			"share": "{{vision}}",
 			"blurb": "{{motto}}"
 		},
@@ -544,11 +509,11 @@ export default {
 		},
 		"join": {
 			"title": "How to join · {{club}}",
-			"description": "Join {{club}} at UW–Madison any time of year: book office hours with the head of the team you want to join. No application, no cutoff."
+			"description": "Join {{club}} at UW–Madison any time of year: join our Discord, the club’s official channel of communication, then book office hours with the head of the team you want to join. No application, no cutoff."
 		},
 		"faq": {
 			"title": "FAQ · {{club}}",
-			"description": "Answers about {{club}} at UW–Madison: our vision, what agentic AI is, what we’re building, who can join, how to join and how to reach us."
+			"description": "Answers about {{club}} at UW–Madison: why the club exists, what agentic AI is, what we’re building, who can join, how to join and how to reach us."
 		}
 	}
 };

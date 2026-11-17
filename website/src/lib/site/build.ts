@@ -95,7 +95,6 @@ export function buildContent(input: Partial<Sections>) {
 		university: raw.club.university,
 		founded: String(raw.club.founded),
 		motto: raw.club.motto,
-		summary: raw.club.summary,
 		email: raw.links.email,
 		vision_source: raw.vision.sourceHref
 	};
@@ -114,8 +113,10 @@ export function buildContent(input: Partial<Sections>) {
 		});
 
 	const visionText = tokens(raw.vision.text);
+	/* The club's one-line summary (search results, AI briefing) is the vision itself. */
+	base.summary = visionText.replace(/\*\*(.+?)\*\*/g, '$1').replace(/\[\^1\]/g, '');
 	const all: Record<string, string> = {
-		vision: visionText.replace(/\*\*(.+?)\*\*/g, '$1').replace(/\[\^1\]/g, ''),
+		vision: base.summary,
 		stats_sentence: andList(raw.stats.items.map((i) => `${i.approx ? 'nearly ' : ''}${i.n} ${i.prose}`)),
 		teams_sentence: andList((raw.teams.items as RawTeam[]).map(toTeam('')).map((t) => (t.heads.length ? `${t.name} (headed by ${andList(t.heads)})` : t.name))),
 		board_sentence: andList(raw.board.members.map((m) => `${m.name} (${m.title}, heads the ${m.leads} team)`))
@@ -145,12 +146,10 @@ export function buildContent(input: Partial<Sections>) {
 			items: s.reasons.items.map((r) => ({ title: r.title, body: r.body, link: r.linkLabel && r.linkHref ? { label: r.linkLabel, href: safeHref(r.linkHref) } : undefined }))
 		},
 		team,
-		/* An older saved shape (no parts) hides the section rather than breaking the page. */
-		story: { heading: s.story.heading, parts: (s.story.parts ?? []).map((p) => ({ ...p, points: p.points ?? [] })) },
 		project: { ...s.project, repoHref: safeHref(s.project.repoHref) },
 		work: { subteams: { ...s.teams, items: (s.teams.items as RawTeam[]).map(toTeam(safeHref(s.project.repoHref))) } },
 		events: { ...s.events, items: s.events.items.map((e): ClubEvent => ({ date: e.date, dateEnd: opt(e.dateEnd), time: opt(e.time), kind: e.kind, name: e.name, location: opt(e.location), body: e.body })) },
-		join: { ...s.join, discordHref: safeHref(s.join.discordHref) },
+		join: { ...s.join, discordLabel: s.join.discordLabel ?? '', discordHref: safeHref(s.join.discordHref) },
 		partners: s.partners,
 		faq: { ...s.faq, items: s.faq.items.map((f) => ({ q: f.q, a: f.a, links: f.links.length ? f.links.map((l): Link => ({ label: l.label, href: safeHref(l.href) })) : undefined })) },
 		social,

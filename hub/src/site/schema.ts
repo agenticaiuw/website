@@ -34,9 +34,7 @@ export const SECTIONS: Section[] = [
 			text('university', 'University'),
 			{ t: 'number', k: 'founded', label: 'Year founded' },
 			text('motto', 'Motto'),
-			text('subMotto', 'Second motto line', 'Shown in the AI briefing at /llms.txt.'),
-			long('summary', 'One-paragraph summary', 'What search engines and AI assistants show for the club.'),
-			text('footerLine', 'Footer line')
+			text('subMotto', 'Second motto line', 'Shown in the AI briefing at /llms.txt.')
 		]
 	},
 	{
@@ -79,12 +77,12 @@ export const SECTIONS: Section[] = [
 	},
 	{
 		key: 'vision',
-		title: 'Vision',
+		title: 'Home headline',
 		page: 'Home',
-		where: 'The first thing a visitor reads on the home page.',
+		where: 'The first thing a visitor reads on the home page: a short label and the statement under it. Search results and link previews use the statement too.',
 		fields: [
-			text('label', 'Label'),
-			rich('text', 'Vision', 'Wrap words in **double asterisks** to bold them. [^1] places a source marker that links to the source below.'),
+			text('label', 'Label', 'Shown small above the statement.'),
+			rich('text', 'Statement', 'Wrap words in **double asterisks** to bold them. [^1] places a source marker that links to the source below.'),
 			text('sourceLabel', 'Source', 'Only needed with a [^1] marker.', true),
 			url('sourceHref', 'Source link', undefined, true)
 		]
@@ -93,7 +91,7 @@ export const SECTIONS: Section[] = [
 		key: 'stats',
 		title: 'Community numbers',
 		page: 'Home',
-		where: 'The numbers under the vision. Also used in the FAQ and wherever {{stat:key}} appears.',
+		where: 'The numbers under the home headline. Also used in the FAQ and wherever {{stat:key}} appears.',
 		fields: [
 			{
 				t: 'list',
@@ -119,31 +117,10 @@ export const SECTIONS: Section[] = [
 		fields: [text('eyebrow', 'Label'), text('name', 'Publication'), long('headline', 'Headline'), text('credit', 'Credit'), { t: 'date', k: 'date', label: 'Date' }, url('href', 'Article link'), text('cta', 'Button')]
 	},
 	{
-		key: 'story',
-		title: 'Why we exist',
-		page: 'Home',
-		where: 'The section under the press card: why the club exists, told in short headed paragraphs.',
-		fields: [
-			text('heading', 'Heading'),
-			{
-				t: 'list',
-				k: 'parts',
-				label: 'Paragraphs',
-				item: 'paragraph',
-				title: 'title',
-				fields: [
-					text('title', 'Heading'),
-					rich('body', 'Text', '**Bold** and [links](https://…) work.'),
-					{ t: 'strings', k: 'points', label: 'List under the text (optional)', item: 'item' }
-				]
-			}
-		]
-	},
-	{
 		key: 'reasons',
-		title: 'Why we’re different',
+		title: 'Why we started',
 		page: 'Home',
-		where: 'The numbered reasons under the vision.',
+		where: 'The numbered reasons on the home page.',
 		fields: [
 			text('heading', 'Heading'),
 			{
@@ -263,12 +240,13 @@ export const SECTIONS: Section[] = [
 		key: 'join',
 		title: 'Join',
 		page: 'Join',
-		where: 'The Join page. The office hours cards come from Board members.',
+		where: 'The Join page: the Discord card first, then the office hours cards (which come from Board members).',
 		fields: [
 			text('heading', 'Heading'),
 			long('lede', 'Intro'),
-			text('officeHoursHeading', 'Office hours heading', 'Read by screen readers.'),
+			text('officeHoursHeading', 'Office hours heading', 'Shown above the office hours cards.'),
 			text('officeHoursCta', 'Office hours button'),
+			text('discordLabel', 'Discord card label', 'Shown small above the Discord card title.'),
 			text('discordTitle', 'Discord card title'),
 			text('discordBody', 'Discord card text'),
 			text('discordCta', 'Discord button'),
@@ -319,10 +297,9 @@ export const TOKENS: [string, string][] = [
 	['{{university}}', 'University'],
 	['{{founded}}', 'Year founded'],
 	['{{motto}}', 'Motto'],
-	['{{summary}}', 'One-paragraph summary'],
 	['{{email}}', 'Contact email'],
-	['{{vision}}', 'The vision, as plain text'],
-	['{{vision_source}}', 'The vision’s source link'],
+	['{{vision}}', 'The home statement, as plain text'],
+	['{{vision_source}}', 'The home statement’s source link'],
 	['{{stat:discord}}', 'A community number, by its key'],
 	['{{stats_sentence}}', 'All community numbers in one sentence'],
 	['{{teams_sentence}}', 'Every team and its head'],

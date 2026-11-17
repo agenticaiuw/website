@@ -4,7 +4,7 @@
 	import Badge from './Badge.svelte';
 </script>
 
-<!-- Home page, under the vision: what sets the club apart. -->
+<!-- Home page, under the press card: why the club was started. -->
 <section id="why" class="why scroll-mt-20" aria-labelledby="why-heading">
 	<div class="shell">
 		<div class="head" data-reveal>

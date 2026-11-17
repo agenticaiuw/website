@@ -6,17 +6,14 @@
 		lede?: string;
 		/** Centre the heading and lede. Opt-in per page. */
 		center?: boolean;
-		illuminated?: boolean;
 		/** badge beside the heading, holding a team prop or waving. */
 		mascot?: { prop?: string; wave?: boolean; mood?: 'rest' | 'happy' };
-		background?: import('svelte').Snippet;
 		children: import('svelte').Snippet;
 	}
-	let { id, heading, lede, center = false, illuminated = false, mascot, background, children }: Props = $props();
+	let { id, heading, lede, center = false, mascot, children }: Props = $props();
 </script>
 
-<section {id} class="page-section scroll-mt-20" class:illuminated>
-	{#if background}<div class="section-atmosphere" aria-hidden="true">{@render background()}</div>{/if}
+<section {id} class="page-section scroll-mt-20">
 	<div class="shell foreground">
 		<header class="section-intro" class:center class:with-mascot={!!mascot}>
 			<div class="intro-text">
@@ -41,9 +38,6 @@
 
 <style>
 	.page-section { position: relative; isolation: isolate; padding: clamp(7rem, 12vw, 9rem) 0 clamp(4.5rem, 9vw, 7rem); }
-	.illuminated { overflow: clip; }
-	.illuminated::before { content: ''; position: absolute; inset: 0 0 auto; height: 40rem; z-index: -1; pointer-events: none; background: radial-gradient(ellipse at 85% 8%, rgb(var(--glow) / .1), transparent 62%); }
-	.section-atmosphere { position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: .8; mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 70%, transparent); }
 	.foreground { position: relative; }
 
 	.section-intro { display: grid; gap: 1.5rem 3rem; align-items: center; }
@@ -54,8 +48,6 @@
 	.lede { margin-top: 1.1rem; max-width: 40rem; font-size: clamp(1.05rem, 1.6vw, 1.2rem); line-height: 1.6; color: var(--muted); }
 	.center .lede { margin-inline: auto; }
 	.intro-mascot { width: 100%; animation: pop 700ms var(--ease-spring) 100ms backwards; }
-	.illuminated .intro-text { position: relative; }
-	.illuminated .intro-text::before { content: ''; position: absolute; inset: -1.2rem -1.5rem; z-index: -1; pointer-events: none; background: var(--bg); opacity: .9; filter: blur(26px); }
 
 	.section-body { margin-top: clamp(2.5rem, 5vw, 3.5rem); }
 
