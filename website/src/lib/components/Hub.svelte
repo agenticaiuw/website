@@ -13,32 +13,30 @@
 	<div class="fade" aria-hidden="true"></div>
 
 	<div class="shell hero-inner">
-		<div class="hero-grid">
-			<!-- the home headline, the first thing a visitor reads: the big line, then the statement.
-			     The nav bar already shows the club's name, so the h1 says it to search engines and screen readers only. -->
-			<header class="vision">
-				<h1 class="headline"><span class="sr-only">{`${club.name}: `}</span>{#each vision.labelRuns as r, i (i)}{#if r.strong}<span class="hl">{r.t}</span>{:else}{r.t}{/if}{/each}</h1>
-				<p class="vision-text">
-					{#each vision.runs as r, i (i)}{#if r.strong}<strong>{r.t}</strong>{:else}{r.t}{/if}{#if r.cite}<sup class="vision-cite"><a href={vision.source.href} target="_blank" rel="noopener noreferrer" aria-label="Source: {vision.source.label} (opens in a new tab)">[1]</a></sup>{/if}{/each}
-				</p>
-			</header>
+		<!-- the home headline, the first thing a visitor reads: the big line across the page, then the statement.
+		     The nav bar already shows the club's name, so the h1 says it to search engines and screen readers only. -->
+		<header class="vision">
+			<h1 class="headline"><span class="sr-only">{`${club.name}: `}</span>{#each vision.labelRuns as r, i (i)}{#if r.strong}<span class="hl">{r.t}</span>{:else}{r.t}{/if}{/each}</h1>
+			<p class="vision-text">
+				{#each vision.runs as r, i (i)}{#if r.strong}<strong>{r.t}</strong>{:else}{r.t}{/if}{#if r.cite}<sup class="vision-cite"><a href={vision.source.href} target="_blank" rel="noopener noreferrer" aria-label="Source: {vision.source.label} (opens in a new tab)">[1]</a></sup>{/if}{/each}
+			</p>
+		</header>
 
+		<!-- community size, with the mascot waving beside it -->
+		<div class="community">
+			<dl class="stats">
+				{#each stats.items as s (s.label)}
+					<!-- dt first for screen readers; the number sits on top visually -->
+					<div class="stat">
+						<dt>{s.label}</dt>
+						<dd>{#if s.approx}<span aria-hidden="true">~</span><span class="sr-only">nearly </span>{/if}{s.n}</dd>
+					</div>
+				{/each}
+			</dl>
 			<div class="mascot" aria-hidden="true">
-				<div class="spot"></div>
 				<Badge size="100%" wave mood="happy" class="mascot-badge" />
 			</div>
 		</div>
-
-		<!-- community size -->
-		<dl class="stats">
-			{#each stats.items as s (s.label)}
-				<!-- dt first for screen readers; the number sits on top visually -->
-				<div class="stat">
-					<dt>{s.label}</dt>
-					<dd>{#if s.approx}<span aria-hidden="true">~</span><span class="sr-only">nearly </span>{/if}{s.n}</dd>
-				</div>
-			{/each}
-		</dl>
 
 		<div class="press">
 			<PressFeature />
@@ -68,61 +66,55 @@
 			radial-gradient(120% 85% at 40% 40%, transparent 0%, color-mix(in oklab, var(--bg) 70%, transparent) 55%, var(--bg) 100%);
 	}
 
-	.hero-grid {
-		display: grid;
-		grid-template-columns: minmax(0, 1.55fr) minmax(0, 0.75fr);
-		gap: clamp(2rem, 4vw, 3.5rem);
-		align-items: center;
-	}
-
 	.vision { animation: rise 650ms var(--ease-out-expo) backwards; }
+	/* Square-cut capitals, not the rounded display face: this line is the club's claim. */
 	.headline {
-		font-family: var(--font-display);
-		font-size: clamp(2.9rem, 7.4vw, 6.4rem);
-		font-weight: 800;
-		line-height: 1;
-		letter-spacing: -0.035em;
+		font-family: var(--font-sans);
+		font-size: clamp(2.1rem, 12vw, 9rem);
+		font-weight: 900;
+		line-height: 0.92;
+		letter-spacing: -0.04em;
+		text-transform: uppercase;
 		text-wrap: balance;
 		color: var(--fg);
 		text-shadow: 0 0.04em 0.5em rgb(0 0 0 / 0.35);
 	}
 	.headline .hl { color: var(--accent); }
 	.vision-text {
-		margin-top: clamp(1.25rem, 2.6vw, 1.9rem);
-		max-width: 40rem;
-		font-family: var(--font-display);
-		font-size: clamp(1.15rem, 1.75vw, 1.5rem);
+		margin-top: clamp(1.5rem, 3vw, 2.25rem);
+		max-width: 44rem;
+		font-family: var(--font-sans);
+		font-size: clamp(1.15rem, 1.7vw, 1.45rem);
 		font-weight: 500;
-		line-height: 1.4;
-		letter-spacing: -0.005em;
+		line-height: 1.45;
 		color: var(--fg);
 	}
-	.vision-text strong { font-weight: 700; }
+	.vision-text strong { font-weight: 800; }
 	.vision-cite { font-size: 0.5em; line-height: 0; margin-left: 0.1em; }
 	.vision-cite a { color: var(--muted); }
 	.vision-cite a:hover, .vision-cite a:focus-visible { color: var(--accent); }
 
+	.community {
+		display: flex;
+		align-items: flex-end;
+		gap: clamp(0.75rem, 2vw, 1.5rem);
+		margin-top: clamp(2.5rem, 5vw, 3.5rem);
+	}
 	.mascot {
 		position: relative;
-		width: min(100%, 23rem);
-		margin-inline: auto;
-		padding: 8% 6% 4%;
-		animation: pop 800ms var(--ease-spring) 120ms backwards;
-	}
-	.spot {
-		position: absolute;
-		inset: 10% 4% 2%;
-		border-radius: 50%;
-		background: radial-gradient(circle at 50% 45%, #3a1a17, #231412 60%, transparent 72%);
+		flex: none;
+		width: clamp(7.5rem, 11vw, 10rem);
+		margin-bottom: -0.35rem;
+		animation: pop 800ms var(--ease-spring) 300ms backwards;
 	}
 	.mascot :global(.mascot-badge) { position: relative; animation: bob 5s ease-in-out infinite; }
 
 	.stats {
 		display: grid;
+		flex: 1;
 		grid-template-columns: repeat(3, minmax(0, 1fr));
 		gap: 0.75rem;
 		max-width: 46rem;
-		margin-top: clamp(2.5rem, 5vw, 3.5rem);
 	}
 	.stat {
 		display: flex;
@@ -160,10 +152,10 @@
 
 	@media (max-width: 900px) {
 		.hero { padding-top: 6rem; }
-		.hero-grid { grid-template-columns: minmax(0, 1fr); }
-		.mascot { order: -1; width: min(70%, 17rem); padding-top: 4%; }
 	}
 	@media (max-width: 560px) {
+		.community { flex-direction: column; align-items: stretch; gap: 0.25rem; }
+		.mascot { z-index: 1; align-self: flex-end; width: 7.5rem; margin: 0 0.75rem -1.35rem 0; order: -1; }
 		.stats { grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
 		.stat { flex-direction: row-reverse; align-items: baseline; justify-content: flex-end; gap: 0.75rem; padding: 0.85rem 1.1rem; }
 		.stat dt { margin-top: 0; }
