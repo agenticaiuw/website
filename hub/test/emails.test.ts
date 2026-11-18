@@ -55,10 +55,21 @@ test('a moved due date says the old and new dates', () => {
 	assert.match(e.text, /Evan Liu moved the due date of a task you're on from Fri, Nov 13 to Fri, Nov 20/);
 });
 
-test('a changed meeting says it changed', () => {
-	const e = meetingEmail(null, { ...joint, team_names: ['Business'], date: '2026-11-15' }, '2026-11-12', 'https://hub.example', { announce: true, changed: true });
-	assert.match(e.subject, /^Updated: Joint sync, Sun, Nov 15/);
-	assert.match(e.text, /The Business meeting has changed\. It’s now on Sun, Nov 15\./);
+test('a changed meeting names only what changed', () => {
+	const business = { ...joint, team_names: ['Business'], date: '2026-11-15' };
+	const moved = meetingEmail(null, business, '2026-11-12', 'https://hub.example', { announce: true, changed: { date: true } });
+	assert.match(moved.subject, /^Updated: Joint sync, Sun, Nov 15/);
+	assert.match(moved.text, /The Business meeting has a new date: Sun, Nov 15\./);
+	// A new room on the same day says the place, never the date.
+	const room = meetingEmail(null, { ...joint, team_names: ['Exec Board'], location: 'Morgridge 2nd Floor Org Suite' }, '2026-11-12', 'https://hub.example', { announce: true, changed: { place: true } });
+	assert.match(room.text, /The Exec Board meeting today has a new place: Morgridge 2nd Floor Org Suite\./);
+	assert.doesNotMatch(room.text, /date|It’s now/);
+	const time = meetingEmail(null, business, '2026-11-14', 'https://hub.example', { announce: true, changed: { time: true } });
+	assert.match(time.text, /The Business meeting tomorrow has a new time: 6:00–7:00 PM\./);
+	const all = meetingEmail(null, business, '2026-11-12', 'https://hub.example', { announce: true, changed: { date: true, time: true, place: true } });
+	assert.match(all.text, /The Business meeting has a new date, time and place: Sun, Nov 15, 6:00–7:00 PM, CS 1240\./);
+	const later = meetingEmail(null, business, '2026-11-12', 'https://hub.example', { announce: true, changed: { laterDates: true } });
+	assert.match(later.text, /The later Business meetings in this series have new dates\./);
 });
 
 test('canceling the rest of a series says how many and through when', () => {

@@ -570,12 +570,19 @@ meetingRoutes.post('/meetings/:id', async (c) => {
 	if (meeting && m.host !== existing.host_id) await notifyHost(c.env, meeting, v.id);
 	if (str(form.notify) !== '1' || !meeting) return c.redirect(`/meetings/${existing.id}?ok=saved`);
 	// A new date, time, place or series goes to everyone on it; otherwise only people just added hear about it.
-	const moved = m.date !== existing.date || m.time !== existing.time || m.endTime !== existing.end_time || m.location !== existing.location || (scope && dates.length > 0 && !later.length);
-	const reDated = scope && later.length > 0 && (dates.length !== later.length || dates.some((d, i) => d !== later[i].date));
+	const changes = {
+		date: m.date !== existing.date,
+		time: m.time !== existing.time || m.endTime !== existing.end_time,
+		place: m.location !== existing.location,
+		repeating: scope && dates.length > 0 && !later.length,
+		laterDates: scope && later.length > 0 && (dates.length !== later.length || dates.some((d, i) => d !== later[i].date))
+	};
+	const moved = changes.date || changes.time || changes.place || changes.repeating;
+	const reDated = changes.laterDates;
 	const added = (await meetingPeople(db, meeting)).map((p) => p.id).filter((p) => !wasOn.has(p));
 	const today = todayIn(c.env.TIMEZONE);
 	const repeats = scope && dates.length ? `It repeats every ${(every || cadence(existing.date, later)) === 14 ? '2 weeks' : 'week'} until ${formatDate(dates[dates.length - 1], today)}.` : undefined;
-	const result = moved || reDated ? await announceMeeting(c.env, meeting, { mode: 'changed', repeats, why: reason ? { reason, by: v.name } : undefined }) : added.length ? await announceMeeting(c.env, meeting, { mode: 'added', repeats, only: added }) : { sent: 0, error: '' };
+	const result = moved || reDated ? await announceMeeting(c.env, meeting, { mode: 'changed', changes, repeats, why: reason ? { reason, by: v.name } : undefined }) : added.length ? await announceMeeting(c.env, meeting, { mode: 'added', repeats, only: added }) : { sent: 0, error: '' };
 	if (result.error) return c.redirect(`/meetings/${existing.id}?error=unsent`);
 	return c.redirect(`/meetings/${existing.id}?ok=${result.sent ? 'saved-emailed' : 'saved'}`);
 });

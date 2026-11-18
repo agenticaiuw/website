@@ -265,12 +265,24 @@ type EmailMeeting = {
 	host_name?: string | null;
 };
 
+/** What an edit changed about a meeting: its own date, time or place, or its series. */
+export type MeetingChanges = {
+	date?: boolean;
+	time?: boolean;
+	place?: boolean;
+	/** A one-off that now repeats. */
+	repeating?: boolean;
+	/** The later meetings in its series moved to new dates. */
+	laterDates?: boolean;
+};
+
 /**
  * `today` is the day it's sent, which makes the meeting "Today" or "Tomorrow". A null `name` greets
  * everyone, for one email to the whole list. `announce`: sent as soon as it's scheduled, instead of
- * as the reminder before it; `repeats` then says how often it happens.
+ * as the reminder before it; `repeats` then says how often it happens. `changed`: what an edit
+ * changed, which the email names (a new room never reads as a new date).
  */
-export function meetingEmail(name: string | null, m: EmailMeeting, today: string, appUrl: string, opts: { announce?: boolean; changed?: boolean; added?: boolean; hosting?: boolean; repeats?: string; why?: { reason: string; by: string } } = {}) {
+export function meetingEmail(name: string | null, m: EmailMeeting, today: string, appUrl: string, opts: { announce?: boolean; changed?: MeetingChanges; added?: boolean; hosting?: boolean; repeats?: string; why?: { reason: string; by: string } } = {}) {
 	const first = name ? name.split(' ')[0] : 'everyone';
 	const day = m.date === today ? 'Today' : m.date === addDays(today, 1) ? 'Tomorrow' : formatDate(m.date, today);
 	const on = m.date === today || m.date === addDays(today, 1) ? day.toLowerCase() : `on ${day}`;
@@ -283,7 +295,7 @@ export function meetingEmail(name: string | null, m: EmailMeeting, today: string
 		: opts.added
 		? `You’ve been added to ${which} ${on}.`
 		: opts.changed
-		? `${which[0].toUpperCase()}${which.slice(1)} has changed. It’s now ${on}.`
+		? changedLine(m, opts.changed, day, on, teams)
 		: m.kind === 'event'
 			? `There’s ${opts.announce ? 'a new' : 'a'} club event ${on}. It’s open to everyone.`
 			: opts.announce
@@ -316,6 +328,25 @@ ${agenda ? `<div style="font-size:14px;margin-top:12px;"><div style="font-size:1
 		text,
 		html: layout(html, `Sent by the club hub at <a href="${esc(appUrl)}" style="color:${MUTED};">${esc(appUrl.replace(/^https?:\/\//, ''))}</a> to ${to}. Questions? Reply to this email.`)
 	};
+}
+
+/**
+ * The first line of a changed-meeting email, naming only what changed and its new value:
+ * "The Exec Board meeting today has a new place: Morgridge 2nd Floor Org Suite." or
+ * "The Business meeting has a new date and time: Sun, Nov 15, 6:00–7:00 PM."
+ */
+function changedLine(m: EmailMeeting, c: MeetingChanges, day: string, on: string, teams: string) {
+	const the = m.kind === 'event' ? 'The club event' : `The ${teams} meeting`;
+	const range = m.time ? formatTimeRange(m.time, m.end_time) : '';
+	const what = andList([c.date && 'date', c.time && 'time', c.place && 'place'].filter((x): x is string => !!x));
+	if (what) {
+		const values = [c.date && (on.startsWith('on ') ? day : on), c.time && range, c.place && m.location].filter((x): x is string => !!x).join(', ');
+		// A new date is said in the values; otherwise the meeting is still on its day.
+		return `${the}${c.date ? '' : ` ${on}`} has a new ${what}${values ? `: ${values}` : ''}.`;
+	}
+	if (c.repeating) return `${the} ${on} is now part of a series.`;
+	if (c.laterDates) return `The later ${m.kind === 'event' ? 'club events' : `${teams} meetings`} in this series have new dates.`;
+	return `${the} ${on} has been updated.`;
 }
 
 /** Sent to everyone on a meeting when it's canceled; `later` are the dates of later ones in its series canceled with it. */
