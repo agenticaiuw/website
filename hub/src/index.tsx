@@ -3,6 +3,7 @@ import { sessionMember } from './auth';
 import { loadViewer } from './db';
 import { scheduled } from './reminders';
 import { adminRoutes } from './routes/admin';
+import { appApiRoutes } from './routes/app-api';
 import { boardTaskRoutes } from './routes/board-tasks';
 import { authRoutes } from './routes/auth';
 import { collaborationRoutes } from './routes/collaboration';
@@ -43,6 +44,8 @@ app.use('*', async (c, next) => {
 });
 
 app.route('/', authRoutes);
+// The iPhone app signs in with a bearer token instead of the cookie.
+app.route('/', appApiRoutes);
 // Meeting forms are filled out without signing in.
 app.route('/', publicFormRoutes);
 // The public website reads its text from here.

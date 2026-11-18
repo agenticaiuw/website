@@ -48,6 +48,8 @@ export function boardTasks(db: D1Database, viewer: number, options: {
 	subteams?: number[];
 	assignee?: number | null;
 	status?: string;
+	/** Open ones, and ones moved to done on or after this date. */
+	openOrDoneSince?: string;
 	q?: string;
 	today?: string;
 } = {}) {
@@ -62,6 +64,8 @@ export function boardTasks(db: D1Database, viewer: number, options: {
 	if (options.status === 'open' || options.status === 'overdue') where.push("b.status IN ('open', 'in_progress')");
 	if (options.status === 'overdue' && options.today) where.push(`b.due_date < ${bind(options.today)}`);
 	if (options.status === 'done' || options.status === 'dropped') where.push(`b.status = ${bind(options.status)}`);
+	if (options.openOrDoneSince) where.push(`(b.status IN ('open', 'in_progress') OR (b.status = 'done' AND EXISTS (SELECT 1 FROM board_task_activity a
+	 WHERE a.task_id = b.id AND a.kind = 'moved' AND a.created_at >= ${bind(options.openOrDoneSince)})))`);
 	if (options.q) {
 		const q = bind(`%${options.q}%`);
 		where.push(`(b.title LIKE ${q} OR b.details LIKE ${q})`);

@@ -119,11 +119,36 @@ function setSessionCookie(c: Context<AppEnv>, token: string, expires: Date) {
 	});
 }
 
-export async function startSession(c: Context<AppEnv>, memberId: number) {
+/** A new sign-in for this person. The token is the cookie's value, or the iPhone app's bearer token. */
+export async function newSessionToken(env: Env, memberId: number) {
 	const token = randomToken();
 	const expires = new Date(Date.now() + SESSION_DAYS * 86_400_000);
-	await run(c.env.DB, 'INSERT INTO sessions (token_hash, member_id, expires_at) VALUES (?, ?, ?)', await sha256(token), memberId, expires.toISOString());
+	await run(env.DB, 'INSERT INTO sessions (token_hash, member_id, expires_at) VALUES (?, ?, ?)', await sha256(token), memberId, expires.toISOString());
+	return { token, expires };
+}
+
+export async function startSession(c: Context<AppEnv>, memberId: number) {
+	const { token, expires } = await newSessionToken(c.env, memberId);
 	setSessionCookie(c, token, expires);
+}
+
+/** Who an iPhone app request is from: `Authorization: Bearer <session token>`. */
+export async function bearerMember(c: Context<AppEnv>): Promise<Member | null> {
+	const token = /^Bearer\s+(\S+)$/i.exec(c.req.header('Authorization') ?? '')?.[1];
+	if (!token) return null;
+	return first<Member>(
+		c.env.DB,
+		`SELECT m.* FROM sessions s JOIN members m ON m.id = s.member_id
+		 WHERE s.token_hash = ? AND s.expires_at > ? AND m.active = 1`,
+		await sha256(token),
+		new Date().toISOString()
+	);
+}
+
+/** Signs out an iPhone app. */
+export async function endBearerSession(c: Context<AppEnv>) {
+	const token = /^Bearer\s+(\S+)$/i.exec(c.req.header('Authorization') ?? '')?.[1];
+	if (token) await run(c.env.DB, 'DELETE FROM sessions WHERE token_hash = ?', await sha256(token));
 }
 
 /** Sign-ins from before the cookie was shared are hub-only. This reissues one for all of agenticaiuw.com. */
