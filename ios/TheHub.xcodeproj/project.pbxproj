@@ -14,6 +14,7 @@
 		6827A03542110AB293879008 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 671C804503B5EFCDDFD61B73 /* LoginView.swift */; };
 		6900C10F7339CBAB29C54118 /* Store.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F6E45EB7E5C93C1CC75A50C /* Store.swift */; };
 		6BC41E696F8F86044FB17BE7 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 586C3E65026CA74FC2525344 /* App.swift */; };
+		A33C3FBA6F9D7FF743FCE105 /* Demo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FC1297C88A530A48A0056A8 /* Demo.swift */; };
 		ADD4247BE5327FE80580D36F /* MeetingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7B17C3D84CC0E85CA6DFE22 /* MeetingsView.swift */; };
 		B0B1CD1FCD3427A1F2C809E0 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 153D146C682384EBAC21E30D /* Theme.swift */; };
 		B58EBD03A289DB904B7F65CD /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 886D73570C2A035070135E4F /* SettingsView.swift */; };
@@ -29,6 +30,7 @@
 		4F6E45EB7E5C93C1CC75A50C /* Store.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Store.swift; sourceTree = "<group>"; };
 		53DC2F80C9ACDB8C4C0C7417 /* AppleSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSync.swift; sourceTree = "<group>"; };
 		586C3E65026CA74FC2525344 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
+		5FC1297C88A530A48A0056A8 /* Demo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Demo.swift; sourceTree = "<group>"; };
 		671C804503B5EFCDDFD61B73 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		83DD6ECC09BA809E83F5BD39 /* HubWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HubWebView.swift; sourceTree = "<group>"; };
 		886D73570C2A035070135E4F /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -48,6 +50,7 @@
 				586C3E65026CA74FC2525344 /* App.swift */,
 				53DC2F80C9ACDB8C4C0C7417 /* AppleSync.swift */,
 				A1D98319B7A1870AE6F45F63 /* Assets.xcassets */,
+				5FC1297C88A530A48A0056A8 /* Demo.swift */,
 				E3EE8D968B22B7DA7E1E2F0E /* Info.plist */,
 				BF57AA7AD27700D82892108E /* Keychain.swift */,
 				B5AA57ED71870ADA5AA1DC4A /* Models.swift */,
@@ -160,6 +163,7 @@
 				603A7EA7D0CDF4BD10E3C32A /* API.swift in Sources */,
 				6BC41E696F8F86044FB17BE7 /* App.swift in Sources */,
 				0B1FAFF2C278FD58A4F8F848 /* AppleSync.swift in Sources */,
+				A33C3FBA6F9D7FF743FCE105 /* Demo.swift in Sources */,
 				FF88FB14DF7C2662F4A2050F /* HubWebView.swift in Sources */,
 				53033E56FF29AB7A17A34576 /* Keychain.swift in Sources */,
 				6827A03542110AB293879008 /* LoginView.swift in Sources */,

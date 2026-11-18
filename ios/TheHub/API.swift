@@ -58,11 +58,18 @@ final class API {
 
     /// Emails a 6-digit code. Returns the code itself only from a local test hub.
     func sendCode(email: String) async throws -> String? {
+        if email == Demo.email { return Demo.code }
         let data = try await request("POST", "/api/app/code", body: ["email": email], auth: false)
         return try JSONDecoder().decode(CodeReply.self, from: data).dev_code
     }
 
     func signIn(email: String, code: String) async throws -> SessionReply {
+        if email == Demo.email {
+            guard code == Demo.code else { throw APIError.http(400, "That code didn’t work.") }
+            Demo.reset()
+            token = Demo.token
+            return SessionReply(token: Demo.token, expires_at: "", member: Demo.member)
+        }
         let data = try await request("POST", "/api/app/session", body: ["email": email, "code": code], auth: false)
         let reply = try JSONDecoder().decode(SessionReply.self, from: data)
         token = reply.token
@@ -70,16 +77,21 @@ final class API {
     }
 
     func feed() async throws -> Feed {
-        try JSONDecoder().decode(Feed.self, from: try await request("GET", "/api/app/me"))
+        if Demo.on { return Demo.feed() }
+        return try JSONDecoder().decode(Feed.self, from: try await request("GET", "/api/app/me"))
     }
 
     func setStatus(task id: String, done: Bool) async throws -> HubTask? {
+        if Demo.on { return Demo.setStatus(task: id, done: done) }
         let data = try await request("POST", "/api/app/tasks/\(id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? id)/status", body: ["status": done ? "done" : "open"])
         return try JSONDecoder().decode(TaskReply.self, from: data).task
     }
 
+    /// The website the Hub tab shows: the hub, or the public club site for the demo account.
+    var web: String { Demo.on ? Demo.site : server }
+
     func signOut() async {
-        _ = try? await request("POST", "/api/app/logout")
+        if !Demo.on { _ = try? await request("POST", "/api/app/logout") }
         token = nil
     }
 }

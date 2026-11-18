@@ -15,6 +15,7 @@ import { meetingSummaryRoutes } from './routes/meeting-summary';
 import { peopleRoutes } from './routes/people';
 import { taskRoutes } from './routes/tasks';
 import { publicSiteRoutes, siteRoutes } from './routes/site';
+import { privacyRoutes } from './routes/privacy';
 import { teamPageRoutes } from './routes/team-pages';
 import type { AppEnv, Env } from './types';
 import { page } from './views/layout';
@@ -50,6 +51,7 @@ app.route('/', appApiRoutes);
 app.route('/', publicFormRoutes);
 // The public website reads its text from here.
 app.route('/', publicSiteRoutes);
+app.route('/', privacyRoutes);
 
 // Everything below needs a signed-in, active roster member.
 app.use('*', async (c, next) => {

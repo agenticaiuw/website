@@ -8,7 +8,7 @@ struct HubWebView: View {
 
     var body: some View {
         NavigationStack {
-            HubWeb(url: URL(string: API.shared.server), reload: reload) { Task { await store.signOut() } }
+            HubWeb(url: URL(string: API.shared.web), reload: reload) { Task { await store.signOut() } }
                 .background(Theme.bg.ignoresSafeArea())
                 .navigationTitle("Hub")
                 .navigationBarTitleDisplayMode(.inline)
@@ -82,7 +82,7 @@ struct HubWeb: UIViewRepresentable {
         web.backgroundColor = UIColor(Theme.bg)
         web.scrollView.backgroundColor = UIColor(Theme.bg)
         web.refreshControl(context.coordinator)
-        context.coordinator.server = URL(string: API.shared.server)?.host
+        context.coordinator.server = URL(string: API.shared.web)?.host
         load(web)
         context.coordinator.reload = reload
         return web
@@ -98,7 +98,7 @@ struct HubWeb: UIViewRepresentable {
     private func load(_ web: WKWebView) {
         guard let url else { return }
         let go = { _ = web.load(URLRequest(url: url)) }
-        guard let server = URL(string: API.shared.server), let token = API.shared.token,
+        guard !Demo.on, let server = URL(string: API.shared.server), let token = API.shared.token,
               let cookie = WebSession.cookie(for: server, token: token) else { go(); return }
         web.configuration.websiteDataStore.httpCookieStore.setCookie(cookie) { go() }
     }
