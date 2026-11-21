@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { andList, assignedEmail, canceledEmail, dueChangedEmail, meetingEmail, reminderEmail } from '../src/emails.ts';
+import { andList, assignedEmail, canceledEmail, dueChangedEmail, meetingEmail, reminderEmail } from '../src/lib/server/emails.ts';
 
 const joint = {
 	id: 7,

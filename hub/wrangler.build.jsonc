@@ -1,0 +1,8 @@
+// Read only by @sveltejs/adapter-cloudflare at build time, to know where to write the app.
+// Deploys use wrangler.jsonc, whose src/worker.ts imports this build and adds the cron handler.
+{
+	"name": "agenticaiuw-hub",
+	"main": ".svelte-kit/cloudflare/_worker.js",
+	"compatibility_date": "2026-10-01",
+	"assets": { "binding": "ASSETS", "directory": ".svelte-kit/cloudflare" }
+}

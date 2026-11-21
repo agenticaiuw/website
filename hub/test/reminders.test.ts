@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { addDays, clubTime, daysBetween, dueLabel, hourIn, isDate, todayIn } from '../src/dates.ts';
-import { renderMarkdown } from '../src/markdown.ts';
-import { MEETING_SOON_HOURS, reminderFor, remindKey, shouldEscalate, TASK_SOON_HOURS, timedReminderFor, urgentReminderFor } from '../src/schedule.ts';
+import { addDays, clubTime, daysBetween, dueLabel, hourIn, isDate, todayIn } from '../src/lib/dates.ts';
+import { renderMarkdown } from '../src/lib/markdown.ts';
+import { MEETING_SOON_HOURS, reminderFor, remindKey, shouldEscalate, TASK_SOON_HOURS, timedReminderFor, urgentReminderFor } from '../src/lib/server/schedule.ts';
 
 const due = '2026-11-10';
 

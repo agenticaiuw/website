@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { canUseCollaboration, collaborationRequest } from '../src/collaboration.ts';
+import { canUseCollaboration, collaborationRequest } from '../src/lib/server/collaboration.ts';
 
 test('only active execs have collaboration access', () => {
   assert.equal(canUseCollaboration({role:'exec',active:1}),true);
