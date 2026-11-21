@@ -1,5 +1,5 @@
 import type { Child } from 'hono/jsx';
-import { dueLabel, formatDate } from '../dates';
+import { dueLabel, formatDue, formatTime, isTime } from '../dates';
 import { renderMarkdown } from '../markdown';
 import { canCompleteTask, canManageTask } from '../perm';
 import type { Member, TaskRow, Team, Viewer } from '../types';
@@ -17,14 +17,16 @@ export function PageHead({ eyebrow, title, sub, actions }: { eyebrow?: string; t
 	);
 }
 
-export function Due({ task, today }: { task: Pick<TaskRow, 'due_date' | 'status'>; today: string }) {
+export function Due({ task, today }: { task: Pick<TaskRow, 'due_date' | 'status'> & { due_time?: string }; today: string }) {
 	if (task.status !== 'open') {
 		return <span class={`pill ${task.status}`}>{task.status === 'done' ? 'Done' : 'Dropped'}</span>;
 	}
 	const d = dueLabel(task.due_date, today);
+	// Due today with a time: say when.
+	const text = d.tone === 'today' && isTime(task.due_time) ? `${d.text}, ${formatTime(task.due_time)}` : d.text;
 	return (
-		<span class={`pill ${d.tone}`} title={formatDate(task.due_date, today)}>
-			{d.text}
+		<span class={`pill ${d.tone}`} title={formatDue(task.due_date, task.due_time, today)}>
+			{text}
 		</span>
 	);
 }

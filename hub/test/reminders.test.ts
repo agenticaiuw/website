@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { addDays, daysBetween, dueLabel, hourIn, isDate, todayIn } from '../src/dates.ts';
+import { addDays, clubTime, daysBetween, dueLabel, hourIn, isDate, todayIn } from '../src/dates.ts';
 import { renderMarkdown } from '../src/markdown.ts';
-import { meetingReminderAt, reminderFor, shouldEscalate, urgentReminderFor } from '../src/schedule.ts';
+import { MEETING_SOON_HOURS, reminderFor, remindKey, shouldEscalate, TASK_SOON_HOURS, timedReminderFor, urgentReminderFor } from '../src/schedule.ts';
 
 const due = '2026-11-10';
 
@@ -20,9 +20,9 @@ function simulate(start: string, end: string) {
 	return sent;
 }
 
-test('one heads-up, due-day, then daily overdue for 3 days, then every 3 days', () => {
+test('a heads-up the day before, due-day, then daily overdue for 3 days, then every 3 days', () => {
 	assert.deepEqual(simulate('2026-11-01', '2026-11-22'), [
-		['2026-11-08', 'soon'],
+		['2026-11-09', 'soon'],
 		['2026-11-10', 'today'],
 		['2026-11-11', 'overdue'],
 		['2026-11-12', 'overdue'],
@@ -47,7 +47,7 @@ test('a task created already overdue is reminded right away', () => {
 
 test('moving the due date out restarts the schedule', () => {
 	// Reminded on Nov 8 for the old date; new due date is Nov 30.
-	assert.equal(reminderFor('2026-11-30', '2026-11-08', '2026-11-28'), 'soon');
+	assert.equal(reminderFor('2026-11-30', '2026-11-08', '2026-11-29'), 'soon');
 });
 
 test('escalates once, at 3 days overdue, only when someone else assigned it', () => {
@@ -68,14 +68,62 @@ test('club dates follow Chicago time across midnight UTC and DST', () => {
 	assert.deepEqual(dueLabel('2026-11-08', '2026-11-10'), { text: '2 days overdue', tone: 'overdue' });
 });
 
-test('meeting reminders: the day of, the evening before for morning meetings, a day ahead for events', () => {
-	assert.deepEqual(meetingReminderAt({ kind: 'meeting', date: '2026-11-02', time: '17:30' }), { date: '2026-11-02', hour: 9 });
-	assert.deepEqual(meetingReminderAt({ kind: 'meeting', date: '2026-11-02', time: '' }), { date: '2026-11-02', hour: 9 });
-	assert.deepEqual(meetingReminderAt({ kind: 'meeting', date: '2026-11-02', time: '11:45' }), { date: '2026-11-01', hour: 18 });
-	assert.deepEqual(meetingReminderAt({ kind: 'meeting', date: '2026-11-02', time: '12:00' }), { date: '2026-11-02', hour: 9 });
-	assert.deepEqual(meetingReminderAt({ kind: 'event', date: '2026-11-02', time: '09:00' }), { date: '2026-11-01', hour: 9 });
-	assert.equal(hourIn('America/Chicago', new Date('2026-10-27T23:00:00Z')), 18); // CDT
-	assert.equal(hourIn('America/Chicago', new Date('2026-11-03T00:00:00Z')), 18); // CST
+test('club times convert to UTC across daylight saving', () => {
+	assert.equal(new Date(clubTime('2026-11-21', '18:00', 'America/Chicago')).toISOString(), '2026-11-22T00:00:00.000Z'); // CST
+	assert.equal(new Date(clubTime('2026-10-31', '18:00', 'America/Chicago')).toISOString(), '2026-10-31T23:00:00.000Z'); // CDT
+	assert.equal(new Date(clubTime('2026-11-01', '09:00', 'America/Chicago')).toISOString(), '2026-11-01T15:00:00.000Z'); // the switch day
+});
+
+/** Runs every 5 minutes from `fromUtc` to `toUtc`, returning when each reminder went out (UTC). */
+function simulateTimed(x: { date: string; time: string; created_at: string }, soonHours: number, fromUtc: string, toUtc: string, moveAt?: { at: string; date: string; time: string }) {
+	const item = { ...x, reminded_day_for: null as string | null, reminded_soon_for: null as string | null };
+	const sent: string[] = [];
+	for (let t = Date.parse(fromUtc); t <= Date.parse(toUtc); t += 5 * 60_000) {
+		if (moveAt && t === Date.parse(moveAt.at)) Object.assign(item, { date: moveAt.date, time: moveAt.time });
+		const kind = timedReminderFor(item, new Date(t), soonHours, 'America/Chicago');
+		if (!kind) continue;
+		sent.push(`${new Date(t).toISOString().slice(0, 16)} ${kind}`);
+		item[kind === 'day' ? 'reminded_day_for' : 'reminded_soon_for'] = remindKey(item);
+	}
+	return sent;
+}
+
+test('meetings: a day before and an hour before, like Luma', () => {
+	// 6 PM CST Thu Nov 12 = 00:00 UTC Nov 13.
+	const m = { date: '2026-11-12', time: '18:00', created_at: '2026-11-01T12:00:00.000Z' };
+	assert.deepEqual(simulateTimed(m, MEETING_SOON_HOURS, '2026-11-10T00:00:00Z', '2026-11-13T06:00:00Z'), ['2026-11-12T00:00 day', '2026-11-12T23:00 soon']);
+});
+
+test('meetings made less than a day ahead skip the day-before reminder', () => {
+	const m = { date: '2026-11-12', time: '18:00', created_at: '2026-11-12T03:00:00.000Z' };
+	assert.deepEqual(simulateTimed(m, MEETING_SOON_HOURS, '2026-11-11T00:00:00Z', '2026-11-13T06:00:00Z'), ['2026-11-12T23:00 soon']);
+});
+
+test('a meeting with no time: 9 AM the day before and 9 AM the day of', () => {
+	const m = { date: '2026-11-12', time: '', created_at: '2026-11-01T12:00:00.000Z' };
+	assert.deepEqual(simulateTimed(m, MEETING_SOON_HOURS, '2026-11-10T00:00:00Z', '2026-11-13T06:00:00Z'), ['2026-11-11T15:00 day', '2026-11-12T15:00 soon']);
+});
+
+test('moving a meeting sends its reminders again for the new time', () => {
+	const m = { date: '2026-11-12', time: '18:00', created_at: '2026-11-01T12:00:00.000Z' };
+	// Moved to Fri 6 PM after the Thursday day-before reminder went out.
+	const sent = simulateTimed(m, MEETING_SOON_HOURS, '2026-11-11T00:00:00Z', '2026-11-14T06:00:00Z', { at: '2026-11-12T12:00:00Z', date: '2026-11-13', time: '18:00' });
+	assert.deepEqual(sent, ['2026-11-12T00:00 day', '2026-11-13T00:00 day', '2026-11-13T23:00 soon']);
+});
+
+test('tasks with a due time: a day before and 4 hours before', () => {
+	// Due 5 PM CST Nov 20 = 23:00 UTC.
+	const t = { date: '2026-11-20', time: '17:00', created_at: '2026-11-10T12:00:00.000Z' };
+	assert.deepEqual(simulateTimed(t, TASK_SOON_HOURS, '2026-11-18T00:00:00Z', '2026-11-21T06:00:00Z'), ['2026-11-19T23:00 day', '2026-11-20T19:00 soon']);
+	// Made that morning: only the 4-hour one.
+	assert.deepEqual(simulateTimed({ ...t, created_at: '2026-11-20T15:00:00.000Z' }, TASK_SOON_HOURS, '2026-11-20T15:00:00Z', '2026-11-21T06:00:00Z'), ['2026-11-20T19:00 soon']);
+});
+
+test('urgent tasks with a due time get reminders from that time', () => {
+	const t = { due_date: '2026-11-20', urgent_until: null, reminded_at: null };
+	const dueAt = clubTime('2026-11-20', '15:00', 'America/Chicago');
+	assert.equal(urgentReminderFor(t, new Date('2026-11-20T20:00:00Z'), '2026-11-20', 14, dueAt), null);
+	assert.equal(urgentReminderFor(t, new Date('2026-11-20T21:00:00Z'), '2026-11-20', 15, dueAt), 'overdue');
 });
 
 test('notes markdown escapes HTML and only links http(s)', () => {

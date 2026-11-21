@@ -63,6 +63,8 @@ export type Task = {
 	/** Shared by every copy of a task that was assigned to several people at once. */
 	group_id: number | null;
 	due_date: string;
+	/** "HH:MM" club time, or '' when it's due some time that day. */
+	due_time: string;
 	status: TaskStatus;
 	board_in_progress?: number;
 	completed_at: string | null;
@@ -79,6 +81,9 @@ export type Task = {
 	repeated: number;
 	/** UTC time of the last reminder email of any kind. */
 	reminded_at: string | null;
+	/** The "date time" the day-before and 4-hours-before reminders went out for (tasks with a due time). */
+	reminded_day_for: string | null;
+	reminded_soon_for: string | null;
 	created_at: string;
 	updated_at: string;
 };
@@ -117,8 +122,11 @@ export type Meeting = {
 	cohost_id: number | null;
 	created_at: string;
 	updated_at: string;
-	/** Club-time date the reminder email went out. */
+	/** Club-time date the old once-a-day reminder went out (before day-before and hour-before reminders). */
 	reminded_on: string | null;
+	/** The "date time" the day-before and hour-before reminders went out for. */
+	reminded_day_for: string | null;
+	reminded_soon_for: string | null;
 };
 
 /** One of the teams a meeting is for. */

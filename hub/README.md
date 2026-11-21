@@ -12,14 +12,18 @@ Sign-in is by a 6-digit code sent to your email (no passwords). Only people on t
 
 ## Reminders
 
-Every morning at 9 AM Central, each person gets at most one email listing their tasks:
+Meetings and club events: everyone on them is emailed a day before and an hour before. A meeting with no time is reminded at 9 AM the day before and 9 AM the day of.
 
-- 2 days before the due date, once
-- on the due date
+Tasks can have a due time. With one, the person gets a reminder a day before and 4 hours before. Without one, the 9 AM Central email covers it. Every morning at 9 AM Central, each person gets at most one email listing their tasks:
+
+- the day before the due date (tasks with no time)
+- on the due date (tasks with no time)
 - every day for the first 3 days overdue, then every 3 days
 - at 3 days overdue, whoever assigned the task gets one follow-up email
 - Monday mornings, execs get a digest of everything overdue
-- tasks marked Urgent also get reminders from 7 PM the evening they're due, then every 2 hours while overdue, except 1–8 AM
+- tasks marked Urgent also get reminders every 2 hours from their due time (7 PM that evening if they have none) while overdue, except 1–8 AM
+
+The cron runs every 5 minutes; the 9 AM email, urgent reminders and repeating tasks run on the hour.
 
 Every email has a one-click "Mark done" link. Exec → Email shows the log and can run reminders on demand.
 

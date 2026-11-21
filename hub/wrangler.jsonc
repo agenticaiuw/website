@@ -16,7 +16,7 @@
 	],
 	// Every hour. The code checks the hour in club time: daily reminders at 9 AM, meeting reminders
 	// at 9 AM and 6 PM, urgent tasks every run.
-	"triggers": { "crons": ["0 * * * *"] },
+	"triggers": { "crons": ["*/5 * * * *"] },
 	"vars": {
 		"APP_URL": "https://hub.agenticaiuw.com",
 		"MAIL_FROM": "team@agenticaiuw.com",

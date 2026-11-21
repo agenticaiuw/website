@@ -365,10 +365,12 @@ fieldset > legend { padding: 0; margin-bottom: 8px; font-size: 13px; font-weight
 .action-form { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
 .action-form .label, .action-form .hint { margin: 0; }
 .action-rows { display: flex; flex-direction: column; gap: 8px; }
-/* New task: one line per task, title and due date. */
-.task-row { display: grid; grid-template-columns: minmax(0, 1fr) 160px; gap: 8px; }
-@media (max-width: 480px) { .task-row { grid-template-columns: minmax(0, 1fr) 132px; } }
-@media (max-width: 420px) { .task-row { grid-template-columns: minmax(0, 1fr); } }
+/* New task: one line per task: title, due date, optional time. Narrow: the title gets its own line. */
+.action-rows:has(> .task-row) { container-type: inline-size; }
+.action-rows:has(.task-row + .task-row) { gap: 14px; }
+.task-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.task-row input:first-child { grid-column: 1 / -1; }
+@container (min-width: 36rem) { .task-row { grid-template-columns: minmax(0, 1fr) 160px 140px; } .task-row input:first-child { grid-column: auto; } }
 .task .remove { flex: none; margin-left: 4px; }
 /* Action items: what, then who and when. The who box stays wide enough for a full name. */
 .action-form { container-type: inline-size; }

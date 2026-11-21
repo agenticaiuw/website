@@ -11,6 +11,25 @@ export function hourIn(timeZone: string, now = new Date()): number {
 	return Number(new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', hourCycle: 'h23' }).format(now));
 }
 
+const formats = new Map<string, Intl.DateTimeFormat>();
+const partsFormat = (timeZone: string) => {
+	let f = formats.get(timeZone);
+	if (!f) formats.set(timeZone, (f = new Intl.DateTimeFormat('en-US', { timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })));
+	return f;
+};
+
+/** The UTC time (ms) of a club-time date and "HH:MM", daylight saving included. */
+export function clubTime(date: string, time: string, timeZone: string): number {
+	const asUtc = Date.parse(`${date}T${time}:00Z`);
+	const offset = (t: number) => {
+		const parts = partsFormat(timeZone).formatToParts(new Date(t));
+		const get = (type: string) => Number(parts.find((x) => x.type === type)?.value);
+		return Date.UTC(get('year'), get('month') - 1, get('day'), get('hour') % 24, get('minute'), get('second')) - t;
+	};
+	// Twice, so a time near a daylight saving switch uses that day's offset.
+	return asUtc - offset(asUtc - offset(asUtc));
+}
+
 export function isDate(value: unknown): value is string {
 	if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
 	const d = new Date(value + 'T00:00:00Z');
@@ -52,6 +71,11 @@ export function formatTime(time: string): string {
 	if (!isTime(time)) return '';
 	const [h, m] = time.split(':').map(Number);
 	return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
+/** "Sat, Nov 21", or "Sat, Nov 21, 5:00 PM" when there's a time. */
+export function formatDue(date: string, time: string | undefined, today?: string): string {
+	return isTime(time) ? `${formatDate(date, today)}, ${formatTime(time)}` : formatDate(date, today);
 }
 
 /** "17:30", "18:30" → "5:30–6:30 PM". Either may be blank. */

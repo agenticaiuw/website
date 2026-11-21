@@ -1,43 +1,76 @@
 // Email bodies. Plain HTML with inline styles so they render the same in Gmail, Outlook and Apple Mail.
 
-import { addDays, dueLabel, formatDate, formatTimeRange } from './dates.ts';
+import { addDays, dueLabel, formatDate, formatDue, formatTime, formatTimeRange, isTime } from './dates.ts';
+import { TASK_SOON_HOURS } from './schedule.ts';
 
 export const esc = (s: string) =>
 	s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
-const RED = '#c5050c';
-const INK = '#111317';
-const MUTED = '#585f69';
-const LINE = '#e3e1de';
+// The hub's own colors and fonts. Dark, like the hub and the website.
+const BG = '#14110f';
+const SURFACE = '#1c1916';
+const RAISED = '#25211d';
+const FG = '#f6f1e6';
+const MUTED = '#b5ada2';
+const ACCENT = '#ff6b5f';
+const PRIMARY = '#d1121b';
+const WARN = '#f0b43a';
+const LINE = '#2d2924';
+const LINE_STRONG = '#48413a';
+const FONT = "'Figtree',-apple-system,'Segoe UI',Helvetica,Arial,sans-serif";
+const DISPLAY = "'Baloo 2','Figtree',-apple-system,'Segoe UI',Helvetica,Arial,sans-serif";
 
-function layout(body: string, footer: string) {
-	return `<!doctype html><html><body style="margin:0;padding:0;background:#f4f2f0;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f2f0;padding:24px 12px;">
+/** The club's social links, as on the website. */
+const SOCIAL: [string, string][] = [
+	['Discord', 'https://discord.gg/qQwy2K4vW'],
+	['Instagram', 'https://www.instagram.com/agenticaiuw/'],
+	['LinkedIn', 'https://www.linkedin.com/company/agenticaiuw/'],
+	['X', 'https://x.com/AgenticAIUW']
+];
+
+function layout(body: string, appUrl: string) {
+	const social = SOCIAL.map(
+		([name, href]) =>
+			`<a href="${esc(href)}" style="display:inline-block;margin:0 2px 8px;padding:6px 11px;border:1px solid ${LINE_STRONG};border-radius:999px;color:${FG};font:600 13px/1.2 ${FONT};text-decoration:none;">${name}</a>`
+	).join('');
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta name="supported-color-schemes" content="dark">
+<link rel="stylesheet" href="${esc(appUrl)}/fonts/fonts.css"><style>:root{color-scheme:dark;supported-color-schemes:dark;}</style></head>
+<body style="margin:0;padding:0;background:${BG};" bgcolor="${BG}">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${BG}" style="background:${BG};padding:24px 12px;">
 <tr><td align="center">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border:1px solid ${LINE};border-radius:12px;">
-<tr><td style="padding:20px 28px;border-bottom:1px solid ${LINE};font:600 13px/1 -apple-system,'Segoe UI',Helvetica,Arial,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:${RED};">Agentic AI UW · Hub</td></tr>
-<tr><td style="padding:24px 28px 28px;font:15px/1.55 -apple-system,'Segoe UI',Helvetica,Arial,sans-serif;color:${INK};">${body}</td></tr>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+<tr><td style="padding:0 4px 16px;"><a href="${esc(appUrl)}/" style="text-decoration:none;"><table role="presentation" cellpadding="0" cellspacing="0"><tr>
+<td style="padding-right:10px;"><img src="${esc(appUrl)}/apple-touch-icon.png" width="34" height="34" alt="" style="display:block;border:0;border-radius:8px;"></td>
+<td style="font:700 18px/1.2 ${DISPLAY};color:${FG};white-space:nowrap;">Agentic AI UW <span style="color:${ACCENT};">Hub</span></td>
+</tr></table></a></td></tr>
+<tr><td bgcolor="${SURFACE}" style="background:${SURFACE};border:1px solid ${LINE};border-radius:16px;padding:26px 26px 28px;font:15px/1.6 ${FONT};color:${FG};">${body}</td></tr>
+<tr><td align="center" style="padding:20px 4px 0;">${social}</td></tr>
 </table>
-<p style="max-width:560px;margin:14px auto 0;font:12px/1.5 -apple-system,'Segoe UI',Helvetica,Arial,sans-serif;color:${MUTED};">${footer}</p>
 </td></tr></table></body></html>`;
 }
 
-const p = (html: string) => `<p style="margin:0 0 14px;">${html}</p>`;
-const h = (text: string) => `<h2 style="margin:22px 0 8px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:${MUTED};">${esc(text)}</h2>`;
+const p = (html: string) => `<p style="margin:0 0 14px;color:${FG};">${html}</p>`;
+const h = (text: string) => `<h2 style="margin:24px 0 10px;font:700 12px/1.3 ${FONT};letter-spacing:.1em;text-transform:uppercase;color:${MUTED};">${esc(text)}</h2>`;
+/** A raised box inside the card, like the hub's cards. */
+const box = (inner: string, pad = '14px 16px') =>
+	`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${RAISED}" style="background:${RAISED};border:1px solid ${LINE};border-radius:12px;margin:0 0 10px;">
+<tr><td style="padding:${pad};">${inner}</td></tr></table>`;
 
 function button(href: string, label: string, primary = true) {
 	const style = primary
-		? `background:${RED};color:#ffffff;border:1px solid ${RED};`
-		: `background:#ffffff;color:${INK};border:1px solid ${LINE};`;
-	return `<a href="${esc(href)}" style="display:inline-block;${style}padding:9px 16px;border-radius:8px;font-weight:600;font-size:14px;text-decoration:none;">${esc(label)}</a>`;
+		? `background:${PRIMARY};color:#ffffff;border:1px solid ${PRIMARY};`
+		: `background:${RAISED};color:${FG};border:1px solid ${LINE_STRONG};`;
+	return `<a href="${esc(href)}" style="display:inline-block;${style}padding:9px 16px;border-radius:10px;font:600 14px/1.3 ${FONT};text-decoration:none;">${esc(label)}</a>`;
 }
 
-const toneColor = { overdue: RED, today: '#b45309', soon: INK, later: MUTED, done: MUTED } as const;
+const toneColor = { overdue: ACCENT, today: WARN, soon: FG, later: MUTED, done: MUTED } as const;
 
 export type EmailTask = {
 	id: number | string;
 	title: string;
 	due_date: string;
+	/** "HH:MM", or '' (or missing) for no time. */
+	due_time?: string;
 	team_name: string | null;
 	meeting_title: string | null;
 	assignee_name?: string;
@@ -50,23 +83,22 @@ function taskBlock(t: EmailTask, today: string) {
 	const due = dueLabel(t.due_date, today);
 	const where = [t.assignee_name, t.team_name, t.meeting_title && `from “${t.meeting_title}”`].filter(Boolean).map((s) => esc(s!)).join(' · ');
 	// "Due Fri, Nov 20" already has the date; "Due tomorrow" needs it after.
-	const rest = [due.tone === 'later' ? '' : esc(formatDate(t.due_date, today)), where].filter(Boolean).join(' · ');
-	return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${LINE};border-radius:10px;margin:0 0 10px;">
-<tr><td style="padding:14px 16px;">
-<div style="font-weight:600;font-size:15px;"><a href="${esc(t.url)}" style="color:${INK};text-decoration:none;">${esc(t.title)}</a></div>
+	const rest = [esc(dueWhen(t, due.tone === 'later', today)), where].filter(Boolean).join(' · ');
+	return box(`<div style="font-weight:600;font-size:15px;"><a href="${esc(t.url)}" style="color:${FG};text-decoration:none;">${esc(t.title)}</a></div>
 <div style="font-size:13px;margin-top:2px;"><span style="color:${toneColor[due.tone]};font-weight:600;">${esc(due.text)}</span>${rest ? `<span style="color:${MUTED};"> · ${rest}</span>` : ''}</div>
-${t.doneUrl ? `<div style="margin-top:12px;">${button(t.doneUrl, 'Mark done')}&nbsp; ${button(t.url, 'Open', false)}</div>` : ''}
-</td></tr></table>`;
+${t.doneUrl ? `<div style="margin-top:12px;">${button(t.doneUrl, 'Mark done')}&nbsp; ${button(t.url, 'Open', false)}</div>` : ''}`);
+}
+
+/** The date after the due label ("Sat, Nov 21, 5:00 PM"), or just the time when the label already has the date. */
+function dueWhen(t: EmailTask, labelHasDate: boolean, today: string) {
+	return labelHasDate ? (isTime(t.due_time) ? formatTime(t.due_time) : '') : formatDue(t.due_date, t.due_time, today);
 }
 
 function taskText(t: EmailTask, today: string) {
 	const due = dueLabel(t.due_date, today);
-	const info = [due.text, due.tone === 'later' ? '' : formatDate(t.due_date, today), t.assignee_name].filter(Boolean).join(', ');
+	const info = [due.text, dueWhen(t, due.tone === 'later', today), t.assignee_name].filter(Boolean).join(', ');
 	return `- ${t.title} (${info})\n  ${t.doneUrl ? `Mark done: ${t.doneUrl}\n  ` : ''}Open: ${t.url}`;
 }
-
-const footerFor = (appUrl: string) =>
-	`Sent by the club's task tracker at <a href="${esc(appUrl)}" style="color:${MUTED};">${esc(appUrl.replace(/^https?:\/\//, ''))}</a>. Reminders stop once a task is marked done. Questions? Reply to this email.`;
 
 // ---------- sign-in ----------
 
@@ -78,9 +110,9 @@ export function loginEmail(name: string, code: string, appUrl: string) {
 		html: layout(
 			p(`Hi ${esc(name)},`) +
 				p('Enter this code to sign in to the Agentic AI UW Hub.') +
-				`<div style="margin:20px 0;font:600 32px/1 ui-monospace,'SF Mono',Menlo,Consolas,monospace;letter-spacing:.2em;color:${INK};">${code}</div>` +
+				`<div style="margin:20px 0;font:600 32px/1 ui-monospace,'SF Mono',Menlo,Consolas,monospace;letter-spacing:.2em;color:${FG};">${code}</div>` +
 				p(`<span style="color:${MUTED};font-size:13px;">It works once and expires in 10 minutes. If you didn't ask for it, you can ignore this email.</span>`),
-			footerFor(appUrl)
+			appUrl
 		)
 	};
 }
@@ -99,7 +131,7 @@ export function inviteEmail(member: { name: string; email: string }, appUrl: str
 				p(`You’ve been added to the Agentic AI UW Hub. ${esc(about)}`) +
 				p(`Sign in with <b>${esc(member.email)}</b> and we’ll email you a 6-digit code. No password needed.`) +
 				`<div style="margin:6px 0 4px;">${button(loginUrl, 'Sign in to the hub')}</div>`,
-			`Sent from <a href="${esc(appUrl)}" style="color:${MUTED};">${esc(appUrl.replace(/^https?:\/\//, ''))}</a>.`
+			appUrl
 		)
 	};
 }
@@ -109,7 +141,7 @@ export function inviteEmail(member: { name: string; email: string }, appUrl: str
 /** `assigner` is null when someone assigned the task to themselves. */
 export function assignedEmail(name: string, assigner: string | null, tasks: EmailTask[], today: string, appUrl: string) {
 	const one = tasks.length === 1;
-	const subject = one ? `New task: ${tasks[0].title} (due ${formatDate(tasks[0].due_date, today)})` : `${tasks.length} new tasks assigned to you`;
+	const subject = one ? `New task: ${tasks[0].title} (due ${formatDue(tasks[0].due_date, tasks[0].due_time, today)})` : `${tasks.length} new tasks assigned to you`;
 	const who = assigner ? `${assigner} assigned you` : 'You assigned yourself';
 	return {
 		subject,
@@ -118,23 +150,25 @@ export function assignedEmail(name: string, assigner: string | null, tasks: Emai
 			p(`Hi ${esc(name)},`) +
 				p(`${esc(who)} ${one ? 'a task' : `${tasks.length} tasks`}. You'll get a reminder before ${one ? 'it is' : 'each is'} due, and after, until ${one ? "it's" : "they're"} marked done.`) +
 				tasks.map((t) => taskBlock(t, today)).join(''),
-			footerFor(appUrl)
+			appUrl
 		)
 	};
 }
 
 // ---------- daily reminders ----------
 
-export type ReminderGroups = { overdue: EmailTask[]; today: EmailTask[]; soon: EmailTask[]; followUp: EmailTask[] };
+/** `hours`: tasks with a due time, 4 hours before it. */
+export type ReminderGroups = { overdue: EmailTask[]; hours: EmailTask[]; today: EmailTask[]; soon: EmailTask[]; followUp: EmailTask[] };
 
-/** Sent to people already on a task when someone else moves its due date. */
-export function dueChangedEmail(name: string, changer: string, task: EmailTask, oldDue: string, today: string, appUrl: string) {
-	const was = formatDate(oldDue, today);
-	const now = formatDate(task.due_date, today);
+/** Sent to people already on a task when someone else moves its due date or time. */
+export function dueChangedEmail(name: string, changer: string, task: EmailTask, old: { date: string; time: string }, today: string, appUrl: string) {
+	const was = formatDue(old.date, old.time, today);
+	const now = formatDue(task.due_date, task.due_time, today);
+	const what = old.date === task.due_date ? 'time' : 'date';
 	return {
-		subject: `New due date: ${task.title} (now ${now})`,
-		text: `Hi ${name},\n\n${changer} moved the due date of a task you're on from ${was} to ${now}:\n\n${taskText(task, today)}`,
-		html: layout(p(`Hi ${esc(name)},`) + p(`${esc(changer)} moved the due date of a task you’re on from <b>${esc(was)}</b> to <b>${esc(now)}</b>.`) + taskBlock(task, today), footerFor(appUrl))
+		subject: `New due ${what}: ${task.title} (now ${now})`,
+		text: `Hi ${name},\n\n${changer} moved the due ${what} of a task you're on from ${was} to ${now}:\n\n${taskText(task, today)}`,
+		html: layout(p(`Hi ${esc(name)},`) + p(`${esc(changer)} moved the due ${what} of a task you’re on from <b>${esc(was)}</b> to <b>${esc(now)}</b>.`) + taskBlock(task, today), appUrl)
 	};
 }
 
@@ -142,17 +176,19 @@ export function dueChangedEmail(name: string, changer: string, task: EmailTask, 
 export function taskNoticeEmail(name: string, subject: string, line: string, task: EmailTask, today: string, appUrl: string, link = true) {
 	return {
 		subject,
-		text: `Hi ${name},\n\n${line}\n\n- ${task.title} (was due ${formatDate(task.due_date, today)})${link ? `\n  Open: ${task.url}` : ''}`,
-		html: layout(p(`Hi ${esc(name)},`) + p(esc(line)) + p(`<b>${link ? `<a href="${esc(task.url)}" style="color:${INK};">${esc(task.title)}</a>` : esc(task.title)}</b> <span style="color:${MUTED};">· was due ${esc(formatDate(task.due_date, today))}</span>`), footerFor(appUrl))
+		text: `Hi ${name},\n\n${line}\n\n- ${task.title} (was due ${formatDue(task.due_date, task.due_time, today)})${link ? `\n  Open: ${task.url}` : ''}`,
+		html: layout(p(`Hi ${esc(name)},`) + p(esc(line)) + p(`<b>${link ? `<a href="${esc(task.url)}" style="color:${FG};">${esc(task.title)}</a>` : esc(task.title)}</b> <span style="color:${MUTED};">· was due ${esc(formatDue(task.due_date, task.due_time, today))}</span>`), appUrl)
 	};
 }
 
 export function reminderEmail(name: string, g: ReminderGroups, today: string, appUrl: string) {
-	const mine = g.overdue.length + g.today.length + g.soon.length;
-	const first = g.overdue[0] ?? g.today[0] ?? g.soon[0];
+	const mine = g.overdue.length + g.hours.length + g.today.length + g.soon.length;
+	const first = g.overdue[0] ?? g.hours[0] ?? g.today[0] ?? g.soon[0];
 	const more = mine > 1 ? ` (+${mine - 1} more)` : '';
 	const subject = g.overdue.length
 		? `Overdue: ${first.title}${more}`
+		: g.hours.length
+		? `Due in ${TASK_SOON_HOURS} hours: ${first.title}${more}`
 		: g.today.length
 			? `Due today: ${first.title}${more}`
 			: g.soon.length
@@ -161,6 +197,7 @@ export function reminderEmail(name: string, g: ReminderGroups, today: string, ap
 
 	const sections: [string, EmailTask[]][] = [
 		['Overdue', g.overdue],
+		[`Due in ${TASK_SOON_HOURS} hours`, g.hours],
 		['Due today', g.today],
 		['Due soon', g.soon],
 		['Tasks you assigned that are overdue', g.followUp]
@@ -182,7 +219,7 @@ export function reminderEmail(name: string, g: ReminderGroups, today: string, ap
 	return {
 		subject,
 		text: `Hi ${name},\n\n${intro}\n\n${textSections}\n\nAll your tasks: ${appUrl}/`,
-		html: layout(p(`Hi ${esc(name)},`) + p(esc(intro)) + htmlSections + `<div style="margin-top:22px;">${button(appUrl + '/', 'See all my tasks', false)}</div>`, footerFor(appUrl))
+		html: layout(p(`Hi ${esc(name)},`) + p(esc(intro)) + htmlSections + `<div style="margin-top:22px;">${button(appUrl + '/', 'See all my tasks', false)}</div>`, appUrl)
 	};
 }
 
@@ -201,7 +238,7 @@ export function urgentEmail(name: string, tonight: EmailTask[], overdue: EmailTa
 	return {
 		subject,
 		text: `Hi ${first},\n\n${intro}\n\n${tasks.map((t) => taskText(t, today)).join('\n\n')}`,
-		html: layout(p(`Hi ${esc(first)},`) + p(esc(intro)) + tasks.map((t) => taskBlock(t, today)).join(''), footerFor(appUrl))
+		html: layout(p(`Hi ${esc(first)},`) + p(esc(intro)) + tasks.map((t) => taskBlock(t, today)).join(''), appUrl)
 	};
 }
 
@@ -217,11 +254,11 @@ export type DigestData = {
 export function digestEmail(name: string, d: DigestData, today: string, appUrl: string) {
 	const overdueCount = d.overdueByPerson.reduce((n, p) => n + p.tasks.length, 0);
 	const stat = (label: string, value: number) =>
-		`<td style="padding:12px 14px;border:1px solid ${LINE};border-radius:10px;"><div style="font-size:22px;font-weight:700;">${value}</div><div style="font-size:12px;color:${MUTED};">${esc(label)}</div></td>`;
+		`<td bgcolor="${RAISED}" style="padding:12px 14px;background:${RAISED};border:1px solid ${LINE};border-radius:12px;color:${FG};"><div style="font:700 22px/1.2 ${DISPLAY};">${value}</div><div style="font-size:12px;color:${MUTED};">${esc(label)}</div></td>`;
 	const meetingRows = d.meetings
 		.map(
 			(m) =>
-				`<tr><td style="padding:6px 0;border-bottom:1px solid ${LINE};"><a href="${esc(m.url)}" style="color:${INK};">${esc(m.title)}</a> <span style="color:${MUTED};">· ${esc(m.team_name)} · ${esc(formatDate(m.date, today))}${m.time ? ' ' + esc(formatTimeRange(m.time, m.end_time)) : ''}</span></td><td align="right" style="padding:6px 0;border-bottom:1px solid ${LINE};white-space:nowrap;">${m.total ? `${m.present}/${m.total} present` : 'No attendance'}</td></tr>`
+				`<tr><td style="padding:6px 0;border-bottom:1px solid ${LINE};"><a href="${esc(m.url)}" style="color:${FG};">${esc(m.title)}</a> <span style="color:${MUTED};">· ${esc(m.team_name)} · ${esc(formatDate(m.date, today))}${m.time ? ' ' + esc(formatTimeRange(m.time, m.end_time)) : ''}</span></td><td align="right" style="padding:6px 0;border-bottom:1px solid ${LINE};white-space:nowrap;">${m.total ? `${m.present}/${m.total} present` : 'No attendance'}</td></tr>`
 		)
 		.join('');
 	const html =
@@ -229,10 +266,10 @@ export function digestEmail(name: string, d: DigestData, today: string, appUrl: 
 		`<table role="presentation" cellpadding="0" cellspacing="6" style="margin:0 -6px 6px;"><tr>${stat('Overdue', overdueCount)}${stat('Due this week', d.dueThisWeek.length)}${stat('Done last 7 days', d.doneLastWeek)}</tr></table>` +
 		(d.overdueByPerson.length
 			? h('Overdue, by person') +
-				d.overdueByPerson.map((p) => `<div style="font-weight:600;margin:12px 0 6px;">${esc(p.name)} (${p.tasks.length})</div>` + p.tasks.map((t) => taskBlock(t, today)).join('')).join('')
+				d.overdueByPerson.map((p) => `<div style="font-weight:600;margin:12px 0 6px;color:${FG};">${esc(p.name)} (${p.tasks.length})</div>` + p.tasks.map((t) => taskBlock(t, today)).join('')).join('')
 			: h('Overdue') + p('Nothing overdue. Nice.')) +
 		(d.dueThisWeek.length ? h('Due in the next 7 days') + d.dueThisWeek.map((t) => taskBlock(t, today)).join('') : '') +
-		(d.meetings.length ? h('Meetings last week') + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;">${meetingRows}</table>` : '') +
+		(d.meetings.length ? h('Meetings last week') + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;color:${FG};">${meetingRows}</table>` : '') +
 		`<div style="margin-top:22px;">${button(appUrl + '/people', 'Open the accountability board', false)}</div>`;
 	const text =
 		`Hi ${name},\n\nOverdue: ${overdueCount} · Due this week: ${d.dueThisWeek.length} · Done last 7 days: ${d.doneLastWeek}\n\n` +
@@ -240,7 +277,7 @@ export function digestEmail(name: string, d: DigestData, today: string, appUrl: 
 		(d.dueThisWeek.length ? `\n\nDUE THIS WEEK\n${d.dueThisWeek.map((t) => taskText(t, today)).join('\n')}` : '') +
 		(d.meetings.length ? `\n\nMEETINGS LAST WEEK\n${d.meetings.map((m) => `- ${m.title} (${m.team_name}, ${formatDate(m.date, today)}): ${m.present}/${m.total} present`).join('\n')}` : '') +
 		`\n\n${appUrl}/people`;
-	return { subject: `Weekly exec digest: ${overdueCount} overdue, ${d.dueThisWeek.length} due this week`, text, html: layout(html, footerFor(appUrl)) };
+	return { subject: `Weekly exec digest: ${overdueCount} overdue, ${d.dueThisWeek.length} due this week`, text, html: layout(html, appUrl) };
 }
 
 // ---------- meeting reminders ----------
@@ -282,10 +319,10 @@ export type MeetingChanges = {
  * as the reminder before it; `repeats` then says how often it happens. `changed`: what an edit
  * changed, which the email names (a new room never reads as a new date).
  */
-export function meetingEmail(name: string | null, m: EmailMeeting, today: string, appUrl: string, opts: { announce?: boolean; changed?: MeetingChanges; added?: boolean; hosting?: boolean; cohost?: string; repeats?: string; why?: { reason: string; by: string } } = {}) {
+export function meetingEmail(name: string | null, m: EmailMeeting, today: string, appUrl: string, opts: { announce?: boolean; soon?: boolean; changed?: MeetingChanges; added?: boolean; hosting?: boolean; cohost?: string; repeats?: string; why?: { reason: string; by: string } } = {}) {
 	const first = name ? name.split(' ')[0] : 'everyone';
 	const day = m.date === today ? 'Today' : m.date === addDays(today, 1) ? 'Tomorrow' : formatDate(m.date, today);
-	const on = m.date === today || m.date === addDays(today, 1) ? day.toLowerCase() : `on ${day}`;
+	const on = opts.soon ? 'in an hour' : m.date === today || m.date === addDays(today, 1) ? day.toLowerCase() : `on ${day}`;
 	const when = [day, m.time && formatTimeRange(m.time, m.end_time), m.location].filter(Boolean).join(' · ');
 	const teams = andList(m.team_names);
 	const several = m.team_names.length > 1;
@@ -310,25 +347,21 @@ export function meetingEmail(name: string | null, m: EmailMeeting, today: string
 		p(`Hi ${esc(first)},`) +
 		p(esc(intro + repeats)) +
 		(opts.why ? p(`<b>Reason:</b> ${esc(opts.why.reason)}${opts.why.by ? `<br><span style="color:${MUTED};">— ${esc(opts.why.by)}</span>` : ''}`) : '') +
-		`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${LINE};border-radius:10px;margin:0 0 10px;">
-<tr><td style="padding:14px 16px;">
-<div style="font-weight:600;font-size:16px;"><a href="${esc(url)}" style="color:${INK};text-decoration:none;">${esc(m.title)}</a></div>
+		box(`<div style="font:700 17px/1.3 ${DISPLAY};"><a href="${esc(url)}" style="color:${FG};text-decoration:none;">${esc(m.title)}</a></div>
 <div style="font-size:14px;color:${MUTED};margin-top:2px;">${esc(when)}</div>
 ${m.host_name ? `<div style="font-size:14px;color:${MUTED};margin-top:2px;">Hosted by ${esc(m.host_name)}</div>` : ''}
-${agenda ? `<div style="font-size:14px;margin-top:12px;"><div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:${MUTED};margin-bottom:4px;">Agenda</div>${esc(agenda).replace(/\n/g, '<br>')}</div>` : ''}
-<div style="margin-top:14px;">${m.doc_url ? `${button(m.doc_url, 'Open the meeting doc')}&nbsp; ` : ''}${button(url, 'Meeting page', !m.doc_url)}</div>
-</td></tr></table>`;
+${agenda ? `<div style="font-size:14px;margin-top:12px;color:${FG};"><div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:${MUTED};margin-bottom:4px;">Agenda</div>${esc(agenda).replace(/\n/g, '<br>')}</div>` : ''}
+<div style="margin-top:14px;">${m.doc_url ? `${button(m.doc_url, 'Open the meeting doc')}&nbsp; ` : ''}${button(url, 'Meeting page', !m.doc_url)}</div>`, '16px 18px');
 	const text =
 		`Hi ${first},\n\n${intro}${repeats}${opts.why ? `\n\nReason: ${opts.why.reason}${opts.why.by ? `\n— ${opts.why.by}` : ''}` : ''}\n\n${m.title}\n${when}${m.host_name ? `\nHosted by ${m.host_name}` : ''}` +
 		(agenda ? `\n\nAgenda\n${agenda}` : '') +
 		(m.doc_url ? `\n\nMeeting doc: ${m.doc_url}` : '') +
 		`\nMeeting page: ${url}`;
-	const to = m.kind === 'event' ? 'everyone in the club' : `everyone on ${esc(teams)}`;
 	const at = `${day}${m.time ? `, ${formatTimeRange(m.time, m.end_time)}` : ''}`;
 	return {
-		subject: opts.hosting ? `You’re hosting: ${m.title}, ${at}` : opts.added ? `Added: ${m.title}, ${at}` : opts.changed ? `Updated: ${m.title}, ${at}` : opts.announce ? `New ${m.kind === 'event' ? 'club event' : 'meeting'}: ${m.title}, ${at}` : `${day}: ${m.title}${m.time ? `, ${formatTimeRange(m.time, m.end_time)}` : ''}`,
+		subject: opts.hosting ? `You’re hosting: ${m.title}, ${at}` : opts.added ? `Added: ${m.title}, ${at}` : opts.changed ? `Updated: ${m.title}, ${at}` : opts.announce ? `New ${m.kind === 'event' ? 'club event' : 'meeting'}: ${m.title}, ${at}` : `${opts.soon ? 'In an hour' : day}: ${m.title}${m.time ? `, ${formatTimeRange(m.time, m.end_time)}` : ''}`,
 		text,
-		html: layout(html, `Sent by the club hub at <a href="${esc(appUrl)}" style="color:${MUTED};">${esc(appUrl.replace(/^https?:\/\//, ''))}</a> to ${to}. Questions? Reply to this email.`)
+		html: layout(html, appUrl)
 	};
 }
 
@@ -349,11 +382,8 @@ export function teamAddedEmail(member: { name: string; email: string }, team: { 
 	const about = meetings.length ? 'You’re on its upcoming meetings and will get a reminder before each one.' : `${team.name} has no meetings scheduled yet.`;
 	const rows = shown
 		.map(
-			(m) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${LINE};border-radius:10px;margin:0 0 10px;">
-<tr><td style="padding:12px 16px;">
-<div style="font-weight:600;font-size:15px;"><a href="${esc(`${appUrl}/meetings/${m.id}`)}" style="color:${INK};text-decoration:none;">${esc(m.title)}</a></div>
-<div style="font-size:14px;color:${MUTED};margin-top:2px;">${esc(when(m))}</div>
-</td></tr></table>`
+			(m) => box(`<div style="font-weight:600;font-size:15px;"><a href="${esc(`${appUrl}/meetings/${m.id}`)}" style="color:${FG};text-decoration:none;">${esc(m.title)}</a></div>
+<div style="font-size:14px;color:${MUTED};margin-top:2px;">${esc(when(m))}</div>`, '12px 16px')
 		)
 		.join('');
 	return {
@@ -369,7 +399,7 @@ export function teamAddedEmail(member: { name: string; email: string }, team: { 
 				(shown.length ? h('Upcoming meetings') + rows + (more ? p(`<span style="color:${MUTED};font-size:14px;">Plus ${more} more on the team page.</span>`) : '') : '') +
 				(firstTime ? p(`Sign in with <b>${esc(member.email)}</b> and we’ll email you a 6-digit code. No password needed.`) : '') +
 				`<div style="margin:6px 0 4px;">${button(teamUrl, 'Open the team page')}</div>`,
-			`Sent by the club hub at <a href="${esc(appUrl)}" style="color:${MUTED};">${esc(appUrl.replace(/^https?:\/\//, ''))}</a>. Questions? Reply to this email.`
+			appUrl
 		)
 	};
 }
@@ -406,7 +436,7 @@ export function canceledEmail(m: EmailMeeting, today: string, appUrl: string, la
 	return {
 		subject: `Canceled: ${m.title}, ${at}${later.length ? ` and ${later.length === 1 ? 'the next one' : `the ${later.length} after it`}` : ''}`,
 		text: `Hi everyone,\n\n${line}\n\nReason: ${why.reason}${why.by ? `\n— ${why.by}` : ''}\n\n${what}`,
-		html: layout(p('Hi everyone,') + p(esc(line)) + p(`<b>Reason:</b> ${esc(why.reason)}${why.by ? `<br><span style="color:${MUTED};">— ${esc(why.by)}</span>` : ''}`) + p(`<span style="color:${MUTED};">${esc(what)}</span>`), `Sent by the club hub at <a href="${esc(appUrl)}" style="color:${MUTED};">${esc(appUrl.replace(/^https?:\/\//, ''))}</a>. Questions? Reply to this email.`)
+		html: layout(p('Hi everyone,') + p(esc(line)) + p(`<b>Reason:</b> ${esc(why.reason)}${why.by ? `<br><span style="color:${MUTED};">— ${esc(why.by)}</span>` : ''}`) + p(`<span style="color:${MUTED};">${esc(what)}</span>`), appUrl)
 	};
 }
 
@@ -414,6 +444,6 @@ export function testEmail(name: string, appUrl: string) {
 	return {
 		subject: 'Test email from the Agentic AI UW Hub',
 		text: `Hi ${name},\n\nEmail sending works. Reminders will come from this address.\n\n${appUrl}`,
-		html: layout(p(`Hi ${esc(name)},`) + p('Email sending works. Task reminders will come from this address.'), footerFor(appUrl))
+		html: layout(p(`Hi ${esc(name)},`) + p('Email sending works. Task reminders will come from this address.'), appUrl)
 	};
 }

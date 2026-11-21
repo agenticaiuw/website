@@ -1,10 +1,10 @@
 import { signDoneLink } from './auth';
 import { boardTaskHref, type BoardTask } from './board';
-import { addDays, daysBetween, hourIn, todayIn, weekday } from './dates';
+import { addDays, clubTime, daysBetween, hourIn, isTime, todayIn, weekday } from './dates';
 import { all, first, getMeta, logTask, MEETING_EXPECTED, MEETING_SELECT, MEETING_TEAMS_JSON, meetingTeams, setMeta, TASK_SELECT, teamNames } from './db';
 import { assignedEmail, canceledEmail, digestEmail, dueChangedEmail, taskNoticeEmail, meetingEmail, reminderEmail, teamAddedEmail, urgentEmail, type DigestData, type EmailTask, type MeetingChanges, type ReminderGroups } from './emails';
 import { sendMail, sendMails } from './mail';
-import { EVENING_HOUR, meetingReminderAt, reminderFor, SEND_HOUR, shouldEscalate, SOON_DAYS, urgentReminderFor, type ReminderKind } from './schedule';
+import { MEETING_SOON_HOURS, reminderFor, remindKey, SEND_HOUR, shouldEscalate, SOON_DAYS, TASK_SOON_HOURS, timedReminderFor, urgentReminderFor, type ReminderKind, type TimedKind } from './schedule';
 import type { Env, Member, MeetingRow, TaskRow, Team } from './types';
 
 export { DAILY_OVERDUE_FOR, ESCALATE_AFTER, SOON_DAYS } from './schedule';
@@ -16,6 +16,7 @@ async function emailTask(env: Env, t: TaskRow, opts: { withDone?: boolean; withA
 		id: t.id,
 		title: t.title,
 		due_date: t.due_date,
+		due_time: t.due_time,
 		team_name: t.team_name,
 		meeting_title: t.meeting_title,
 		assignee_name: opts.withAssignee ? t.assignee_name : undefined,
@@ -49,12 +50,14 @@ export async function runDailyReminders(env: Env, now = new Date()) {
 	const buckets = new Map<number, Bucket>();
 	const bucket = (id: number, name: string, email: string) => {
 		let b = buckets.get(id);
-		if (!b) buckets.set(id, (b = { name, email, groups: { overdue: [], today: [], soon: [], followUp: [] }, reminded: [], escalated: [], board: [] }));
+		if (!b) buckets.set(id, (b = { name, email, groups: { overdue: [], hours: [], today: [], soon: [], followUp: [] }, reminded: [], escalated: [], board: [] }));
 		return b;
 	};
 
 	for (const t of tasks) {
-		const kind = t.assignee_active ? reminderFor(t.due_date, t.last_reminder_on, today) : null;
+		const daily = t.assignee_active ? reminderFor(t.due_date, t.last_reminder_on, today) : null;
+		// A task with a due time gets its heads-ups from runTimedTaskReminders; this run only covers it once it's overdue.
+		const kind = isTime(t.due_time) && daily !== 'overdue' ? null : daily;
 		if (kind) {
 			const b = bucket(t.assignee_id, t.assignee_name, t.assignee_email);
 			b.groups[kind].push(await emailTask(env, t, { withDone: true }));
@@ -129,7 +132,7 @@ export async function runUrgentReminders(env: Env, now = new Date()) {
 	);
 	const byPerson = new Map<number, { name: string; email: string; tonight: EmailTask[]; overdue: EmailTask[]; ids: number[] }>();
 	for (const t of tasks) {
-		const kind = t.assignee_active ? urgentReminderFor(t, now, today, hour) : null;
+		const kind = t.assignee_active ? urgentReminderFor(t, now, today, hour, isTime(t.due_time) ? clubTime(t.due_date, t.due_time, env.TIMEZONE) : null) : null;
 		if (!kind) continue;
 		let b = byPerson.get(t.assignee_id);
 		if (!b) byPerson.set(t.assignee_id, (b = { name: t.assignee_name, email: t.assignee_email, tonight: [], overdue: [], ids: [] }));
@@ -234,28 +237,79 @@ export async function announceMeeting(env: Env, m: MeetingRow, opts: { mode?: 'n
 	return res.ok ? { sent: people.length, error: '' } : { sent: 0, error: res.error ?? 'failed' };
 }
 
+/**
+ * Meeting and event reminders, like Luma: a day before and an hour before (no time: 9 AM the day
+ * before and 9 AM the day of). Checked every run; each person gets their own email.
+ */
 export async function sendMeetingReminders(env: Env, now = new Date()) {
 	const today = todayIn(env.TIMEZONE, now);
-	const hour = hourIn(env.TIMEZONE, now);
-	const due = (
-		await all<MeetingRow>(env.DB, `${MEETING_SELECT} WHERE m.date IN (?1, ?2) AND m.reminded_on IS NOT ?1 ORDER BY m.date, m.time`, today, addDays(today, 1))
-	).filter((m) => {
-		const at = meetingReminderAt(m);
-		return at.date === today && at.hour === hour;
-	});
+	const meetings = await all<MeetingRow>(env.DB, `${MEETING_SELECT} WHERE m.date IN (?1, ?2) ORDER BY m.date, m.time`, today, addDays(today, 1));
 	let sent = 0;
 	let failed = 0;
-	for (const m of due) {
+	for (const m of meetings) {
+		const kind = timedReminderFor(m, now, MEETING_SOON_HOURS, env.TIMEZONE);
+		if (!kind) continue;
 		// Claim it before sending so an overlapping run can't email everyone twice.
-		const claim = await env.DB.prepare('UPDATE meetings SET reminded_on = ?1 WHERE id = ?2 AND reminded_on IS NOT ?1').bind(today, m.id).run();
+		const column = kind === 'day' ? 'reminded_day_for' : 'reminded_soon_for';
+		const claim = await env.DB.prepare(`UPDATE meetings SET ${column} = ?1 WHERE id = ?2 AND ${column} IS NOT ?1`).bind(remindKey(m), m.id).run();
 		if (!claim.meta.changes) continue;
 		const people = await meetingPeople(env.DB, m);
+		const soon = kind === 'soon' && isTime(m.time);
 		const results = await sendMails(
 			env,
-			people.map((p) => ({ to: { name: p.name, email: p.email }, kind: 'meeting', ...meetingEmail(p.name, emailMeeting(m), today, env.APP_URL) }))
+			people.map((p) => ({ to: { name: p.name, email: p.email }, kind: 'meeting', ...meetingEmail(p.name, emailMeeting(m), today, env.APP_URL, { soon }) }))
 		);
 		sent += results.filter((r) => r.ok).length;
 		failed += results.filter((r) => !r.ok).length;
+	}
+	return { sent, failed };
+}
+
+/**
+ * Reminders for tasks with a due time: a day before and 4 hours before, one email per person.
+ * Checked every run. Overdue reminders still come from the 9 AM run.
+ */
+export async function runTimedTaskReminders(env: Env, now = new Date()) {
+	const today = todayIn(env.TIMEZONE, now);
+	const tasks = await all<TaskRow & { assignee_active: number }>(
+		env.DB,
+		TASK_SELECT.replace('b.name AS assigner_name', 'b.name AS assigner_name, a.active AS assignee_active') +
+			` WHERE t.status = 'open' AND t.due_time != '' AND t.due_date IN (?1, ?2) ORDER BY t.due_date, t.due_time, t.id`,
+		today,
+		addDays(today, 1)
+	);
+	const byPerson = new Map<number, { name: string; email: string; due: { task: TaskRow; kind: TimedKind }[] }>();
+	for (const t of tasks) {
+		const kind = t.assignee_active ? timedReminderFor({ ...t, date: t.due_date, time: t.due_time }, now, TASK_SOON_HOURS, env.TIMEZONE) : null;
+		if (!kind) continue;
+		let b = byPerson.get(t.assignee_id);
+		if (!b) byPerson.set(t.assignee_id, (b = { name: t.assignee_name, email: t.assignee_email, due: [] }));
+		b.due.push({ task: t, kind });
+	}
+	const column = (kind: TimedKind) => (kind === 'day' ? 'reminded_day_for' : 'reminded_soon_for');
+	let sent = 0;
+	let failed = 0;
+	for (const b of byPerson.values()) {
+		// Claim each before sending so an overlapping run can't send it twice.
+		const claims = await env.DB.batch(b.due.map(({ task, kind }) =>
+			env.DB.prepare(`UPDATE tasks SET ${column(kind)} = ?1 WHERE id = ?2 AND status = 'open' AND ${column(kind)} IS NOT ?1`).bind(remindKey({ date: task.due_date, time: task.due_time }), task.id)));
+		const claimed = b.due.filter((_, i) => claims[i].meta.changes > 0);
+		if (!claimed.length) continue;
+		const groups: ReminderGroups = { overdue: [], hours: [], today: [], soon: [], followUp: [] };
+		for (const { task, kind } of claimed) (kind === 'soon' ? groups.hours : groups.soon).push(await emailTask(env, task, { withDone: true }));
+		const msg = reminderEmail(b.name, groups, today, env.APP_URL);
+		const res = await sendMail(env, { to: { name: b.name, email: b.email }, kind: 'reminder', ...msg });
+		if (!res.ok) {
+			failed++;
+			// Unclaimed, so the next run tries again.
+			await env.DB.batch(claimed.map(({ task, kind }) => env.DB.prepare(`UPDATE tasks SET ${column(kind)} = ? WHERE id = ?`).bind(task[column(kind)], task.id)));
+			continue;
+		}
+		sent++;
+		await env.DB.batch(claimed.flatMap(({ task, kind }) => [
+			env.DB.prepare('UPDATE tasks SET last_reminder_on = ?, reminded_at = ?, reminders_sent = reminders_sent + 1 WHERE id = ?').bind(today, now.toISOString(), task.id),
+			logTask(env.DB, task.id, null, 'reminder', kind === 'day' ? 'Day-before reminder emailed' : `${TASK_SOON_HOURS}-hours-before reminder emailed`)
+		]));
 	}
 	return { sent, failed };
 }
@@ -290,10 +344,10 @@ export async function makeRepeatingTasks(env: Env, today: string, dailyOnly = fa
 			if (o.status === 'dropped') continue;
 			const res = await db
 				.prepare(
-					`INSERT INTO tasks (title, details, assignee_id, assigned_by, team_id, meeting_id, due_date, urgent, repeat_days, repeat_until)
-					 SELECT ?, ?, id, ?, ?, ?, ?, ?, ?, ? FROM members WHERE id = ? AND active = 1`
+					`INSERT INTO tasks (title, details, assignee_id, assigned_by, team_id, meeting_id, due_date, due_time, urgent, repeat_days, repeat_until)
+					 SELECT ?, ?, id, ?, ?, ?, ?, ?, ?, ?, ? FROM members WHERE id = ? AND active = 1`
 				)
-				.bind(o.title, o.details, o.assigned_by, o.team_id, o.meeting_id, next, o.urgent, o.repeat_days, o.repeat_until, o.assignee_id)
+				.bind(o.title, o.details, o.assigned_by, o.team_id, o.meeting_id, next, o.due_time, o.urgent, o.repeat_days, o.repeat_until, o.assignee_id)
 				.run();
 			if (!res.meta.changes) continue;
 			const id = Number(res.meta.last_row_id);
@@ -310,29 +364,33 @@ export async function makeRepeatingTasks(env: Env, today: string, dailyOnly = fa
 }
 
 /**
- * The cron entry point. Runs every hour. Task reminders go out at 9 AM club time, plus the exec
- * digest on Mondays; urgent tasks are checked every hour; meeting reminders at 9 AM and 6 PM.
+ * The cron entry point. Runs every 5 minutes: meeting reminders and reminders for tasks with a due
+ * time go out on whichever run they fall in. On the hour: repeating tasks and urgent reminders, and
+ * at 9 AM club time the daily task reminders, plus the exec digest on Mondays.
  */
 export async function scheduled(env: Env, now = new Date()) {
 	const hour = hourIn(env.TIMEZONE, now);
 	const today = todayIn(env.TIMEZONE, now);
-	// Daily copies every hour (so today's exists from midnight), the rest at 9 AM with their email.
-	const repeats = await makeRepeatingTasks(env, today, hour !== SEND_HOUR);
-	if (repeats) console.log(`[repeats] ${today} ${hour}:00: ${repeats} made`);
-	if (hour === SEND_HOUR) {
-		const result = await runDailyReminders(env, now);
-		console.log(`[reminders] ${today}: ${result.sent} sent, ${result.failed} failed`);
-		if (weekday(today) === 1 && (await getMeta(env.DB, 'last_digest_on')) !== today) {
-			const digest = await sendExecDigest(env, now);
-			console.log(`[digest] sent to ${digest.sent} execs`);
+	if (now.getUTCMinutes() === 0) {
+		// Daily copies every hour (so today's exists from midnight), the rest at 9 AM with their email.
+		const repeats = await makeRepeatingTasks(env, today, hour !== SEND_HOUR);
+		if (repeats) console.log(`[repeats] ${today} ${hour}:00: ${repeats} made`);
+		if (hour === SEND_HOUR) {
+			const result = await runDailyReminders(env, now);
+			console.log(`[reminders] ${today}: ${result.sent} sent, ${result.failed} failed`);
+			if (weekday(today) === 1 && (await getMeta(env.DB, 'last_digest_on')) !== today) {
+				const digest = await sendExecDigest(env, now);
+				console.log(`[digest] sent to ${digest.sent} execs`);
+			}
 		}
+		// After the daily run, so a task it just covered isn't emailed twice this hour.
+		const urgent = await runUrgentReminders(env, now);
+		if (urgent.sent || urgent.failed) console.log(`[urgent] ${today} ${hour}:00: ${urgent.sent} sent, ${urgent.failed} failed`);
 	}
-	// After the daily run, so a task it just covered isn't emailed twice this hour.
-	const urgent = await runUrgentReminders(env, now);
-	if (urgent.sent || urgent.failed) console.log(`[urgent] ${today} ${hour}:00: ${urgent.sent} sent, ${urgent.failed} failed`);
-	if (hour !== SEND_HOUR && hour !== EVENING_HOUR) return;
 	const meetings = await sendMeetingReminders(env, now);
-	console.log(`[meetings] ${today} ${hour}:00: ${meetings.sent} sent, ${meetings.failed} failed`);
+	if (meetings.sent || meetings.failed) console.log(`[meetings] ${now.toISOString()}: ${meetings.sent} sent, ${meetings.failed} failed`);
+	const timed = await runTimedTaskReminders(env, now);
+	if (timed.sent || timed.failed) console.log(`[timed] ${now.toISOString()}: ${timed.sent} sent, ${timed.failed} failed`);
 }
 
 /** Emails each assignee once about the tasks just given to them (not ones they gave themselves). */
@@ -379,8 +437,8 @@ export async function notifyBoardAssigned(env: Env, assigner: { id: number; name
 	return sent;
 }
 
-/** Tells everyone on these tasks (except whoever made the change) that the due date moved from `oldDue`. */
-export async function notifyDueChanged(env: Env, changer: { id: number; name: string }, taskIds: number[], oldDue: Map<number, string>) {
+/** Tells everyone on these tasks (except whoever made the change) that the due date or time moved from `oldDue`. */
+export async function notifyDueChanged(env: Env, changer: { id: number; name: string }, taskIds: number[], oldDue: Map<number, { date: string; time: string }>) {
 	if (!taskIds.length) return 0;
 	const today = todayIn(env.TIMEZONE);
 	const rows = await all<TaskRow & { assignee_active: number }>(
@@ -391,10 +449,10 @@ export async function notifyDueChanged(env: Env, changer: { id: number; name: st
 	let sent = 0;
 	for (const t of rows) {
 		if (!t.assignee_active || t.assignee_id === changer.id || t.status !== 'open') continue;
-		const msg = dueChangedEmail(t.assignee_name, changer.name, await emailTask(env, t, { withDone: true }), oldDue.get(t.id) ?? t.due_date, today, env.APP_URL);
+		const msg = dueChangedEmail(t.assignee_name, changer.name, await emailTask(env, t, { withDone: true }), oldDue.get(t.id) ?? { date: t.due_date, time: t.due_time }, today, env.APP_URL);
 		const res = await sendMail(env, { to: { name: t.assignee_name, email: t.assignee_email }, kind: 'due-changed', ...msg });
 		if (res.ok) sent++;
-		await logTask(env.DB, t.id, null, 'notified', res.ok ? `New due date emailed to ${t.assignee_name}` : `Due date email failed: ${res.error}`).run();
+		await logTask(env.DB, t.id, null, 'notified', res.ok ? `New due ${oldDue.get(t.id)?.date === t.due_date ? 'time' : 'date'} emailed to ${t.assignee_name}` : `Due date email failed: ${res.error}`).run();
 	}
 	return sent;
 }

@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { safeRedirect } from '../auth';
 import { BOARD_STATUSES, boardTasks } from '../board';
-import { addDays, formatDate, formatTimestamp, isDate, todayIn } from '../dates';
+import { addDays, formatDate, formatDue, formatTimestamp, isDate, isTime, todayIn } from '../dates';
 import { activeMembers, all, first, groupStats, logTask, memberById, nowIso, run, setTaskStatus, TASK_ON_TEAM, TASK_SELECT, TASK_VISIBLE, taskById, teams, teamsByMember, visible } from '../db';
 import { id, list, readForm, str, withNotice } from '../form';
 import { canAssign, canCompleteTask, canManageTask, canSeeTask, isExec, teamsFor } from '../perm';
@@ -122,6 +122,7 @@ taskRoutes.get('/tasks/new', async (c) => {
 						<div class="task-row" data-row>
 							<input name="title" required maxlength={200} placeholder="e.g. Order the nRF52 dev boards" aria-label="Task" />
 							<input type="date" name="due_date" required value={addDays(today, 7)} min={addDays(today, -365)} aria-label="Due date" />
+							<input type="time" name="due_time" aria-label="Due time (optional)" />
 						</div>
 					</div>
 					<div>
@@ -129,7 +130,7 @@ taskRoutes.get('/tasks/new', async (c) => {
 							+ Another task
 						</button>
 					</div>
-					<span class="hint">Each line is its own task with its own due date. Everyone you pick gets every task, in one email.</span>
+					<span class="hint">Each line is its own task with its own due date and, if you want, a time. Everyone you pick gets every task, in one email.</span>
 				</div>
 				<Field label="Details" hint="Optional. Links, context, what “done” looks like. With several tasks, each one gets these details." wide>
 					<textarea name="details" rows={4}></textarea>
@@ -156,7 +157,7 @@ taskRoutes.get('/tasks/new', async (c) => {
 				<RepeatFields days={0} until={null} />
 				<label class="check wide">
 					<input type="checkbox" name="urgent" value="1" />
-					Urgent: extra reminders the evening it’s due, then every 2 hours while overdue
+					{URGENT_LABEL}
 				</label>
 				<div class="form-actions wide">
 					<button class="btn primary">Create task</button>
@@ -169,6 +170,8 @@ taskRoutes.get('/tasks/new', async (c) => {
 	);
 });
 
+const URGENT_LABEL = 'Urgent: extra reminders every 2 hours from its due time, or from 7 PM that day if it has no time';
+
 /**
  * Validates and inserts tasks, one per assignee. Shared with meeting action items.
  * Returns the new ids, or an error code for the redirect.
@@ -176,7 +179,7 @@ taskRoutes.get('/tasks/new', async (c) => {
 export async function createTasks(
 	env: AppEnv['Bindings'],
 	v: Viewer,
-	input: { title: string; details: string; assignees: number[]; due: string; teamId: number | null; teamOf?: (assignee: number) => number | null; meetingId: number | null; urgent?: boolean; repeatDays?: number; repeatUntil?: string | null }
+	input: { title: string; details: string; assignees: number[]; due: string; dueTime?: string; teamId: number | null; teamOf?: (assignee: number) => number | null; meetingId: number | null; urgent?: boolean; repeatDays?: number; repeatUntil?: string | null }
 ): Promise<{ ids: number[] } | { error: string }> {
 	if (!input.title || !input.assignees.length) return { error: 'missing' };
 	if (!isDate(input.due)) return { error: 'date' };
@@ -195,7 +198,7 @@ export async function createTasks(
 		if (!person || !person.active) continue;
 		const res = await run(
 			env.DB,
-			'INSERT INTO tasks (title, details, assignee_id, assigned_by, team_id, meeting_id, due_date, urgent, repeat_days, repeat_until) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+			'INSERT INTO tasks (title, details, assignee_id, assigned_by, team_id, meeting_id, due_date, due_time, urgent, repeat_days, repeat_until) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
 			input.title,
 			input.details,
 			assignee,
@@ -203,13 +206,14 @@ export async function createTasks(
 			teamOf(assignee),
 			input.meetingId,
 			input.due,
+			isTime(input.dueTime) ? input.dueTime : '',
 			input.urgent ? 1 : 0,
 			input.repeatDays ?? 0,
 			input.repeatUntil ?? null
 		);
 		const taskId = Number(res.meta.last_row_id);
 		ids.push(taskId);
-		await logTask(env.DB, taskId, v.id, 'created', assignee === v.id ? '' : `Assigned to ${person.name}, due ${formatDate(input.due)}`).run();
+		await logTask(env.DB, taskId, v.id, 'created', assignee === v.id ? '' : `Assigned to ${person.name}, due ${formatDue(input.due, input.dueTime)}`).run();
 	}
 	if (ids.length > 1) await run(env.DB, 'UPDATE tasks SET group_id = ? WHERE id IN (SELECT value FROM json_each(?))', ids[0], JSON.stringify(ids));
 	return ids.length ? { ids } : { error: 'missing' };
@@ -225,10 +229,11 @@ taskRoutes.post('/tasks', async (c) => {
 	const led = isExec(v) ? [] : [...v.leadOf];
 	const teamsOf = picked.length > 1 || (!picked.length && led.length) ? await teamsByMember(c.env.DB) : new Map<number, number[]>();
 	const on = (a: number) => (t: number) => teamsOf.get(a)?.includes(t) ?? false;
-	// One task per line that has a title, each with its own due date.
+	// One task per line that has a title, each with its own due date and optional time.
 	const dues = list(form.due_date);
+	const times = list(form.due_time);
 	const rows = list(form.title)
-		.map((title, i) => ({ title: title.slice(0, 200), due: dues[i] ?? '' }))
+		.map((title, i) => ({ title: title.slice(0, 200), due: dues[i] ?? '', time: isTime(times[i]) ? times[i] : '' }))
 		.filter((r) => r.title);
 	if (!rows.length) return c.redirect('/tasks/new?error=missing');
 	if (rows.some((r) => !isDate(r.due))) return c.redirect('/tasks/new?error=date');
@@ -239,6 +244,7 @@ taskRoutes.post('/tasks', async (c) => {
 			details: str(form.details, 10_000),
 			assignees: canAssign(v) ? assignees : [v.id],
 			due: row.due,
+			dueTime: row.time,
 			teamId: picked[0] ?? null,
 			teamOf: (a) => picked.find(on(a)) ?? picked[0] ?? (a === v.id ? null : (led.find(on(a)) ?? led[0] ?? null)),
 			meetingId: null,
@@ -379,7 +385,7 @@ taskRoutes.get('/tasks/:id', async (c) => {
 						</div>
 						<div>
 							<dt>Due</dt>
-							<dd>{formatDate(task.due_date, today)}</dd>
+							<dd>{formatDue(task.due_date, task.due_time, today)}</dd>
 						</div>
 						{task.repeat_days > 0 && (
 							<div>
@@ -561,6 +567,9 @@ taskRoutes.get('/tasks/:id/edit', async (c) => {
 				<Field label="Due date" hint="Everyone already on the task is emailed the new date.">
 					<input type="date" name="due_date" required value={task.due_date} />
 				</Field>
+				<Field label="Due time" hint="Optional. With a time, reminders go a day before and 4 hours before.">
+					<input type="time" name="due_time" value={task.due_time} />
+				</Field>
 				<Field label="Team">
 					<TeamSelect name="team" teams={teamChoices.filter(Boolean)} selected={task.team_id} blank="No team" />
 				</Field>
@@ -571,7 +580,7 @@ taskRoutes.get('/tasks/:id/edit', async (c) => {
 				)}
 				<label class="check wide">
 					<input type="checkbox" name="urgent" value="1" checked={!!task.urgent} />
-					Urgent: extra reminders the evening it’s due, then every 2 hours while overdue
+					{URGENT_LABEL}
 				</label>
 				<div class="form-actions wide">
 					<button class="btn primary">Save</button>
@@ -600,6 +609,7 @@ taskRoutes.post('/tasks/:id', async (c) => {
 	const title = str(form.title, 200);
 	const details = str(form.details, 10_000);
 	const due = str(form.due_date);
+	const dueTime = isTime(str(form.due_time)) ? str(form.due_time) : '';
 	const teamId = id(form.team);
 	const urgent = str(form.urgent) === '1' ? 1 : 0;
 	// Once the next one's made, this one's repeat is history and stays as it was.
@@ -619,7 +629,7 @@ taskRoutes.post('/tasks/:id', async (c) => {
 	// New people get their own copy, filed under the task's team.
 	let newIds: number[] = [];
 	if (adding.length) {
-		const made = await createTasks(c.env, v, { title, details, assignees: adding, due, teamId, meetingId: task.meeting_id, urgent: !!urgent, repeatDays, repeatUntil });
+		const made = await createTasks(c.env, v, { title, details, assignees: adding, due, dueTime, teamId, meetingId: task.meeting_id, urgent: !!urgent, repeatDays, repeatUntil });
 		if ('error' in made) return c.redirect(`${edit}?error=${made.error}`);
 		newIds = made.ids;
 	}
@@ -629,24 +639,24 @@ taskRoutes.post('/tasks/:id', async (c) => {
 		stmts.push(db.prepare('UPDATE tasks SET group_id = ? WHERE id IN (SELECT value FROM json_each(?))').bind(groupId, JSON.stringify([...staying.map((o) => o.id), ...newIds])));
 	}
 	const moved: number[] = [];
-	const oldDue = new Map<number, string>();
+	const oldDue = new Map<number, { date: string; time: string }>();
 	for (const o of staying) {
-		const dueChanged = due !== o.due_date;
+		const dueChanged = due !== o.due_date || dueTime !== o.due_time;
 		if (dueChanged) {
 			moved.push(o.id);
-			oldDue.set(o.id, o.due_date);
+			oldDue.set(o.id, { date: o.due_date, time: o.due_time });
 		}
 		stmts.push(
 			db
 				.prepare(
-					`UPDATE tasks SET title = ?, details = ?, team_id = ?, due_date = ?, urgent = ?, repeat_days = ?, repeat_until = ?, updated_at = ?,
+					`UPDATE tasks SET title = ?, details = ?, team_id = ?, due_date = ?, due_time = ?, urgent = ?, repeat_days = ?, repeat_until = ?, updated_at = ?,
 					 urgent_until = CASE WHEN ? THEN NULL ELSE urgent_until END,
 					 escalated_on = CASE WHEN ? THEN NULL ELSE escalated_on END,
 					 last_reminder_on = CASE WHEN ? THEN NULL ELSE last_reminder_on END WHERE id = ?`
 				)
-				.bind(title, details, teamId, due, urgent, repeatDays, repeatUntil, nowIso(), urgent && !o.urgent ? 1 : 0, dueChanged ? 1 : 0, dueChanged ? 1 : 0, o.id)
+				.bind(title, details, teamId, due, dueTime, urgent, repeatDays, repeatUntil, nowIso(), urgent && !o.urgent ? 1 : 0, dueChanged ? 1 : 0, dueChanged ? 1 : 0, o.id)
 		);
-		if (dueChanged) stmts.push(logTask(db, o.id, v.id, 'due_changed', `${formatDate(o.due_date)} → ${formatDate(due)}`));
+		if (dueChanged) stmts.push(logTask(db, o.id, v.id, 'due_changed', `${formatDue(o.due_date, o.due_time)} → ${formatDue(due, dueTime)}`));
 		if (title !== o.title || details !== o.details || teamId !== o.team_id || urgent !== o.urgent || repeatDays !== o.repeat_days || repeatUntil !== o.repeat_until) stmts.push(logTask(db, o.id, v.id, 'edited'));
 		for (const gone of leaving) stmts.push(logTask(db, o.id, v.id, 'unassigned', `${gone.assignee_name} is no longer on this task.`));
 	}

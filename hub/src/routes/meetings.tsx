@@ -1,12 +1,12 @@
 import { Hono } from 'hono';
-import { addDays, daysBetween, formatDate, formatTime, formatTimeRange, hourIn, isDate, isTime, todayIn } from '../dates';
+import { addDays, daysBetween, formatDate, formatTimeRange, formatTimestamp, isDate, isTime, todayIn } from '../dates';
 import { activeMembers, all, first, HOST_NAMES, MEETING_EXPECTED, MEETING_SELECT, MEETING_TEAMS_JSON, MEETING_VISIBLE, meetingById, meetingTeams, nowIso, run, TASK_SELECT, teamNames, teams, teamsByMember, visible } from '../db';
 import { meetingEmail } from '../emails';
 import { id, isHttpUrl, list, readForm, str } from '../form';
 import { meetingTiming } from '../meeting-content';
 import { canAssign, canEditMeeting, canSeeMeeting, isExec, teamsFor } from '../perm';
 import { announceCanceled, announceMeeting, emailMeeting, meetingPeople, notifyAssigned, notifyHost } from '../reminders';
-import { meetingReminderAt } from '../schedule';
+import { MEETING_SOON_HOURS, reminderTimes, remindKey } from '../schedule';
 import type { AppEnv, AttendanceStatus, Member, MeetingKind, MeetingRow, TaskRow, Viewer } from '../types';
 import { page } from '../views/layout';
 import { Choice, Empty, Field, Markdown, MemberSelect, netIds, PageHead, PeoplePicker, PersonName, PostButton, Tabs, TaskList } from '../views/ui';
@@ -746,7 +746,7 @@ meetingRoutes.get('/meetings/:id/reminder', async (c) => {
 	const v = c.get('viewer');
 	const m = await loadMeeting(c, v, c.req.param('id'));
 	if (!m || !canEditMeeting(v, m)) return c.notFound();
-	return c.html(meetingEmail(v.name, emailMeeting(m), meetingReminderAt(m).date, c.env.APP_URL).html);
+	return c.html(meetingEmail(v.name, emailMeeting(m), addDays(m.date, -1), c.env.APP_URL).html);
 });
 
 meetingRoutes.get('/meetings/:id', async (c) => {
@@ -755,7 +755,6 @@ meetingRoutes.get('/meetings/:id', async (c) => {
 	if (!m) return c.notFound();
 	const today = todayIn(c.env.TIMEZONE);
 	const editable = canEditMeeting(v, m);
-	const remindAt = meetingReminderAt(m);
 	const [roster, actions, people, toRemind, form, content, attendance, summary] = await Promise.all([
 		rosterFor(c.env.DB, m),
 		all<TaskRow>(c.env.DB, `${TASK_SELECT} WHERE t.meeting_id = ? ORDER BY t.status = 'open' DESC, t.due_date, a.name`, m.id),
@@ -766,8 +765,14 @@ meetingRoutes.get('/meetings/:id', async (c) => {
 		attendanceHistory(c.env.DB, m, v),
 		summaryRevisions(c.env.DB, m.id)
 	]);
-	const reminded = m.reminded_on === remindAt.date;
-	const remindLater = remindAt.date > today || (remindAt.date === today && hourIn(c.env.TIMEZONE) < remindAt.hour);
+	// Its two reminders (a day before, an hour before): which are still to come, and whether one went out.
+	const remindAt = reminderTimes(m, MEETING_SOON_HOURS, c.env.TIMEZONE);
+	const remindKeyNow = remindKey(m);
+	const remindAhead = [
+		m.reminded_day_for !== remindKeyNow && remindAt.day,
+		m.reminded_soon_for !== remindKeyNow && remindAt.soon
+	].filter((t): t is number => typeof t === 'number' && t > Date.now());
+	const reminded = m.reminded_day_for === remindKeyNow || m.reminded_soon_for === remindKeyNow;
 	const marked = roster.filter((r) => r.status);
 	const present = marked.filter((r) => r.status === 'present' || r.status === 'late').length;
 	const others = people.filter((p) => !roster.some((r) => r.id === p.id));
@@ -831,11 +836,11 @@ meetingRoutes.get('/meetings/:id', async (c) => {
 						<MeetingAgenda m={m} viewer={v} content={content} zone={c.env.TIMEZONE} />
 					</section>
 					<aside>
-					{toRemind.length > 0 && (reminded || remindLater) && (
+					{toRemind.length > 0 && (reminded || remindAhead.length > 0) && (
 						<p class="hint reminder-note">
-							{reminded
-								? `Reminder emailed to ${toRemind.length} ${toRemind.length === 1 ? 'person' : 'people'} on ${formatDate(remindAt.date, today)}.`
-								: `Reminder email goes to ${toRemind.length} ${toRemind.length === 1 ? 'person' : 'people'} on ${formatDate(remindAt.date, today)} at ${formatTime(`${String(remindAt.hour).padStart(2, '0')}:00`)}.`}{' '}
+							{remindAhead.length
+								? `Reminder email${remindAhead.length > 1 ? 's go' : ' goes'} to ${toRemind.length} ${toRemind.length === 1 ? 'person' : 'people'} on ${remindAhead.map((t) => formatTimestamp(new Date(t).toISOString(), c.env.TIMEZONE)).join(' and ')}.`
+								: `Reminder emailed to ${toRemind.length} ${toRemind.length === 1 ? 'person' : 'people'}.`}{' '}
 							<a href={`/meetings/${m.id}/reminder`} target="_blank">
 								Preview
 							</a>
