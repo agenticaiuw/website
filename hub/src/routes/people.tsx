@@ -7,7 +7,7 @@ import { canManageRoles, isExec, isOwner } from '../perm';
 import type { AppEnv, AttendanceStatus, Member, MeetingRow, Role, Team, TaskRow } from '../types';
 import { page } from '../views/layout';
 import { BoardTaskList } from '../views/board';
-import { Choice, Empty, Field, MembersDialog, Menu, PageHead, pct, PostButton, Stat, TaskList } from '../views/ui';
+import { Choice, Empty, Field, MemberSelect, MembersDialog, Menu, PageHead, pct, PostButton, Stat, TaskList, TeamSelect } from '../views/ui';
 
 export const peopleRoutes = new Hono<AppEnv>();
 
@@ -47,11 +47,14 @@ peopleRoutes.get('/people', async (c) => {
 	const v = c.get('viewer');
 	const today = todayIn(c.env.TIMEZONE);
 	const showInactive = c.req.query('inactive') === '1';
-	const rows = await all<BoardRow>(
-		c.env.DB,
-		`${BOARD_SQL} ${showInactive ? '' : 'WHERE m.active = 1'} ORDER BY ${isExec(v) ? 'overdue DESC, open DESC, ' : ''}m.name COLLATE NOCASE`,
-		today
-	);
+	const [rows, teamList] = await Promise.all([
+		all<BoardRow>(
+			c.env.DB,
+			`${BOARD_SQL} ${showInactive ? '' : 'WHERE m.active = 1'} ORDER BY ${isExec(v) ? 'overdue DESC, open DESC, ' : ''}m.name COLLATE NOCASE`,
+			today
+		),
+		isExec(v) ? teams(c.env.DB) : Promise.resolve([])
+	]);
 
 	if (!isExec(v)) {
 		return page(
@@ -76,7 +79,38 @@ peopleRoutes.get('/people', async (c) => {
 		c,
 		{ title: 'People', active: 'people' },
 		<>
-			<PageHead title="People" sub="Who has what, what's late, and who shows up. Sorted by overdue work." />
+			<PageHead
+				title="People"
+				sub="Who has what, what's late, and who shows up. Sorted by overdue work."
+				actions={
+					<button type="button" class="btn primary" aria-haspopup="dialog" aria-controls="add-people-dialog" data-members-dialog="add-people-dialog">
+						Add people
+					</button>
+				}
+			/>
+			<dialog id="add-people-dialog" class="members-dialog" aria-labelledby="add-people-title">
+				<div class="members-dialog-content stack">
+					<header>
+						<h2 id="add-people-title">Add people</h2>
+						<form method="dialog">
+							<button class="btn small">Close</button>
+						</form>
+					</header>
+					<NewPersonForm action="/people/add" teams={teamList} />
+					<details class="disclose">
+						<summary>Add many at once</summary>
+						<form method="post" action="/people/import" class="stack">
+							<p class="hint">
+								One per line: <code>Name, email</code>, with <code>, exec</code> on the end for execs. Anyone already on the roster is updated, not duplicated. Put people on teams from the Teams page.
+							</p>
+							<textarea name="lines" rows={6} placeholder={'Bucky Badger, bucky@wisc.edu\nAva Chen, achen@wisc.edu, exec'} required></textarea>
+							<div>
+								<button class="btn primary">Add</button>
+							</div>
+						</form>
+					</details>
+				</div>
+			</dialog>
 			<div class="stats">
 				<Stat value={rows.length} label="People" />
 				<Stat value={totals.open} label="Open tasks" />
@@ -128,18 +162,6 @@ peopleRoutes.get('/people', async (c) => {
 				<a href={showInactive ? '/people' : '/people?inactive=1'}>{showInactive ? 'Hide' : 'Show'} inactive people</a>
 			</p>
 
-			<details class="card disclose add-people">
-				<summary>Add people</summary>
-				<form method="post" action="/people/import" class="stack">
-					<p class="hint">
-						One per line: <code>Name, email</code>, with <code>, exec</code> on the end for execs. Anyone already on the roster is updated, not duplicated. Put people on teams from the Teams page.
-					</p>
-					<textarea name="lines" rows={6} placeholder={'Bucky Badger, bucky@wisc.edu\nAva Chen, achen@wisc.edu, exec'} required></textarea>
-					<div>
-						<button class="btn primary">Add</button>
-					</div>
-				</form>
-			</details>
 		</>
 	);
 });
@@ -165,6 +187,33 @@ peopleRoutes.post('/people/import', async (c) => {
 	}
 	if (stmts.length) await c.env.DB.batch(stmts);
 	return c.redirect(stmts.length ? '/people?ok=imported' : '/people?error=missing');
+});
+
+/** Puts someone on the roster by email (bringing them back if they'd left) and returns their id. Never renames anyone already on it. */
+async function addPerson(db: D1Database, name: string, email: string) {
+	const clean = email.trim().toLowerCase();
+	if (!name.trim() || !isEmail(clean)) return null;
+	await run(
+		db,
+		"INSERT INTO members (name, email, role) VALUES (?, ?, 'member') ON CONFLICT(email) DO UPDATE SET active = 1 WHERE members.is_owner = 0",
+		name.trim().slice(0, 100),
+		clean.slice(0, 200)
+	);
+	return (await memberByEmail(db, clean))?.id ?? null;
+}
+
+const addToTeam = (db: D1Database, teamId: number, memberId: number, lead = false) =>
+	run(db, 'INSERT INTO team_members (team_id, member_id, is_lead) VALUES (?, ?, ?) ON CONFLICT(team_id, member_id) DO UPDATE SET is_lead = excluded.is_lead', teamId, memberId, lead ? 1 : 0);
+
+/** One person by full name and email, optionally straight onto a team. */
+peopleRoutes.post('/people/add', async (c) => {
+	if (!isExec(c.get('viewer'))) return forbidden(c);
+	const form = await readForm(c);
+	const memberId = await addPerson(c.env.DB, str(form.name), str(form.email));
+	if (!memberId) return c.redirect(str(form.name) && str(form.email) ? '/people?error=email' : '/people?error=missing');
+	const teamId = id(form.team);
+	if (teamId) await addToTeam(c.env.DB, teamId, memberId);
+	return c.redirect('/people?ok=imported');
 });
 
 peopleRoutes.get('/people/:id', async (c) => {
@@ -461,17 +510,13 @@ export function TeamCard({ team: t, links, people, teamList, editable, open }: {
 						</header>
 						{others.length > 0 ? (
 							<form method="post" action={`/teams/${t.id}/members`} class="team-add">
-								<select name="member" required aria-label={`Add someone to ${t.name}`}>
-									<option value="">Add someone…</option>
-									{others.map((p) => (
-										<option value={String(p.id)}>{p.name}</option>
-									))}
-								</select>
+								<MemberSelect name="member" members={others} blank="Type a name" required label={`Add someone to ${t.name}`} />
 								<button class="btn small primary">Add</button>
 							</form>
 						) : (
 							<Empty>Everyone on the roster is already on this team.</Empty>
 						)}
+						<NewPersonForm action={`/teams/${t.id}/members`} heading="Not on the roster yet" />
 					</div>
 				</dialog>
 			)}
@@ -580,9 +625,10 @@ peopleRoutes.post('/teams/:id/members', async (c) => {
 	if (!isExec(c.get('viewer'))) return forbidden(c);
 	const teamId = id(c.req.param('id'));
 	const form = await readForm(c);
-	const memberId = id(form.member);
-	if (!teamId || !memberId) return c.redirect('/teams?error=missing');
-	await run(c.env.DB, 'INSERT INTO team_members (team_id, member_id, is_lead) VALUES (?, ?, ?) ON CONFLICT(team_id, member_id) DO UPDATE SET is_lead = excluded.is_lead', teamId, memberId, str(form.lead) === '1' ? 1 : 0);
+	// Someone on the roster, or someone new by full name and email.
+	const memberId = id(form.member) ?? (str(form.email) ? await addPerson(c.env.DB, str(form.name), str(form.email)) : null);
+	if (!teamId || !memberId) return c.redirect(`/teams?error=${str(form.email) && str(form.name) ? 'email' : 'missing'}`);
+	await addToTeam(c.env.DB, teamId, memberId, str(form.lead) === '1');
 	return c.redirect(teamBack(c, teamId));
 });
 
@@ -608,3 +654,28 @@ peopleRoutes.post('/teams/:id/members/:member/remove', async (c) => {
 	await run(c.env.DB, 'DELETE FROM team_members WHERE team_id = ? AND member_id = ?', teamId ?? 0, id(c.req.param('member')) ?? 0);
 	return c.redirect(teamBack(c, teamId));
 });
+
+/** Full name and email for someone not on the roster yet; with `teams`, a team to put them on. */
+function NewPersonForm({ action, teams, heading }: { action: string; teams?: Pick<Team, 'id' | 'name'>[]; heading?: string }) {
+	return (
+		<form method="post" action={action} class="stack new-person">
+			{heading && <p class="label">{heading}</p>}
+			<div class="field-pair">
+				<Field label="Full name">
+					<input name="name" required maxlength={100} autocomplete="off" />
+				</Field>
+				<Field label="Email">
+					<input type="email" name="email" required maxlength={200} autocomplete="off" />
+				</Field>
+			</div>
+			{teams && (
+				<Field label="Team">
+					<TeamSelect name="team" teams={teams} blank="No team" />
+				</Field>
+			)}
+			<div>
+				<button class="btn primary small">Add</button>
+			</div>
+		</form>
+	);
+}

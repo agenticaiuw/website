@@ -189,7 +189,9 @@ for (const form of document.querySelectorAll('form[data-board-assignment]')) {
 		if (form.querySelector('input[name="person"]:checked, input[name="subteam"]:checked')) return;
 		event.preventDefault();
 		if (error) error.hidden = false;
-		form.querySelector('input[name="person"], input[name="subteam"]')?.focus();
+		const first = form.querySelector('input[name="person"], input[name="subteam"]');
+		// People are picked by typing now, so focus that box rather than the hidden checkbox.
+		(first?.closest('[data-pick-people]')?.previousElementSibling?.querySelector('.combo-input') ?? first)?.focus();
 	});
 }
 
@@ -245,11 +247,13 @@ for (const btn of document.querySelectorAll('[data-add-row]')) {
 		const rows = btn.closest('form').querySelector('[data-rows]');
 		const last = rows.querySelector('[data-row]:last-child');
 		const row = last.cloneNode(true);
+		for (const combo of row.querySelectorAll('.combo')) combo.remove();
 		for (const input of row.querySelectorAll('input:not([type=date]), select')) {
 			input.value = '';
 			input.required = false; // Extra lines are optional; blank ones are skipped.
 		}
 		rows.append(row);
+		for (const select of row.querySelectorAll('select[data-person]')) personSelect(select);
 		row.querySelector('input:not([type=hidden])').focus();
 	});
 }
@@ -304,19 +308,6 @@ document.addEventListener('keydown', (e) => {
 	}
 });
 
-// People picker: the search box filters the checklist below it.
-for (const input of document.querySelectorAll('[data-picker-filter]')) {
-	const items = input.closest('.picker').querySelectorAll('label');
-	input.addEventListener('input', () => {
-		const q = input.value.trim().toLowerCase();
-		for (const item of items) item.hidden = !!q && !item.textContent.toLowerCase().includes(q);
-	});
-	// Enter in the filter shouldn't submit the whole task form.
-	input.addEventListener('keydown', (e) => {
-		if (e.key === 'Enter') e.preventDefault();
-	});
-}
-
 // People pickers (assign a task, who a meeting is for): ticking a team ticks everyone on it, and
 // unticking it unticks them unless another ticked team still has them. Unticking the last person
 // on a team unticks the team. Whole club ticks everyone and locks the list, since a club event is
@@ -334,6 +325,7 @@ for (const picker of document.querySelectorAll('.picker')) {
 			const n = boxes.filter((b) => b.checked).length;
 			count.textContent = n === 1 ? '1 person' : `${n} people`;
 		}
+		picker.dispatchEvent(new Event('people-sync', { bubbles: true }));
 	};
 	if (teams.length) {
 		// Tells the server the people list matches the teams, so anyone unticked was left out on purpose.
@@ -366,6 +358,239 @@ for (const picker of document.querySelectorAll('.picker')) {
 	});
 	sync();
 }
+
+// Picking people: type part of a name and choose from the dropdown, instead of scrolling a long
+// list. <select data-person> picks one person; [data-pick-people] (a list of ticked boxes) picks several,
+// shown as chips. The select or boxes stay in the form, hidden, so what gets posted is unchanged.
+const fold = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+let comboSeq = 0;
+
+function combo({ input, wrap, options, pick }) {
+	const list = document.createElement('ul');
+	const listId = `combo-${++comboSeq}`;
+	Object.assign(list, { id: listId, className: 'combo-list', hidden: true });
+	list.setAttribute('role', 'listbox');
+	input.setAttribute('role', 'combobox');
+	input.setAttribute('aria-autocomplete', 'list');
+	input.setAttribute('aria-expanded', 'false');
+	input.setAttribute('aria-controls', listId);
+	Object.assign(input, { autocomplete: 'off', spellcheck: false });
+	wrap.append(list);
+	let shown = [];
+	let active = -1;
+	let typed = false;
+	const highlight = () => {
+		[...list.children].forEach((li, i) => li.setAttribute('aria-selected', String(i === active)));
+		const li = list.children[active];
+		if (li) {
+			input.setAttribute('aria-activedescendant', li.id);
+			li.scrollIntoView({ block: 'nearest' });
+		} else input.removeAttribute('aria-activedescendant');
+	};
+	const close = () => {
+		list.hidden = true;
+		input.setAttribute('aria-expanded', 'false');
+		input.removeAttribute('aria-activedescendant');
+	};
+	const render = () => {
+		const q = typed ? fold(input.value) : '';
+		// Every word typed has to appear in the name ("ev li" finds Evan Liu); names where one starts
+		// a word come first.
+		const words = q.split(' ').filter(Boolean);
+		const starts = (name) => words.every((w) => name.startsWith(w) || name.includes(' ' + w));
+		shown = options()
+			.map((o) => ({ o, name: fold(o.text) }))
+			.filter(({ name }) => words.every((w) => name.includes(w)))
+			.sort((a, b) => Number(starts(b.name)) - Number(starts(a.name)))
+			.map(({ o }) => o);
+		list.replaceChildren(
+			...shown.map((o, i) => {
+				const li = document.createElement('li');
+				li.id = `${listId}-${i}`;
+				li.setAttribute('role', 'option');
+				li.textContent = o.text;
+				if (o.blank) li.classList.add('combo-blank');
+				li.addEventListener('mousedown', (e) => e.preventDefault());
+				li.addEventListener('click', () => choose(i));
+				return li;
+			})
+		);
+		if (!shown.length) {
+			const li = Object.assign(document.createElement('li'), { className: 'combo-none', textContent: q ? 'No one matches' : 'No one left to add' });
+			list.append(li);
+		}
+		active = shown.length ? 0 : -1;
+		list.hidden = false;
+		input.setAttribute('aria-expanded', 'true');
+		highlight();
+	};
+	const choose = (i) => {
+		const o = shown[i];
+		if (!o) return;
+		typed = false;
+		pick(o);
+	};
+	input.addEventListener('focus', () => {
+		typed = false;
+		input.select();
+		render();
+	});
+	input.addEventListener('click', () => list.hidden && render());
+	input.addEventListener('input', () => {
+		typed = true;
+		render();
+	});
+	input.addEventListener('keydown', (e) => {
+		if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+			e.preventDefault();
+			if (list.hidden) return render();
+			if (!shown.length) return;
+			active = (active + (e.key === 'ArrowDown' ? 1 : -1) + shown.length) % shown.length;
+			highlight();
+		} else if (e.key === 'Enter') {
+			if (list.hidden) return;
+			e.preventDefault(); // Picking someone shouldn't submit the form.
+			choose(active);
+		} else if (e.key === 'Escape') {
+			if (list.hidden) return;
+			e.preventDefault();
+			e.stopPropagation(); // Close the list, not the dialog around it.
+			close();
+			input.dispatchEvent(new Event('combo-cancel'));
+		}
+	});
+	input.addEventListener('blur', () => {
+		close();
+		input.dispatchEvent(new Event('combo-cancel'));
+	});
+	return { render, close };
+}
+
+function personSelect(select) {
+	if (select.dataset.enhanced) select.nextElementSibling?.classList.contains('combo') && select.nextElementSibling.remove();
+	select.dataset.enhanced = '1';
+	select.classList.add('combo-native');
+	select.tabIndex = -1;
+	select.setAttribute('aria-hidden', 'true');
+	const wrap = Object.assign(document.createElement('div'), { className: 'combo' });
+	const input = document.createElement('input');
+	input.type = 'text';
+	input.className = 'combo-input';
+	const blank = [...select.options].find((o) => o.value === '');
+	input.placeholder = blank?.text || 'Type a name';
+	input.setAttribute('aria-label', select.getAttribute('aria-label') || select.closest('label, .field')?.querySelector('.label')?.textContent || 'Person');
+	if (select.id) {
+		// A <label for> pointing at the select now focuses the box you type in.
+		for (const label of document.querySelectorAll(`label[for="${CSS.escape(select.id)}"]`)) label.addEventListener('click', (e) => { e.preventDefault(); input.focus(); });
+	}
+	const showSelected = () => {
+		const o = select.selectedOptions[0];
+		input.value = o && o.value !== '' ? o.text.trim() : '';
+	};
+	wrap.append(input);
+	select.after(wrap);
+	// A label wrapping the select would hand its clicks to the hidden select; send them to the box.
+	select.closest('label')?.addEventListener('click', (e) => {
+		if (e.target === input || wrap.contains(e.target)) return;
+		e.preventDefault();
+		input.focus();
+	});
+	combo({
+		input,
+		wrap,
+		options: () =>
+			[...select.options]
+				.filter((o) => !o.disabled && (o.value !== '' || !select.required))
+				.map((o) => ({ text: o.text.trim(), value: o.value, blank: o.value === '' })),
+		pick: (o) => {
+			const changed = select.value !== o.value;
+			select.value = o.value;
+			showSelected();
+			wrap.classList.remove('invalid');
+			input.blur();
+			if (changed) select.dispatchEvent(new Event('change', { bubbles: true }));
+		}
+	});
+	input.addEventListener('combo-cancel', showSelected);
+	input.disabled = select.disabled;
+	select.addEventListener('invalid', (e) => {
+		e.preventDefault();
+		wrap.classList.add('invalid');
+		input.focus();
+	});
+	select.form?.addEventListener('reset', () => setTimeout(showSelected));
+	showSelected();
+}
+
+function peopleList(box) {
+	box.classList.add('combo-hidden');
+	const field = Object.assign(document.createElement('div'), { className: 'people-field combo' });
+	const chips = Object.assign(document.createElement('div'), { className: 'people-chips' });
+	const input = Object.assign(document.createElement('input'), { type: 'text', className: 'combo-input', placeholder: 'Type a name to add' });
+	const legend = box.closest('fieldset')?.querySelector('legend')?.textContent?.trim();
+	input.setAttribute('aria-label', legend ? `${legend}: type a name to add` : 'Type a name to add');
+	field.append(chips, input);
+	box.before(field);
+	const boxes = () => [...box.querySelectorAll('input[type=checkbox]')];
+	const nameOf = (b) => b.closest('label').textContent.replace(/\s+/g, ' ').trim();
+	const set = (b, on) => {
+		b.checked = on;
+		b.dispatchEvent(new Event('change', { bubbles: true }));
+	};
+	const draw = () => {
+		const all = boxes();
+		const locked = all.length > 0 && all.every((b) => b.disabled);
+		field.hidden = locked; // Whole club: everyone's in, nothing to pick.
+		const picked = all.filter((b) => b.checked);
+		chips.replaceChildren(
+			...picked.map((b) => {
+				const chip = Object.assign(document.createElement('span'), { className: 'person-chip' });
+				const name = nameOf(b);
+				const remove = Object.assign(document.createElement('button'), { type: 'button', className: 'person-chip-x', textContent: '×' });
+				remove.setAttribute('aria-label', `Remove ${name}`);
+				remove.addEventListener('click', () => {
+					set(b, false);
+					draw();
+					input.focus();
+				});
+				chip.append(name, remove);
+				return chip;
+			})
+		);
+	};
+	const { render } = combo({
+		input,
+		wrap: field,
+		options: () => boxes().filter((b) => !b.checked && !b.disabled).map((b) => ({ text: nameOf(b), box: b })),
+		pick: (o) => {
+			set(o.box, true);
+			input.value = '';
+			draw();
+			render(); // Stay open to add the next person.
+		}
+	});
+	input.addEventListener('combo-cancel', () => (input.value = ''));
+	input.addEventListener('keydown', (e) => {
+		// Backspace in an empty box takes off the last person.
+		if (e.key !== 'Backspace' || input.value) return;
+		const last = boxes().filter((b) => b.checked && !b.disabled).pop();
+		if (!last) return;
+		set(last, false);
+		draw();
+		if (document.activeElement === input) render();
+	});
+	field.addEventListener('click', (e) => {
+		if (e.target === field || e.target === chips) input.focus();
+	});
+	// Teams ticked or cleared elsewhere in the picker.
+	const scope = box.closest('.picker') || box.closest('form') || document;
+	scope.addEventListener('people-sync', draw);
+	scope.addEventListener('change', (e) => !box.contains(e.target) && draw());
+	draw();
+}
+
+for (const select of document.querySelectorAll('select[data-person]')) personSelect(select);
+for (const box of document.querySelectorAll('[data-pick-people]')) peopleList(box);
 
 // Meeting form: picking a start time sets the end an hour later, until someone picks the end themselves.
 for (const start of document.querySelectorAll('input[type=time][name=time]')) {

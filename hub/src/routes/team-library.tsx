@@ -40,8 +40,8 @@ export function TeamLibrary({ items, root, subteams, filters }: { items: Library
 			<form method="get" action={`${root}#team-library`} class="team-library-filters">
 				{subteams.map((id) => <input type="hidden" name="subteam" value={id} />)}
 				<label>File type<select name="library_type"><option value="">All types</option>{types.map((v) => <option value={v} selected={filters.type === v}>{v}</option>)}</select></label>
-				<label>Added by<select name="library_person"><option value="">Everyone</option>{people.map(([value, name]) => <option value={value} selected={filters.person === value}>{name}</option>)}</select></label>
-				<label>Meeting creator<select name="library_creator"><option value="">Everyone</option>{creators.map(([value, name]) => <option value={value} selected={filters.creator === value}>{name}</option>)}</select></label>
+				<label>Added by<select name="library_person" data-person><option value="">Everyone</option>{people.map(([value, name]) => <option value={value} selected={filters.person === value}>{name}</option>)}</select></label>
+				<label>Meeting creator<select name="library_creator" data-person><option value="">Everyone</option>{creators.map(([value, name]) => <option value={value} selected={filters.creator === value}>{name}</option>)}</select></label>
 				<label>Meeting<select name="library_meeting"><option value="">All meetings</option>{meetings.map(([value, name]) => <option value={value} selected={filters.meeting === value}>{name}</option>)}</select></label>
 				<label>Group by<select name="library_group"><option value="">None</option><option value="creator" selected={filters.group === 'creator'}>Meeting creator</option><option value="type" selected={filters.group === 'type'}>File type</option></select></label>
 				<button class="btn small">Apply</button>

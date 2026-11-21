@@ -107,7 +107,7 @@ export function MeetingAgenda({ m, viewer, content, zone }: Props) {
 							</div>
 							{writable && <dialog id={`agenda-edit-${item.id}`} class="members-dialog" aria-labelledby={`agenda-edit-${item.id}-title`}>
 								<div class="members-dialog-content stack">
-									<header><h2 id={`agenda-edit-${item.id}-title`}>Edit agenda item</h2><form method="dialog"><button type="submit" class="icon-btn" aria-label="Close" title="Close">?</button></form></header>
+									<header><h2 id={`agenda-edit-${item.id}-title`}>Edit agenda item</h2><form method="dialog"><button type="submit" class="icon-btn" aria-label="Close" title="Close">×</button></form></header>
 									<form class="stack" method="post" action={path}>
 										<input type="hidden" name="version" value={item.version} />
 										<Field label="Title"><input name="title" maxlength={200} required value={item.title} /></Field>
@@ -166,7 +166,7 @@ export function MeetingFiles({ m, viewer, content, zone }: Props) {
 				<div class="card"><strong>{item.title}</strong><Markdown text={item.body ?? ''} /></div>
 			))}
 			{content.files.length > 0 && <div class="library-filters" data-library-filters>
-				<label>Added by <select data-library-author-filter><option value="">Everyone</option>{authors.map(([value, name]) => <option value={value}>{name}</option>)}</select></label>
+				<label>Added by <select data-library-author-filter data-person><option value="">Everyone</option>{authors.map(([value, name]) => <option value={value}>{name}</option>)}</select></label>
 				<label>Type <select data-library-type-filter><option value="">All types</option>{kinds.map((kind) => <option value={kind}>{kind}</option>)}</select></label>
 			</div>}
 			{content.files.length ? <FileList m={m} files={content.files} zone={zone} writable={(file) => canWrite(m, viewer, zone, file.author_id)} /> : <p class="hint">No files yet.</p>}

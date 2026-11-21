@@ -59,7 +59,7 @@ export function TaskForm({ action, due, members, subteams, assignedPeople, assig
 			{members && <>
 				<fieldset>
 					<legend>Assign to people</legend>
-					<div class="selection-grid">{members.map((m) => <label class="check">
+					<div class="selection-grid" data-pick-people>{members.map((m) => <label class="check">
 						<input type="checkbox" name="person" value={m.id} checked={assignedPeople.has(m.id)} /> <PersonName p={m} netId={netIds(members)} />
 					</label>)}</div>
 				</fieldset>

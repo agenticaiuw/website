@@ -919,7 +919,7 @@ meetingRoutes.get('/meetings/:id', async (c) => {
 							)}
 							{editable && <div class="attendance-add"><button type="button" class="icon-btn agenda-add-button" aria-label="Add someone to attendance" title="Add someone to attendance" aria-haspopup="dialog" aria-controls="attendance-add-dialog" data-members-dialog="attendance-add-dialog">+</button></div>}
 							{editable && <dialog id="attendance-add-dialog" class="members-dialog" aria-labelledby="attendance-add-title"><div class="members-dialog-content stack">
-								<header><h2 id="attendance-add-title">Add someone</h2><form method="dialog"><button class="icon-btn" aria-label="Close">?</button></form></header>
+								<header><h2 id="attendance-add-title">Add someone</h2><form method="dialog"><button class="icon-btn" aria-label="Close">×</button></form></header>
 								{others.length ? <form method="post" action={`/meetings/${m.id}/attendance`} class="stack"><Field label="Person"><MemberSelect name="add" members={others} blank="Choose a person" required /></Field><div><button class="btn primary">Add</button></div></form> : <p class="hint">Everyone is already listed.</p>}
 							</div></dialog>}
 						</>

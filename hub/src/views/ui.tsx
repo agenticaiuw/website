@@ -257,7 +257,7 @@ export function PersonName({ p, netId }: { p: Named; netId: (p: Named) => string
 export function MemberSelect({ name, members, selected, required, blank, id, label }: { name: string; members: (Pick<Member, 'id' | 'name'> & { email?: string })[]; selected?: number | null; required?: boolean; blank?: string; id?: string; label?: string }) {
 	const netId = netIds(members);
 	return (
-		<select name={name} id={id} required={required} aria-label={label}>
+		<select name={name} id={id} required={required} aria-label={label} data-person>
 			{blank !== undefined && <option value="">{blank}</option>}
 			{members.map((m) => (
 				<option value={String(m.id)} selected={m.id === selected}>
@@ -296,16 +296,7 @@ export function PeoplePicker({ label, hint, teams, club, pickedTeams, people, pi
 						))}
 					</div>
 				)}
-				<div class="picker-search js-only">
-					<input type="search" placeholder="Find a person" aria-label="Find a person" data-picker-filter />
-					<span class="picker-count">
-						<span data-picker-count></span> ·{' '}
-						<button type="button" class="link-btn" data-picker-clear>
-							Clear
-						</button>
-					</span>
-				</div>
-				<div class="picker-list">
+				<div class="picker-list" data-pick-people>
 					{[...people]
 						.sort((a, b) => Number(picked.has(b.id)) - Number(picked.has(a.id)))
 						.map((p) => (
@@ -314,6 +305,14 @@ export function PeoplePicker({ label, hint, teams, club, pickedTeams, people, pi
 								<PersonName p={p} netId={netId} />
 							</label>
 						))}
+				</div>
+				<div class="picker-search js-only">
+					<span class="picker-count">
+						<span data-picker-count></span> ·{' '}
+						<button type="button" class="link-btn" data-picker-clear>
+							Clear
+						</button>
+					</span>
 				</div>
 			</div>
 			{hint && <span class="hint">{hint}</span>}

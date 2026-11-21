@@ -185,7 +185,7 @@ const renderTeamPage = async (c: Context<AppEnv>) => {
 							<label class="check"><input type="checkbox" name="archived" value="1" checked={!!selected.archived} /> Archived</label>
 							<fieldset>
 								<legend>Subteam members</legend>
-								<div class="selection-grid">{members.map((m) => (
+								<div class="selection-grid" data-pick-people>{members.map((m) => (
 									<label class="check"><input type="checkbox" name="member" value={m.id} checked={subRoster.some((r) => r.subteam_id === selected.id && r.member_id === m.id)} /> <PersonName p={m} netId={netIds(members)} /></label>
 								))}</div>
 							</fieldset>
