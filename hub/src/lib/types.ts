@@ -16,6 +16,8 @@ export type Env = {
 	COLLAB_SERVICE_TOKEN?: string;
 	COLLAB_ACCESS_CLIENT_ID?: string;
 	COLLAB_ACCESS_CLIENT_SECRET?: string;
+	/** Fine-grained GitHub token (Actions: read and write, on agenticaiuw/website) that starts the website rebuild. */
+	GITHUB_DISPATCH_TOKEN?: string;
 };
 
 export type Role = 'exec' | 'member';

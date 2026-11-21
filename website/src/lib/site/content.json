@@ -269,8 +269,8 @@
 				],
 				"code": [
 					"desktop",
-					"mobile",
-					"browser"
+					"browser",
+					"phone"
 				],
 				"heads": [
 					"Bala Shukla",
@@ -299,7 +299,9 @@
 					"Storage for each agent’s tools, memories and past sessions, and quick ways to search it."
 				],
 				"code": [
-					"cloud"
+					"server",
+					"vm",
+					"protocol"
 				],
 				"heads": [
 					"Anand Indukuri"
@@ -322,9 +324,7 @@
 					"How an agent decides what to keep in mind and what to set aside while it works.",
 					"AI models running on club hardware that every member can use in their own projects."
 				],
-				"code": [
-					"cloud/docs"
-				],
+				"code": [],
 				"heads": [
 					"Ryan Khalili"
 				],
@@ -364,7 +364,12 @@
 				"heads": [
 					"Joslyn DeGuzman"
 				],
-				"leads": []
+				"leads": [
+					{
+						"name": "Julian Gomes",
+						"title": ""
+					}
+				]
 			},
 			{
 				"k": "business",

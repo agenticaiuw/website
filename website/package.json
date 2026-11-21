@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build",
+    "build": "node scripts/snapshot-content.mjs && vite build",
     "preview": "vite preview",
     "prepare": "svelte-kit sync || echo ''",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
@@ -14,7 +14,6 @@
   },
   "devDependencies": {
     "@sveltejs/adapter-auto": "^7.0.1",
-    "@sveltejs/adapter-cloudflare": "^7.2.10",
     "@sveltejs/adapter-static": "^3.0.10",
     "@sveltejs/kit": "^2.63.0",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
@@ -23,7 +22,8 @@
     "svelte-check": "^4.6.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
-    "vite": "^8.0.16"
+    "vite": "^8.0.16",
+    "wrangler": "^4.166.0"
   },
   "dependencies": {
     "gsap": "^3.15.0"

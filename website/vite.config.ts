@@ -1,4 +1,4 @@
-import adapter from '@sveltejs/adapter-cloudflare';
+import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
@@ -11,8 +11,11 @@ export default defineConfig({
 				runes: ({ filename }) =>
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
-			// Rendered on Cloudflare per request, so text edited in the hub shows up without a rebuild.
-			adapter: adapter()
+			// Plain files for Cloudflare Pages: every page is built ahead of time with the hub's text.
+			adapter: adapter({ pages: 'build', assets: 'build', strict: true }),
+			prerender: { entries: ['*', '/404'] },
+			// /404.html is served at any missing address, so its CSS and JS links can't be relative.
+			paths: { relative: false }
 		})
 	]
 });

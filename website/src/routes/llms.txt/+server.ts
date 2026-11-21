@@ -3,12 +3,13 @@ import { siteUrl } from '$lib/seo';
 
 // /llms.txt (https://llmstxt.org): a plain-text briefing for AI assistants,
 // built from the same copy as the site so the two never disagree.
+export const prerender = true;
 export const trailingSlash = 'never';
 
 const page = (href: string) => `${siteUrl}${href.replace(/\/?$/, '/')}`;
 
-export async function GET({ platform }) {
-	const { club, vision, stats, team, project, work, join, contact, social, nav, faq, memberHub, press, events } = await loadSite(platform);
+export async function GET() {
+	const { club, vision, stats, team, project, work, join, contact, social, nav, faq, memberHub, press, events } = loadSite();
 	const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(new Date());
 	const upcoming = events.items.filter((e) => (e.dateEnd ?? e.date) >= today);
 	const past = events.items.filter((e) => (e.dateEnd ?? e.date) < today).reverse();

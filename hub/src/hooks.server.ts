@@ -1,6 +1,7 @@
 import { redirect, type Handle, type HandleServerError } from '@sveltejs/kit';
 import { sessionMember } from '$lib/server/auth';
 import { loadViewer } from '$lib/server/db';
+import { rebuildWebsiteQuietly } from '$lib/server/website';
 
 /** Pages and endpoints anyone can reach: sign-in, the iPhone app's API, public meeting forms, the website's text. */
 const PUBLIC = [/^\/(login|verify|logout|done|privacy)$/, /^\/api\/app\//, /^\/f\/[^/]+$/, /^\/api\/site$/];
@@ -29,6 +30,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 
 	const response = await resolve(event);
+	// A save may have changed the website's text (a section, a team's people): rebuild it if so.
+	if (request.method === 'POST' && response.status < 400) event.platform?.ctx.waitUntil(rebuildWebsiteQuietly(event.locals.env));
 	try {
 		response.headers.set('X-Frame-Options', 'DENY');
 		response.headers.set('Referrer-Policy', 'same-origin');

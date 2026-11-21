@@ -2,9 +2,9 @@
  * Site text comes from the member hub (hub.agenticaiuw.com/site), where execs edit it
  * with a full history. This turns the hub's sections into what the pages render:
  * placeholders like {{club}} filled in, the vision split into bold runs, and so on.
- * fallback.json is a snapshot used whenever the hub can't be reached.
+ * content.json is the hub's text as of the last build; scripts/snapshot-content.mjs saves it.
  */
-import fallback from './fallback.json';
+import fallback from './content.json';
 
 export type Sections = typeof fallback;
 
