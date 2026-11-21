@@ -1,7 +1,6 @@
 <script lang="ts">
-	import Badge from '$lib/components/Badge.svelte';
 	import { richHtml, site } from '$lib/site';
-	const { project, work } = site();
+	const { project } = site();
 	// What people download: GitHub builds each one from the repo's main branch on every push.
 	const builds = 'https://github.com/agenticaiuw/hive/releases/download/latest/';
 	const downloads = [
@@ -27,40 +26,7 @@
 	</div>
 </section>
 
-<!-- Slide 2: this semester's plan, the code, and the teams building it. -->
-<section class="slide hive-plan" aria-labelledby="plan-heading">
-	<div class="shell">
-		<h2 id="plan-heading" class="slide-title" data-reveal>{project.semesterLabel}</h2>
-		<ol class="points" role="list" data-stagger>
-			{#each project.semester as point, i (i)}
-				<li class="card point" data-reveal>
-					<span class="num" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
-					<p>{point}</p>
-				</li>
-			{/each}
-		</ol>
-		<a class="repo" href={project.repoHref} target="_blank" rel="noopener noreferrer" data-reveal>
-			{project.repoCta} <span aria-hidden="true">↗</span><span class="sr-only"> (opens in a new tab)</span>
-		</a>
-
-		<!-- Who builds it: one link per team page. -->
-		<nav class="builders" aria-labelledby="builders-heading">
-			<h2 id="builders-heading" data-reveal><a href="/teams/">{work.subteams.heading} <span class="go" aria-hidden="true">→</span></a></h2>
-			<ul class="tiles" role="list" data-stagger>
-				{#each work.subteams.items as t (t.k)}
-					<li data-reveal>
-						<a href="/teams/{t.k}/" class="tile">
-							<span class="ring"><Badge size="100%" prop={t.k} sticker={false} /></span>
-							<span class="tile-name">{t.short}</span>
-						</a>
-					</li>
-				{/each}
-			</ul>
-		</nav>
-	</div>
-</section>
-
-<!-- Slide 3: download Hive for each device. -->
+<!-- Slide 2: download Hive for each device. -->
 <section id="download" class="slide hive-get scroll-mt-16" aria-labelledby="get-heading">
 	<div class="shell">
 		<h2 id="get-heading" class="slide-title" data-reveal>Download Hive</h2>
@@ -79,8 +45,26 @@
 	</div>
 </section>
 
+<!-- Slide 3: this semester's plan and the code. -->
+<section class="slide hive-plan" aria-labelledby="plan-heading">
+	<div class="shell">
+		<h2 id="plan-heading" class="slide-title" data-reveal>{project.semesterLabel}</h2>
+		<ol class="points" role="list" data-stagger>
+			{#each project.semester as point, i (i)}
+				<li class="card point" data-reveal>
+					<span class="num" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+					<p>{point}</p>
+				</li>
+			{/each}
+		</ol>
+		<a class="repo" href={project.repoHref} target="_blank" rel="noopener noreferrer" data-reveal>
+			{project.repoCta} <span aria-hidden="true">↗</span><span class="sr-only"> (opens in a new tab)</span>
+		</a>
+	</div>
+</section>
+
 <style>
-	/* ---- slide 3 ---- */
+	/* ---- download slide ---- */
 	.get-lede { margin-top: clamp(0.6rem, 1.8svh, 1rem); max-width: 46rem; font-size: clamp(1rem, min(1.25vw, 2.3svh), 1.15rem); line-height: 1.6; color: var(--muted); }
 	.gets { display: grid; gap: clamp(0.75rem, 1.6svh, 1rem); margin-top: clamp(1.1rem, 3.5svh, 2.25rem); list-style: none; padding: 0; }
 	@media (min-width: 700px) { .gets { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
@@ -137,7 +121,7 @@
 		50% { transform: translateY(6px); opacity: 1; }
 	}
 
-	/* ---- slide 2 ---- */
+	/* ---- plan slide ---- */
 	.points {
 		display: grid;
 		gap: clamp(0.75rem, 1.6svh, 1rem);
@@ -167,51 +151,7 @@
 	.repo { display: inline-block; margin-top: clamp(0.9rem, 2.4svh, 1.4rem); font-family: var(--font-sans); font-size: 1.05rem; font-weight: 700; color: var(--accent); }
 	.repo:hover, .repo:focus-visible { text-decoration: underline; text-underline-offset: 3px; }
 
-	.builders { margin-top: clamp(1.5rem, 5svh, 3.25rem); padding-top: clamp(1.1rem, 3.5svh, 2rem); border-top: 1px solid var(--line-strong); }
-	.builders h2 { font-family: var(--font-sans); font-size: clamp(1.3rem, min(2.2vw, 4svh), 1.9rem); font-weight: 800; letter-spacing: -0.02em; }
-	.builders h2 a { color: var(--fg); }
-	.builders h2 a:hover, .builders h2 a:focus-visible { color: var(--accent); }
-	.go { display: inline-block; color: var(--accent); transition: transform 0.2s ease; }
-	.builders h2 a:hover .go, .builders h2 a:focus-visible .go { transform: translateX(3px); }
-	.tiles {
-		display: grid;
-		grid-template-columns: repeat(3, minmax(0, 1fr));
-		gap: clamp(0.5rem, 1.4vw, 1rem);
-		margin-top: clamp(0.9rem, 2.6svh, 1.4rem);
-		list-style: none;
-		padding: 0;
-	}
-	@media (min-width: 900px) { .tiles { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
-	/* narrow phones: two to a row so every team name fits on one line */
-	@media (max-width: 370px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-	.tile {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 0.55rem;
-		height: 100%;
-		padding: clamp(0.7rem, 2svh, 1.1rem) 0.5rem;
-		border-radius: var(--r-lg);
-		border: 1px solid var(--line);
-		background: var(--surface);
-		text-align: center;
-		transition: border-color 0.2s ease;
-	}
-	.tile:hover, .tile:focus-visible { border-color: var(--accent); }
-	.ring {
-		display: grid;
-		place-items: center;
-		width: clamp(3.25rem, min(7vw, 9svh), 5.25rem);
-		aspect-ratio: 1;
-		padding: 0.35rem;
-		border-radius: 999px;
-		background: var(--surface-2);
-		border: 1.5px solid var(--line-strong);
-	}
-	.tile-name { font-family: var(--font-sans); font-size: clamp(0.95rem, 1.3vw, 1.1rem); font-weight: 700; line-height: 1.2; color: var(--fg); overflow-wrap: break-word; }
-
 	@media (prefers-reduced-motion: reduce) {
 		.cue span { animation: none; }
-		.go { transition: none; }
 	}
 </style>
