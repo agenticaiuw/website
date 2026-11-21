@@ -271,7 +271,7 @@ const TASK_REPEATS: [string, string][] = [
 function RepeatFields({ days, until }: { days: number; until: string | null }) {
 	return (
 		<>
-			<Choice name="repeat" label="Repeats" selected={String(days)} options={TASK_REPEATS} hint="Weekly ones: on each due date the next one is made and everyone on it is emailed. Daily ones: each day’s is made that morning and comes in the 9 AM reminder email." />
+			<Choice name="repeat" label="Repeats" selected={String(days)} options={TASK_REPEATS} hint="Weekly ones: on each due date the next one is made and everyone on it is emailed. Daily ones: each day’s is made at midnight and comes in the 9 AM reminder email." />
 			<label class="field until">
 				<span class="label">Until</span>
 				<input type="date" name="repeat_until" value={until ?? ''} />

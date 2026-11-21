@@ -263,14 +263,15 @@ export async function sendMeetingReminders(env: Env, now = new Date()) {
 /**
  * Repeating tasks: on each one's due date, the next one is made for everyone still on it (not anyone
  * who dropped theirs) and they're emailed about it, like any new task. Stops after repeat_until.
- * Daily tasks are made the morning they're due instead, with no separate email: the 9 AM reminder
- * that follows lists them under today, so nobody gets two emails a day for one task.
+ * Daily tasks are made as soon as their day starts instead (`dailyOnly`: the hourly runs), with no
+ * separate email: the 9 AM reminder lists them under today, so nobody gets two emails a day for one
+ * task, and checking off yesterday's late never leaves today without one.
  */
-export async function makeRepeatingTasks(env: Env, today: string) {
+export async function makeRepeatingTasks(env: Env, today: string, dailyOnly = false) {
 	const db = env.DB;
 	const due = await all<TaskRow>(
 		db,
-		`${TASK_SELECT} WHERE t.repeat_days > 0 AND t.repeated = 0 AND (t.due_date < ?1 OR (t.repeat_days > 1 AND t.due_date = ?1)) ORDER BY t.id`,
+		`${TASK_SELECT} WHERE t.repeat_days > 0 AND t.repeated = 0 AND (t.due_date < ?1 OR (t.repeat_days > 1 AND t.due_date = ?1))${dailyOnly ? ' AND t.repeat_days = 1' : ''} ORDER BY t.id`,
 		today
 	);
 	const groups = new Map<number, TaskRow[]>();
@@ -315,9 +316,10 @@ export async function makeRepeatingTasks(env: Env, today: string) {
 export async function scheduled(env: Env, now = new Date()) {
 	const hour = hourIn(env.TIMEZONE, now);
 	const today = todayIn(env.TIMEZONE, now);
+	// Daily copies every hour (so today's exists from midnight), the rest at 9 AM with their email.
+	const repeats = await makeRepeatingTasks(env, today, hour !== SEND_HOUR);
+	if (repeats) console.log(`[repeats] ${today} ${hour}:00: ${repeats} made`);
 	if (hour === SEND_HOUR) {
-		const repeats = await makeRepeatingTasks(env, today);
-		if (repeats) console.log(`[repeats] ${today}: ${repeats} made`);
 		const result = await runDailyReminders(env, now);
 		console.log(`[reminders] ${today}: ${result.sent} sent, ${result.failed} failed`);
 		if (weekday(today) === 1 && (await getMeta(env.DB, 'last_digest_on')) !== today) {
