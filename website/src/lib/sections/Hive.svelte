@@ -2,6 +2,13 @@
 	import Badge from '$lib/components/Badge.svelte';
 	import { richHtml, site } from '$lib/site';
 	const { project, work } = site();
+	// What people download: GitHub builds each one from the repo's main branch on every push.
+	const builds = 'https://github.com/agenticaiuw/hive/releases/download/latest/';
+	const downloads = [
+		{ name: 'Mac', note: 'Apple silicon and Intel', file: 'Hive-Mac.zip' },
+		{ name: 'Windows', note: 'Windows 10 and 11', file: 'hive-windows.exe' },
+		{ name: 'Browser', note: 'Chrome, Edge and Brave: load the unzipped folder in Extensions with Developer mode on', file: 'Hive-Browser.zip' }
+	];
 </script>
 
 <!-- Slide 1: the project's name and goal, big, with why it matters. -->
@@ -53,7 +60,36 @@
 	</div>
 </section>
 
+<!-- Slide 3: download Hive for each device. -->
+<section id="download" class="slide hive-get scroll-mt-16" aria-labelledby="get-heading">
+	<div class="shell">
+		<h2 id="get-heading" class="slide-title" data-reveal>Download Hive</h2>
+		<p class="get-lede" data-reveal>Each one connects to a Hive with the code from its dashboard's Pair a device.</p>
+		<ul class="gets" role="list" data-stagger>
+			{#each downloads as d (d.file)}
+				<li data-reveal>
+					<a class="card get" href={builds + d.file} download>
+						<span class="get-name">{d.name}</span>
+						<span class="get-note">{d.note}</span>
+						<span class="get-file">{d.file} <span aria-hidden="true">↓</span></span>
+					</a>
+				</li>
+			{/each}
+		</ul>
+	</div>
+</section>
+
 <style>
+	/* ---- slide 3 ---- */
+	.get-lede { margin-top: clamp(0.6rem, 1.8svh, 1rem); max-width: 46rem; font-size: clamp(1rem, min(1.25vw, 2.3svh), 1.15rem); line-height: 1.6; color: var(--muted); }
+	.gets { display: grid; gap: clamp(0.75rem, 1.6svh, 1rem); margin-top: clamp(1.1rem, 3.5svh, 2.25rem); list-style: none; padding: 0; }
+	@media (min-width: 700px) { .gets { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+	.get { display: flex; flex-direction: column; gap: 0.5rem; height: 100%; padding: clamp(1.1rem, min(2vw, 3.2svh), 1.75rem); transition: border-color 0.2s ease; }
+	.get:hover, .get:focus-visible { border-color: var(--accent); }
+	.get-name { font-family: var(--font-sans); font-size: clamp(1.6rem, min(2.8vw, 5svh), 2.4rem); font-weight: 900; letter-spacing: -0.04em; color: var(--fg); }
+	.get-note { flex: 1; font-size: 1rem; line-height: 1.5; color: var(--muted); }
+	.get-file { font-family: var(--font-sans); font-weight: 700; color: var(--accent); }
+
 	/* ---- slide 1 ---- */
 	.hive-hero { overflow: clip; }
 	.hero-inner { transform-origin: 30% 40%; }
