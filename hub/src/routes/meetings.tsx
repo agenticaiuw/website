@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { addDays, daysBetween, formatDate, formatTime, formatTimeRange, hourIn, isDate, isTime, todayIn } from '../dates';
-import { activeMembers, all, first, MEETING_EXPECTED, MEETING_SELECT, MEETING_TEAMS_JSON, MEETING_VISIBLE, meetingById, meetingTeams, nowIso, run, TASK_SELECT, teamNames, teams, teamsByMember, visible } from '../db';
+import { activeMembers, all, first, HOST_NAMES, MEETING_EXPECTED, MEETING_SELECT, MEETING_TEAMS_JSON, MEETING_VISIBLE, meetingById, meetingTeams, nowIso, run, TASK_SELECT, teamNames, teams, teamsByMember, visible } from '../db';
 import { meetingEmail } from '../emails';
 import { id, isHttpUrl, list, readForm, str } from '../form';
 import { meetingTiming } from '../meeting-content';
@@ -28,7 +28,7 @@ const STATUSES: [AttendanceStatus, string][] = [
 type MeetingListRow = MeetingRow & { present: number; marked: number; actions: number; open_actions: number };
 
 const LIST_SELECT = `
-	SELECT m.*, tm.name AS team_name, tm.kind AS team_kind, (SELECT name FROM members WHERE id = m.host_id) AS host_name, ${MEETING_TEAMS_JSON},
+	SELECT m.*, tm.name AS team_name, tm.kind AS team_kind, ${HOST_NAMES}, ${MEETING_TEAMS_JSON},
 		(SELECT COUNT(*) FROM attendance x WHERE x.meeting_id = m.id AND x.status IN ('present', 'late')) AS present,
 		(SELECT COUNT(*) FROM attendance x WHERE x.meeting_id = m.id) AS marked,
 		(SELECT COUNT(*) FROM tasks t WHERE t.meeting_id = m.id) AS actions,
@@ -191,7 +191,7 @@ function MeetingForm({ v, teamList, people, picked, teamsOf, m, kind, action, to
 		<form method="post" action={action} class="card form-grid">
 			<PeoplePicker
 				label="Who’s it for"
-				hint="Tick a team to add everyone on it, then untick anyone who doesn’t need to come. Everyone ticked sees it, is on its attendance and gets the reminder. Pick more than one team for a joint meeting. Whole club makes it a club event open to everyone."
+				hint="Tick the teams it’s for. Everyone on them sees it, is on its attendance and gets the reminder, including people who join the team later. Untick anyone who doesn’t need to come. Pick more than one team for a joint meeting. Whole club makes it a club event open to everyone."
 				teams={teamList}
 				club={club}
 				pickedTeams={pickedTeams}
@@ -203,9 +203,12 @@ function MeetingForm({ v, teamList, people, picked, teamsOf, m, kind, action, to
 			<Field label="Title" wide>
 				<input name="title" required maxlength={200} value={m?.title ?? ''} placeholder={kind === 'event' ? 'e.g. General meeting' : 'e.g. Weekly standup'} />
 			</Field>
-			<Field label="Host" hint="Who’s responsible for running it. They’re emailed when it’s set.">
-				<MemberSelect name="host" members={people} selected={m ? m.host_id : v.id} blank="No host yet" />
-			</Field>
+			<div class="field">
+				<span class="label">Hosts</span>
+				<MemberSelect name="host" members={people} selected={m ? m.host_id : v.id} blank="No host yet" label="Host" />
+				<MemberSelect name="cohost" members={people} selected={m?.cohost_id ?? null} blank="No second host" label="Second host" />
+				<span class="hint">Who’s responsible for running it. They’re emailed when they’re set.</span>
+			</div>
 			<Field label="Date">
 				<input type="date" name="date" required value={m?.date ?? today} />
 			</Field>
@@ -321,7 +324,7 @@ function readMeeting(form: Record<string, unknown>) {
 		docUrl: docUrl && isHttpUrl(docUrl) ? docUrl : '',
 		agenda: str(form.agenda, 50_000),
 		notes: str(form.notes, 100_000),
-		host: id(form.host),
+		...readHosts(form),
 		people: [...new Set(list(form.person).map(Number))].filter((n) => Number.isInteger(n) && n > 0),
 		// Set by app.js once team chips tick their people, so unticked team members can be skipped.
 		synced: str(form.people_synced) === '1'
@@ -329,6 +332,12 @@ function readMeeting(form: Record<string, unknown>) {
 }
 
 type MeetingInput = ReturnType<typeof readMeeting>;
+
+/** Up to two hosts. A second host on their own becomes the host; the same person twice counts once. */
+function readHosts(form: Record<string, unknown>) {
+	const [host = null, cohost = null] = [...new Set([id(form.host), id(form.cohost)].filter((x): x is number => x !== null))];
+	return { host, cohost };
+}
 
 /**
  * Splits who's ticked into invites (not on its teams) and skips (on its teams but unticked).
@@ -446,8 +455,8 @@ meetingRoutes.post('/meetings', async (c) => {
 	const who = await invitesAndSkips(db, m, m.teamIds);
 	const insert = (date: string, notes: string, seriesId: number | null) =>
 		db
-			.prepare('INSERT INTO meetings (team_id, kind, series_id, title, date, time, end_time, location, doc_url, agenda, notes, created_by, host_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-			.bind(teamId, m.kind, seriesId, m.title, date, m.time, m.endTime, m.location, m.docUrl, m.agenda, notes, v.id, m.host);
+			.prepare('INSERT INTO meetings (team_id, kind, series_id, title, date, time, end_time, location, doc_url, agenda, notes, created_by, host_id, cohost_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+			.bind(teamId, m.kind, seriesId, m.title, date, m.time, m.endTime, m.location, m.docUrl, m.agenda, notes, v.id, m.host, m.cohost);
 	const firstId = Number((await insert(m.date, m.notes, null).run()).meta.last_row_id);
 	const created = 'SELECT id FROM meetings WHERE id = ?1 OR series_id = ?1';
 	await db.batch([
@@ -532,8 +541,8 @@ meetingRoutes.post('/meetings/:id', async (c) => {
 	const wasOn = new Set((await meetingPeople(db, existing)).map((p) => p.id));
 	const stmts = [
 		db
-			.prepare('UPDATE meetings SET kind = ?, team_id = ?, title = ?, date = ?, time = ?, end_time = ?, location = ?, doc_url = ?, agenda = ?, notes = ?, host_id = ?, updated_at = ? WHERE id = ?')
-			.bind(m.kind, teamId, m.title, m.date, m.time, m.endTime, m.location, m.docUrl, m.agenda, m.notes, m.host, now, existing.id),
+			.prepare('UPDATE meetings SET kind = ?, team_id = ?, title = ?, date = ?, time = ?, end_time = ?, location = ?, doc_url = ?, agenda = ?, notes = ?, host_id = ?, cohost_id = ?, updated_at = ? WHERE id = ?')
+			.bind(m.kind, teamId, m.title, m.date, m.time, m.endTime, m.location, m.docUrl, m.agenda, m.notes, m.host, m.cohost, now, existing.id),
 		...setTeams(db, m.teamIds, '?1', existing.id),
 		...setWho(db, who, '?1', existing.id)
 	];
@@ -552,13 +561,13 @@ meetingRoutes.post('/meetings/:id', async (c) => {
 		dates = repeatDates(m.date, every || cadence(existing.date, later), until).slice(1);
 		const seriesId = existing.series_id ?? existing.id;
 		if (!existing.series_id) stmts.push(db.prepare('UPDATE meetings SET series_id = ?1 WHERE id = ?1').bind(existing.id));
-		const update = db.prepare('UPDATE meetings SET kind = ?, team_id = ?, title = ?, date = ?, time = ?, end_time = ?, location = ?, doc_url = ?, host_id = ?, updated_at = ? WHERE id = ?');
+		const update = db.prepare('UPDATE meetings SET kind = ?, team_id = ?, title = ?, date = ?, time = ?, end_time = ?, location = ?, doc_url = ?, host_id = ?, cohost_id = ?, updated_at = ? WHERE id = ?');
 		later.forEach((o, i) => {
-			if (i < dates.length) stmts.push(update.bind(m.kind, teamId, m.title, dates[i], m.time, m.endTime, m.location, m.docUrl, m.host, now, o.id));
+			if (i < dates.length) stmts.push(update.bind(m.kind, teamId, m.title, dates[i], m.time, m.endTime, m.location, m.docUrl, m.host, m.cohost, now, o.id));
 			else stmts.push(db.prepare('DELETE FROM meetings WHERE id = ?').bind(o.id));
 		});
-		const insert = db.prepare('INSERT INTO meetings (team_id, kind, series_id, title, date, time, end_time, location, doc_url, agenda, notes, created_by, host_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-		for (const d of dates.slice(later.length)) stmts.push(insert.bind(teamId, m.kind, seriesId, m.title, d, m.time, m.endTime, m.location, m.docUrl, m.agenda, '', v.id, m.host));
+		const insert = db.prepare('INSERT INTO meetings (team_id, kind, series_id, title, date, time, end_time, location, doc_url, agenda, notes, created_by, host_id, cohost_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+		for (const d of dates.slice(later.length)) stmts.push(insert.bind(teamId, m.kind, seriesId, m.title, d, m.time, m.endTime, m.location, m.docUrl, m.agenda, '', v.id, m.host, m.cohost));
 		// Teams and people for every later one, old and new, once they're all in place.
 		await db.batch(stmts);
 		stmts.length = 0;
@@ -567,7 +576,7 @@ meetingRoutes.post('/meetings/:id', async (c) => {
 	}
 	await db.batch(stmts);
 	const meeting = await meetingById(db, existing.id);
-	if (meeting && m.host !== existing.host_id) await notifyHost(c.env, meeting, v.id);
+	if (meeting) await notifyHost(c.env, meeting, v.id, [existing.host_id, existing.cohost_id]);
 	if (str(form.notify) !== '1' || !meeting) return c.redirect(`/meetings/${existing.id}?ok=saved`);
 	// A new date, time, place or series goes to everyone on it; otherwise only people just added hear about it.
 	const changes = {

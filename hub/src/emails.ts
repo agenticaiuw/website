@@ -282,7 +282,7 @@ export type MeetingChanges = {
  * as the reminder before it; `repeats` then says how often it happens. `changed`: what an edit
  * changed, which the email names (a new room never reads as a new date).
  */
-export function meetingEmail(name: string | null, m: EmailMeeting, today: string, appUrl: string, opts: { announce?: boolean; changed?: MeetingChanges; added?: boolean; hosting?: boolean; repeats?: string; why?: { reason: string; by: string } } = {}) {
+export function meetingEmail(name: string | null, m: EmailMeeting, today: string, appUrl: string, opts: { announce?: boolean; changed?: MeetingChanges; added?: boolean; hosting?: boolean; cohost?: string; repeats?: string; why?: { reason: string; by: string } } = {}) {
 	const first = name ? name.split(' ')[0] : 'everyone';
 	const day = m.date === today ? 'Today' : m.date === addDays(today, 1) ? 'Tomorrow' : formatDate(m.date, today);
 	const on = m.date === today || m.date === addDays(today, 1) ? day.toLowerCase() : `on ${day}`;
@@ -291,7 +291,9 @@ export function meetingEmail(name: string | null, m: EmailMeeting, today: string
 	const several = m.team_names.length > 1;
 	const which = m.kind === 'event' ? 'a club event' : `the ${teams} meeting`;
 	const intro = opts.hosting
-		? `You’re hosting ${which} ${on}: you’re the one responsible for running it.`
+		? opts.cohost
+			? `You’re hosting ${which} ${on} with ${opts.cohost}: you two are responsible for running it.`
+			: `You’re hosting ${which} ${on}: you’re the one responsible for running it.`
 		: opts.added
 		? `You’ve been added to ${which} ${on}.`
 		: opts.changed
@@ -327,6 +329,48 @@ ${agenda ? `<div style="font-size:14px;margin-top:12px;"><div style="font-size:1
 		subject: opts.hosting ? `You’re hosting: ${m.title}, ${at}` : opts.added ? `Added: ${m.title}, ${at}` : opts.changed ? `Updated: ${m.title}, ${at}` : opts.announce ? `New ${m.kind === 'event' ? 'club event' : 'meeting'}: ${m.title}, ${at}` : `${day}: ${m.title}${m.time ? `, ${formatTimeRange(m.time, m.end_time)}` : ''}`,
 		text,
 		html: layout(html, `Sent by the club hub at <a href="${esc(appUrl)}" style="color:${MUTED};">${esc(appUrl.replace(/^https?:\/\//, ''))}</a> to ${to}. Questions? Reply to this email.`)
+	};
+}
+
+// ---------- added to a team ----------
+
+/**
+ * Sent when someone puts you on a team: the team's upcoming meetings, which you're now on, and how
+ * to sign in if you never have.
+ */
+export function teamAddedEmail(member: { name: string; email: string }, team: { id: number; name: string }, by: string, meetings: EmailMeeting[], today: string, appUrl: string, firstTime: boolean) {
+	const first = member.name.split(' ')[0];
+	const teamUrl = `${appUrl}/teams/${team.id}`;
+	const shown = meetings.slice(0, 6);
+	const more = meetings.length - shown.length;
+	const day = (d: string) => (d === today ? 'Today' : d === addDays(today, 1) ? 'Tomorrow' : formatDate(d, today));
+	const when = (m: EmailMeeting) => [day(m.date), m.time && formatTimeRange(m.time, m.end_time), m.location].filter(Boolean).join(' · ');
+	const intro = `${by} added you to the ${team.name} team on the Agentic AI UW Hub.`;
+	const about = meetings.length ? 'You’re on its upcoming meetings and will get a reminder before each one.' : `${team.name} has no meetings scheduled yet.`;
+	const rows = shown
+		.map(
+			(m) => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${LINE};border-radius:10px;margin:0 0 10px;">
+<tr><td style="padding:12px 16px;">
+<div style="font-weight:600;font-size:15px;"><a href="${esc(`${appUrl}/meetings/${m.id}`)}" style="color:${INK};text-decoration:none;">${esc(m.title)}</a></div>
+<div style="font-size:14px;color:${MUTED};margin-top:2px;">${esc(when(m))}</div>
+</td></tr></table>`
+		)
+		.join('');
+	return {
+		subject: `Added to the ${team.name} team`,
+		text:
+			`Hi ${first},\n\n${intro} ${about}` +
+			(shown.length ? `\n\n${shown.map((m) => `- ${m.title}: ${when(m)}\n  ${appUrl}/meetings/${m.id}`).join('\n')}${more ? `\nPlus ${more} more on the team page.` : ''}` : '') +
+			(firstTime ? `\n\nSign in with ${member.email} and we’ll email you a 6-digit code. No password needed.` : '') +
+			`\n\nTeam page: ${teamUrl}`,
+		html: layout(
+			p(`Hi ${esc(first)},`) +
+				p(esc(`${intro} ${about}`)) +
+				(shown.length ? h('Upcoming meetings') + rows + (more ? p(`<span style="color:${MUTED};font-size:14px;">Plus ${more} more on the team page.</span>`) : '') : '') +
+				(firstTime ? p(`Sign in with <b>${esc(member.email)}</b> and we’ll email you a 6-digit code. No password needed.`) : '') +
+				`<div style="margin:6px 0 4px;">${button(teamUrl, 'Open the team page')}</div>`,
+			`Sent by the club hub at <a href="${esc(appUrl)}" style="color:${MUTED};">${esc(appUrl.replace(/^https?:\/\//, ''))}</a>. Questions? Reply to this email.`
+		)
 	};
 }
 

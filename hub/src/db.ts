@@ -113,9 +113,16 @@ export const MEETING_TEAMS_JSON = `(
 	FROM meeting_teams mt_x JOIN teams mt_t ON mt_t.id = mt_x.team_id WHERE mt_x.meeting_id = m.id
 ) AS teams_json`;
 
+/** The host's name, or "Ann Lee and Ben Park" when there's a second host. */
+export const HOST_NAMES = `CASE
+		WHEN m.cohost_id IS NULL THEN (SELECT name FROM members WHERE id = m.host_id)
+		WHEN m.host_id IS NULL THEN (SELECT name FROM members WHERE id = m.cohost_id)
+		ELSE (SELECT name FROM members WHERE id = m.host_id) || ' and ' || (SELECT name FROM members WHERE id = m.cohost_id)
+	END AS host_name`;
+
 export const MEETING_SELECT = `
-	SELECT m.*, tm.name AS team_name, tm.kind AS team_kind, hm.name AS host_name, ${MEETING_TEAMS_JSON}
-	FROM meetings m JOIN teams tm ON tm.id = m.team_id LEFT JOIN members hm ON hm.id = m.host_id`;
+	SELECT m.*, tm.name AS team_name, tm.kind AS team_kind, ${HOST_NAMES}, ${MEETING_TEAMS_JSON}
+	FROM meetings m JOIN teams tm ON tm.id = m.team_id`;
 
 /** Every team a meeting is for, main team first. */
 export function meetingTeams(m: Pick<MeetingRow, 'team_id' | 'team_name' | 'team_kind' | 'teams_json'>): MeetingTeam[] {

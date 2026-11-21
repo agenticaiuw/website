@@ -2,10 +2,10 @@ import { signDoneLink } from './auth';
 import { boardTaskHref, type BoardTask } from './board';
 import { addDays, daysBetween, hourIn, todayIn, weekday } from './dates';
 import { all, first, getMeta, logTask, MEETING_EXPECTED, MEETING_SELECT, MEETING_TEAMS_JSON, meetingTeams, setMeta, TASK_SELECT, teamNames } from './db';
-import { assignedEmail, canceledEmail, digestEmail, dueChangedEmail, taskNoticeEmail, meetingEmail, reminderEmail, urgentEmail, type DigestData, type EmailTask, type MeetingChanges, type ReminderGroups } from './emails';
+import { assignedEmail, canceledEmail, digestEmail, dueChangedEmail, taskNoticeEmail, meetingEmail, reminderEmail, teamAddedEmail, urgentEmail, type DigestData, type EmailTask, type MeetingChanges, type ReminderGroups } from './emails';
 import { sendMail, sendMails } from './mail';
 import { EVENING_HOUR, meetingReminderAt, reminderFor, SEND_HOUR, shouldEscalate, SOON_DAYS, urgentReminderFor, type ReminderKind } from './schedule';
-import type { Env, Member, MeetingRow, TaskRow } from './types';
+import type { Env, Member, MeetingRow, TaskRow, Team } from './types';
 
 export { DAILY_OVERDUE_FOR, ESCALATE_AFTER, SOON_DAYS } from './schedule';
 
@@ -429,11 +429,41 @@ export async function announceCanceled(env: Env, m: MeetingRow, people: Member[]
 	return res.ok ? { sent: people.length, error: '' } : { sent: 0, error: res.error ?? 'failed' };
 }
 
-/** Tells someone they're now hosting a meeting (skipped when they set it themselves). */
-export async function notifyHost(env: Env, m: MeetingRow, setBy: number) {
-	if (!m.host_id || m.host_id === setBy) return;
-	const host = await first<Member>(env.DB, 'SELECT * FROM members WHERE id = ? AND active = 1', m.host_id);
-	if (!host) return;
-	const msg = meetingEmail(host.name, emailMeeting(m), todayIn(env.TIMEZONE), env.APP_URL, { hosting: true });
-	await sendMail(env, { to: { name: host.name, email: host.email }, kind: 'meeting-host', ...msg });
+/**
+ * Tells each of a meeting's hosts they're hosting it, except whoever set them and anyone in
+ * `before` (its hosts until now).
+ */
+export async function notifyHost(env: Env, m: MeetingRow, setBy: number, before: (number | null)[] = []) {
+	const hosts = [m.host_id, m.cohost_id].filter((x): x is number => !!x);
+	for (const hostId of hosts) {
+		if (hostId === setBy || before.includes(hostId)) continue;
+		const host = await first<Member>(env.DB, 'SELECT * FROM members WHERE id = ? AND active = 1', hostId);
+		if (!host) continue;
+		const otherId = hosts.find((x) => x !== hostId);
+		const cohost = otherId ? (await first<Pick<Member, 'name'>>(env.DB, 'SELECT name FROM members WHERE id = ?', otherId))?.name : undefined;
+		const msg = meetingEmail(host.name, emailMeeting(m), todayIn(env.TIMEZONE), env.APP_URL, { hosting: true, cohost });
+		await sendMail(env, { to: { name: host.name, email: host.email }, kind: 'meeting-host', ...msg });
+	}
+}
+
+/** Tells someone they're on a team now, with the team's upcoming meetings they're on (skipped when they added themselves). */
+export async function notifyTeamAdded(env: Env, by: { id: number; name: string }, teamId: number, memberId: number) {
+	if (memberId === by.id) return;
+	const [member, team] = await Promise.all([
+		first<Member & { signed_in: number }>(env.DB, 'SELECT *, EXISTS (SELECT 1 FROM sessions s WHERE s.member_id = members.id) AS signed_in FROM members WHERE id = ? AND active = 1', memberId),
+		first<Pick<Team, 'id' | 'name'>>(env.DB, 'SELECT id, name FROM teams WHERE id = ? AND archived = 0', teamId)
+	]);
+	if (!member || !team) return;
+	const today = todayIn(env.TIMEZONE);
+	const meetings = await all<MeetingRow>(
+		env.DB,
+		`${MEETING_SELECT} WHERE m.date >= ?1 AND m.id IN (SELECT meeting_id FROM meeting_teams WHERE team_id = ?2)
+		 AND EXISTS (SELECT 1 FROM members mb WHERE mb.id = ?3 AND ${MEETING_EXPECTED.replace(/\?1/g, 'm.id')})
+		 ORDER BY m.date, m.time`,
+		today,
+		teamId,
+		memberId
+	);
+	const msg = teamAddedEmail(member, team, by.name, meetings.map(emailMeeting), today, env.APP_URL, !member.signed_in);
+	await sendMail(env, { to: { name: member.name, email: member.email }, kind: 'team-added', ...msg });
 }

@@ -4,6 +4,7 @@ import { addDays, formatDate, todayIn } from '../dates';
 import { activeMembers, all, groupStats, MEETING_SELECT, memberByEmail, memberById, MEETING_VISIBLE, run, TASK_ON_TEAM, TASK_SELECT, TASK_VISIBLE, teams, visible } from '../db';
 import { id, isEmail, readForm, str } from '../form';
 import { canManageRoles, isExec, isOwner } from '../perm';
+import { notifyTeamAdded } from '../reminders';
 import type { AppEnv, AttendanceStatus, Member, MeetingRow, Role, Team, TaskRow } from '../types';
 import { page } from '../views/layout';
 import { BoardTaskList } from '../views/board';
@@ -202,8 +203,12 @@ async function addPerson(db: D1Database, name: string, email: string) {
 	return (await memberByEmail(db, clean))?.id ?? null;
 }
 
-const addToTeam = (db: D1Database, teamId: number, memberId: number, lead = false) =>
-	run(db, 'INSERT INTO team_members (team_id, member_id, is_lead) VALUES (?, ?, ?) ON CONFLICT(team_id, member_id) DO UPDATE SET is_lead = excluded.is_lead', teamId, memberId, lead ? 1 : 0);
+/** Puts someone on a team (or sets whether they lead it). True when they weren't on it before. */
+async function addToTeam(db: D1Database, teamId: number, memberId: number, lead = false) {
+	const was = await all(db, 'SELECT 1 FROM team_members WHERE team_id = ? AND member_id = ?', teamId, memberId);
+	await run(db, 'INSERT INTO team_members (team_id, member_id, is_lead) VALUES (?, ?, ?) ON CONFLICT(team_id, member_id) DO UPDATE SET is_lead = excluded.is_lead', teamId, memberId, lead ? 1 : 0);
+	return !was.length;
+}
 
 /** One person by full name and email, optionally straight onto a team. */
 peopleRoutes.post('/people/add', async (c) => {
@@ -212,7 +217,7 @@ peopleRoutes.post('/people/add', async (c) => {
 	const memberId = await addPerson(c.env.DB, str(form.name), str(form.email));
 	if (!memberId) return c.redirect(str(form.name) && str(form.email) ? '/people?error=email' : '/people?error=missing');
 	const teamId = id(form.team);
-	if (teamId) await addToTeam(c.env.DB, teamId, memberId);
+	if (teamId && (await addToTeam(c.env.DB, teamId, memberId))) await notifyTeamAdded(c.env, c.get('viewer'), teamId, memberId);
 	return c.redirect('/people?ok=imported');
 });
 
@@ -628,7 +633,7 @@ peopleRoutes.post('/teams/:id/members', async (c) => {
 	// Someone on the roster, or someone new by full name and email.
 	const memberId = id(form.member) ?? (str(form.email) ? await addPerson(c.env.DB, str(form.name), str(form.email)) : null);
 	if (!teamId || !memberId) return c.redirect(`/teams?error=${str(form.email) && str(form.name) ? 'email' : 'missing'}`);
-	await addToTeam(c.env.DB, teamId, memberId, str(form.lead) === '1');
+	if (await addToTeam(c.env.DB, teamId, memberId, str(form.lead) === '1')) await notifyTeamAdded(c.env, c.get('viewer'), teamId, memberId);
 	return c.redirect(teamBack(c, teamId));
 });
 

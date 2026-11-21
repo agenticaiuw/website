@@ -109,6 +109,8 @@ export type Meeting = {
 	created_by: number | null;
 	/** Who's responsible for running it. */
 	host_id: number | null;
+	/** A second host, if there is one. */
+	cohost_id: number | null;
 	created_at: string;
 	updated_at: string;
 	/** Club-time date the reminder email went out. */
