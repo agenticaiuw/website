@@ -67,7 +67,7 @@ peopleRoutes.get('/people', async (c) => {
 					{rows.map((r) => (
 						<li>
 							<a href={`/people/${r.id}`}>{r.name}</a>
-							<span class="muted">{[r.title, r.role === 'exec' && 'Exec', r.team_names].filter(Boolean).join(' · ')}</span>
+							<span class="muted">{[r.title, r.role === 'exec' && 'Exec', r.major, r.team_names].filter(Boolean).join(' · ')}</span>
 						</li>
 					))}
 				</ul>
@@ -140,6 +140,7 @@ peopleRoutes.get('/people', async (c) => {
 									{r.title && <span class="tag">{r.title}</span>}
 									{!r.active && <span class="tag">Inactive</span>}
 									<div class="muted small">{r.email}</div>
+									{r.major && <div class="muted small">{r.major}</div>}
 								</td>
 								<td class="small">{r.team_names ?? <span class="muted">—</span>}</td>
 								<td class="num">
@@ -258,13 +259,15 @@ peopleRoutes.get('/people/:id', async (c) => {
 			<PageHead
 				eyebrow={person.title || (isOwner(person) ? 'Owner' : person.role === 'exec' ? 'Exec' : 'Member')}
 				title={person.name}
-				sub={
-					<>
-						{(isExec(v) || self) && person.email}
-						{person.discord && ` · Discord: ${person.discord}`}
-						{memberships.length > 0 && ` · ${memberships.map((t) => { const about = [t.is_lead && 'lead', t.team_title].filter(Boolean).join(', '); return t.name + (about ? ` (${about})` : ''); }).join(', ')}`}
-					</>
-				}
+				sub={[
+					(isExec(v) || self) && person.email,
+					person.major,
+					person.discord && `Discord: ${person.discord}`,
+					person.github && <span class="nowrap">GitHub: <a href={`https://github.com/${encodeURIComponent(person.github)}`} rel="noopener">{person.github}</a></span>,
+					memberships.length > 0 && memberships.map((t) => { const about = [t.is_lead && 'lead', t.team_title].filter(Boolean).join(', '); return t.name + (about ? ` (${about})` : ''); }).join(', ')
+				]
+					.filter(Boolean)
+					.flatMap((part, i) => (i ? [' · ', part] : [part]))}
 				actions={
 					isExec(v) && (
 						<a class="btn" href={`/tasks/new?assignee=${person.id}`}>
@@ -325,8 +328,14 @@ peopleRoutes.get('/people/:id', async (c) => {
 								<Field label="Title" hint="Optional, shown next to their name. Like Advisor.">
 									<input name="title" maxlength={60} value={person.title} />
 								</Field>
+								<Field label="Major">
+									<input name="major" maxlength={120} value={person.major ?? ''} />
+								</Field>
 								<Field label="Discord">
 									<input name="discord" maxlength={100} value={person.discord} />
+								</Field>
+								<Field label="GitHub">
+									<input name="github" maxlength={100} value={person.github ?? ''} />
 								</Field>
 								{rolesOk ? (
 									<Choice
@@ -374,7 +383,13 @@ peopleRoutes.post('/people/:id', async (c) => {
 	if (role !== person.role && !(await canManageRoles(c.env.DB, v))) return c.redirect(`/people/${person.id}?error=owner`);
 	const clash = await memberByEmail(c.env.DB, email);
 	if (clash && clash.id !== person.id) return c.redirect(`/people/${person.id}?error=exists`);
-	await run(c.env.DB, 'UPDATE members SET name = ?, email = ?, role = ?, title = ?, discord = ?, active = ? WHERE id = ?', name, email, role, str(form.title, 60), str(form.discord, 100), active, person.id);
+	const github = str(form.github, 100).replace(/^@|^https?:\/\/(www\.)?github\.com\//i, '').replace(/\/.*$/, '');
+	if (github && !/^[A-Za-z0-9-]{1,39}$/.test(github)) return c.redirect(`/people/${person.id}?error=github`);
+	await run(
+		c.env.DB,
+		'UPDATE members SET name = ?, email = ?, role = ?, title = ?, major = ?, discord = ?, github = ?, active = ? WHERE id = ?',
+		name, email, role, str(form.title, 60), str(form.major, 120), str(form.discord, 100), github, active, person.id
+	);
 	if (!active) await run(c.env.DB, 'DELETE FROM sessions WHERE member_id = ?', person.id);
 	return c.redirect(`/people/${person.id}?ok=saved`);
 });

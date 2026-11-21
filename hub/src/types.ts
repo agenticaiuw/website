@@ -28,6 +28,10 @@ export type Member = {
 	/** Shown next to the name, like "Advisor". */
 	title: string;
 	discord: string;
+	/** Major(s), like "Computer Science + Data Science". */
+	major?: string;
+	/** GitHub username, without the @. */
+	github?: string;
 	active: number;
 	available_hours?: number | null;
 	/** The site owner: highest authority. Set by hand in the database. */

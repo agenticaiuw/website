@@ -8,6 +8,7 @@ import { boardTaskRoutes } from './routes/board-tasks';
 import { authRoutes } from './routes/auth';
 import { collaborationRoutes } from './routes/collaboration';
 import { formRoutes, publicFormRoutes } from './routes/forms';
+import { handbookRoutes } from './routes/handbook';
 import { homeRoutes } from './routes/home';
 import { meetingRoutes } from './routes/meetings';
 import { meetingContentRoutes } from './routes/meeting-content';
@@ -75,6 +76,7 @@ app.route('/', meetingSummaryRoutes);
 app.route('/', formRoutes);
 app.route('/', peopleRoutes);
 app.route('/', teamPageRoutes);
+app.route('/', handbookRoutes);
 app.route('/', adminRoutes);
 app.route('/', siteRoutes);
 

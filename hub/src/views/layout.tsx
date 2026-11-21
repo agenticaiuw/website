@@ -56,6 +56,7 @@ const ERRORS: Record<string, string> = {
 	time: 'The end time should be after the start time.',
 	email: 'That email address looks wrong.',
 	exists: 'Someone with that email is already on the roster.',
+	github: 'That GitHub username looks wrong. Use letters, numbers and dashes.',
 	forbidden: "You don't have permission to do that.",
 	unsent: "It's saved, but the email to everyone didn't go out. They'll still get the usual reminder before it.",
 	self: "You can't remove your own exec access.",
@@ -64,7 +65,7 @@ const ERRORS: Record<string, string> = {
 	partial: 'Some of the tasks were created, but not all. Check the list below.'
 };
 
-type NavKey = 'home' | 'tasks' | 'meetings' | 'people' | 'teams' | 'email' | 'collaboration' | 'site';
+type NavKey = 'home' | 'tasks' | 'meetings' | 'people' | 'teams' | 'handbook' | 'email' | 'collaboration' | 'site';
 
 /** Simple line icons for the sidebar, drawn on a 24px grid. */
 const ICONS: Record<NavKey, string> = {
@@ -73,6 +74,7 @@ const ICONS: Record<NavKey, string> = {
 	meetings: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
 	people: '<circle cx="12" cy="8" r="3.75"/><path d="M4.5 20.5c.6-3.9 3.6-6 7.5-6s6.9 2.1 7.5 6"/>',
 	teams: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.75"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.75"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.75"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.75"/>',
+	handbook: '<path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5v-15Z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3M9 7.5h6"/>',
 	collaboration: '<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="m8.2 10.8 7.6-3.6M8.2 13.2l7.6 3.6"/>',
 	email: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 7 8.5 6 8.5-6"/>',
 	site: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 3.8 5.6 3.8 9s-1.2 6.4-3.8 9c-2.6-2.6-3.8-5.6-3.8-9S9.4 5.6 12 3Z"/>'
@@ -92,7 +94,8 @@ function Nav({ viewer, active }: { viewer: Viewer; active?: NavKey }) {
 		['tasks', '/tasks', 'Tasks'],
 		['meetings', '/meetings', 'Meetings'],
 		['people', '/people', 'People'],
-		['teams', '/teams', 'Teams']
+		['teams', '/teams', 'Teams'],
+		['handbook', '/handbook', 'Handbook']
 	];
 	if (isExec(viewer)) links.push(['site', '/site', 'Website'], ['collaboration', '/collaboration', 'Collaboration'], ['email', '/email', 'Email']);
 	return (

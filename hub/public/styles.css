@@ -769,3 +769,15 @@ td.answer { min-width: 180px; white-space: pre-wrap; }
 .team-add .combo { flex: 1 1 14rem; }
 .field-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 12px; }
 .members-dialog-content > form.new-person:not(:first-of-type) { padding-top: 16px; border-top: 1px solid var(--line); }
+/* Handbook */
+.handbook { max-width: 46rem; padding: 22px 24px; line-height: 1.6; }
+.handbook .prose h3 { margin-top: 26px; font-size: 18px; }
+.handbook .prose > h3:first-child { margin-top: 0; }
+.handbook .prose p { margin: 0 0 12px; }
+.handbook-old { margin-bottom: 16px; }
+.handbook ~ .disclose { margin-top: 16px; max-width: 46rem; }
+.handbook-history { margin: 0; padding-left: 20px; }
+.handbook-history li { margin: 6px 0; }
+.handbook-history a[aria-current] { font-weight: 600; }
+.handbook ~ .disclose textarea[name="body"] { min-height: 24rem; font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
+@media (max-width: 640px) { .handbook { padding: 18px 16px; } }
