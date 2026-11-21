@@ -8,7 +8,11 @@ export const trailingSlash = 'never';
 const page = (href: string) => `${siteUrl}${href.replace(/\/?$/, '/')}`;
 
 export async function GET({ platform }) {
-	const { club, vision, stats, team, project, work, join, contact, social, nav, faq, memberHub, press } = await loadSite(platform);
+	const { club, vision, stats, team, project, work, join, contact, social, nav, faq, memberHub, press, events } = await loadSite(platform);
+	const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(new Date());
+	const upcoming = events.items.filter((e) => (e.dateEnd ?? e.date) >= today);
+	const past = events.items.filter((e) => (e.dateEnd ?? e.date) < today).reverse();
+	const event = (e: (typeof events.items)[number]) => `- ${e.date}${e.dateEnd ? ` to ${e.dateEnd}` : ''}${e.time ? `, ${e.time}` : ''}: ${e.name}${e.location ? `, ${e.location}` : ''}. ${e.body}`;
 	const body = `# ${club.name}
 
 > ${vision.text}
@@ -36,7 +40,11 @@ ${work.subteams.items.map((t) => [`### ${t.name}`, '', t.line, `Page: ${siteUrl}
 
 ## Founding board
 
-${team.members.map((m) => `- ${m.name}, ${m.title}. Heads the ${m.leads} team. LinkedIn: ${m.linkedin}`).join('\n')}
+${team.members.map((m) => `- ${m.name}, ${m.title}. Heads the ${m.leads} team. LinkedIn: ${m.linkedin}${m.officeHours ? ` Office hours: ${m.officeHours}` : ''}`).join('\n')}
+
+## ${events.heading}
+
+${[`${events.upcomingLabel}:`, upcoming.length ? upcoming.map(event).join('\n') : events.empty, ...(past.length ? ['', `${events.pastLabel}:`, past.map(event).join('\n')] : [])].join('\n')}
 
 ## Pages
 
