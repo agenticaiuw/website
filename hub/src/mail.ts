@@ -42,7 +42,18 @@ const envelope = (env: Env, mail: Mail) => ({
 async function record(env: Env, mail: Mail, status: 'sent' | 'failed' | 'logged', error: string): Promise<SendResult> {
 	const bcc = mail.bcc?.length ? ` (bcc ${mail.bcc.length} ${mail.bcc.length === 1 ? 'person' : 'people'})` : '';
 	const to = [mail.to, ...(mail.cc ?? [])].map((r) => r.email).join(', ') + bcc;
-	await run(env.DB, 'INSERT INTO email_log (to_email, subject, kind, status, error) VALUES (?, ?, ?, ?, ?)', to, mail.subject, mail.kind, status, error.slice(0, 500));
+	// Sign-in emails hold a code, so their contents are never kept.
+	await run(
+		env.DB,
+		'INSERT INTO email_log (to_email, subject, kind, status, error, html, bcc) VALUES (?, ?, ?, ?, ?, ?, ?)',
+		to,
+		mail.subject,
+		mail.kind,
+		status,
+		error.slice(0, 500),
+		mail.kind === 'login' ? '' : mail.html,
+		(mail.bcc ?? []).map((r) => r.email).join(', ')
+	);
 	if (status === 'failed') console.error(`[mail] failed to ${mail.to.email}: ${error}`);
 	return status === 'failed' ? { ok: false, error } : { ok: true };
 }

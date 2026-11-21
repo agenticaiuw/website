@@ -741,3 +741,14 @@ for (const form of document.querySelectorAll('[data-site-form]')) {
 		}
 	});
 }
+
+// A saved email on its Email history page grows to its full height instead of scrolling in a box.
+for (const frame of document.querySelectorAll('iframe.email-preview')) {
+	const fit = () => {
+		const body = frame.contentDocument?.body;
+		if (body) frame.style.height = `${body.scrollHeight}px`;
+	};
+	frame.addEventListener('load', fit);
+	addEventListener('resize', fit);
+	fit();
+}
