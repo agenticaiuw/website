@@ -6,17 +6,18 @@ import { TASK_SOON_HOURS } from './schedule.ts';
 export { andList, esc } from '../text.ts';
 import { andList, esc } from '../text.ts';
 
-// The hub's own colors and fonts. Dark, like the hub and the website.
-const BG = '#14110f';
-const SURFACE = '#1c1916';
-const RAISED = '#25211d';
-const FG = '#f6f1e6';
-const MUTED = '#b5ada2';
-const ACCENT = '#ff6b5f';
-const PRIMARY = '#d1121b';
-const WARN = '#f0b43a';
-const LINE = '#2d2924';
-const LINE_STRONG = '#48413a';
+// The emails' original light colors. Outlook's dark mode turns these into a clean dark look;
+// dark colors here came out grey there. Fonts are the hub's.
+const BG = '#f4f2f0';
+const SURFACE = '#ffffff';
+const RAISED = '#ffffff';
+const FG = '#111317';
+const MUTED = '#585f69';
+const ACCENT = '#c5050c';
+const PRIMARY = '#c5050c';
+const WARN = '#b45309';
+const LINE = '#e3e1de';
+const LINE_STRONG = '#e3e1de';
 const FONT = "'Figtree',-apple-system,'Segoe UI',Helvetica,Arial,sans-serif";
 const DISPLAY = "'Baloo 2','Figtree',-apple-system,'Segoe UI',Helvetica,Arial,sans-serif";
 
@@ -33,8 +34,8 @@ function layout(body: string, appUrl: string) {
 		([name, href]) =>
 			`<a href="${esc(href)}" style="display:inline-block;margin:0 2px 8px;padding:6px 11px;border:1px solid ${LINE_STRONG};border-radius:999px;color:${FG};font:600 13px/1.2 ${FONT};text-decoration:none;">${name}</a>`
 	).join('');
-	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta name="supported-color-schemes" content="dark">
-<link rel="stylesheet" href="${esc(appUrl)}/fonts/fonts.css"><style>:root{color-scheme:dark;supported-color-schemes:dark;}</style></head>
+	return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="${esc(appUrl)}/fonts/fonts.css"></head>
 <body style="margin:0;padding:0;background:${BG};" bgcolor="${BG}">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="${BG}" style="background:${BG};padding:24px 12px;">
 <tr><td align="center">
