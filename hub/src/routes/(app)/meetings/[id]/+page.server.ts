@@ -37,7 +37,7 @@ export const load: PageServerLoad = async ({ params, url, locals: { env, viewer:
 	const zone = env.TIMEZONE;
 	const today = todayIn(zone);
 	const editable = canEditMeeting(v, m);
-	const [rosterRows, actions, people, toRemind, form, content, attendance, summary, series] = await Promise.all([
+	const [rosterRows, actions, people, toRemind, form, content, attendance, summary, series, updates] = await Promise.all([
 		rosterFor(db, m),
 		all<TaskRow>(db, `${TASK_SELECT} WHERE t.meeting_id = ? ORDER BY t.status = 'open' DESC, t.due_date, a.name`, m.id),
 		editable ? activeMembers(db) : Promise.resolve([] as Member[]),
@@ -46,7 +46,12 @@ export const load: PageServerLoad = async ({ params, url, locals: { env, viewer:
 		meetingContent(db, m.id),
 		attendanceHistory(db, m, v),
 		summaryRevisions(db, m.id),
-		editable ? laterInSeries(db, m) : Promise.resolve([])
+		editable ? laterInSeries(db, m) : Promise.resolve([]),
+		all<{ member_id: number; name: string; body: string; updated_at: string }>(
+			db,
+			'SELECT u.member_id, mb.name, u.body, u.updated_at FROM meeting_updates u JOIN members mb ON mb.id = u.member_id WHERE u.meeting_id = ? ORDER BY u.updated_at',
+			m.id
+		)
 	]);
 	// Its two reminders (a day before, an hour before): which are still to come, and whether one went out.
 	const remindAt = reminderTimes(m, MEETING_SOON_HOURS, zone);
@@ -84,6 +89,10 @@ export const load: PageServerLoad = async ({ params, url, locals: { env, viewer:
 			started: attendance.history.filter((h) => meetingTiming(h, zone).started).map((h) => h.id)
 		},
 		summary,
+		updates,
+		// Everyone expected who hasn't written one yet.
+		noUpdate: m.kind === 'meeting' ? roster_.filter((r) => !updates.some((u) => u.member_id === r.id)).map((r) => r.name) : [],
+		mayUpdate: !timing.ended && (m.kind === 'event' || !!myAttendance),
 		seriesLeft: series.length,
 		ended: timing.ended,
 		selectedView: (view && VIEWS.includes(view) ? view : timing.ended ? 'follow-up' : 'preparation') as MeetingView,

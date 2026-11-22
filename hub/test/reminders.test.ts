@@ -136,6 +136,10 @@ test('notes markdown escapes HTML and only links http(s)', () => {
 	const quoted = renderMarkdown('"https://example.com/x" and <https://example.com/y>');
 	assert.ok(quoted.includes('href="https://example.com/x"'));
 	assert.ok(quoted.includes('href="https://example.com/y"'));
+	const hub = renderMarkdown('[Download](/handbook/constitution) [far](//example.com) [slash](/\\example.com)');
+	assert.ok(hub.includes('<a href="/handbook/constitution">Download</a>'));
+	assert.ok(!hub.includes('href="//'));
+	assert.ok(!hub.includes('href="/\\'));
 });
 
 /** Simulates the hourly run for an urgent task, returning the club times a reminder went out. */

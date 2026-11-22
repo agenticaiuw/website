@@ -1,12 +1,12 @@
 import { error, redirect } from '@sveltejs/kit';
 import { id } from '$lib/server/form';
-import { execOnly } from '$lib/server/perm';
+import { businessOnly } from '$lib/server/perm';
 import { sectionByKey } from '$lib/server/site/schema';
 import { coerce, defaultsFor, saveSection, versionById } from '$lib/server/site/store';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ params, locals: { env, viewer } }) => {
-	execOnly(viewer);
+	businessOnly(viewer);
 	const section = sectionByKey(params.key);
 	const v = await versionById(env.DB, id(params.id) ?? 0);
 	if (!section || !v || v.section !== section.key) error(404, 'Not found');

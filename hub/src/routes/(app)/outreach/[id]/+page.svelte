@@ -1,7 +1,7 @@
 <script lang="ts">
 	import PageHead from '$lib/components/PageHead.svelte';
 	import PostButton from '$lib/components/PostButton.svelte';
-	import Fields from '../Fields.svelte';
+	import Fields from '$lib/components/OutreachFields.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();

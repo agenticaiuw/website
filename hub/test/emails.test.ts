@@ -42,6 +42,9 @@ test('the day-of reminder for one team reads as before', () => {
 	const e = meetingEmail('Ava Chen', { ...joint, team_names: ['Browser'] }, '2026-11-12', 'https://hub.example');
 	assert.match(e.subject, /^Today: Joint sync/);
 	assert.match(e.text, /^Hi Ava,\n\nBrowser meets today\./);
+	// Reminders ask for a written update; announcements don't.
+	assert.match(e.text, /write a couple of sentences on what you’ve actually done: https:\/\/hub\.example\/meetings\/\d+\?view=preparation#updates/);
+	assert.ok(!meetingEmail(null, joint, '2026-11-06', 'https://hub.example', { announce: true }).text.includes('couple of sentences'));
 });
 
 test('several tasks for one person go in one email, each date said once', () => {

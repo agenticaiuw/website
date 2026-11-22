@@ -1,7 +1,7 @@
 // Outreach: people and organizations outside the club (companies, faculty, campus offices,
-// investors, other clubs). Exec-only. Kept apart from the newsletter list: nothing here is ever
+// investors, other clubs). Execs and the Business team see them, on the Business team's page. Kept apart from the newsletter list: nothing here is ever
 // added to the newsletter or the Google Group.
-import { all, first, nowIso, run } from './db';
+import { all, BUSINESS_TEAM, first, nowIso, run } from './db';
 import { isEmail, str, type FormData } from './form';
 
 export type Outreach = {
@@ -110,3 +110,24 @@ export const deleteOutreach = (db: D1Database, id: number) => run(db, 'DELETE FR
 
 /** Shown as a link only when it is one; the column sometimes holds a name or a note instead. */
 export const linkHref = (link: string) => (/^https?:\/\/\S+$/i.test(link) ? link : '');
+
+/** The Business team's id: its page holds the contacts. */
+export const businessTeamId = (db: D1Database) => db.prepare('SELECT id FROM teams WHERE name = ?').bind(BUSINESS_TEAM).first<number>('id');
+
+/** The contacts list on the Business team's page, filtered by `contact_*` in the address. */
+export async function contactsSection(db: D1Database, url: URL) {
+	const filter = {
+		q: str(url.searchParams.get('contact_q'), 100),
+		status: str(url.searchParams.get('contact_status'), 80),
+		kind: str(url.searchParams.get('contact_kind'), 80)
+	};
+	const [rows, options, total] = await Promise.all([listOutreach(db, filter), outreachOptions(db), db.prepare('SELECT COUNT(*) AS n FROM outreach').first<number>('n')]);
+	return {
+		filter,
+		options,
+		total: total ?? 0,
+		rows: rows.map((r) => ({ id: r.id, name: r.name, organization: r.organization, kind: r.kind, email: r.email, owner: r.owner, status: r.status, priority: r.priority }))
+	};
+}
+
+export type ContactsSection = Awaited<ReturnType<typeof contactsSection>>;

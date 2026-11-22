@@ -2,6 +2,7 @@
 	import { backdropClose, opensDialog } from '$lib/actions.js';
 	import Field from '$lib/components/Field.svelte';
 	import PageHead from '$lib/components/PageHead.svelte';
+	import Tabs from '$lib/components/Tabs.svelte';
 	import TeamCard from '$lib/components/TeamCard.svelte';
 	import type { PageData } from './$types';
 
@@ -21,6 +22,7 @@
 		{/if}
 	{/snippet}
 </PageHead>
+<Tabs label="Teams or people" options={[["teams", "Teams"], ["people", "People"]]} current="teams" href={(v) => `/${v}`} />
 {#if data.editable}
 	<dialog id="add-team-dialog" class="members-dialog" aria-labelledby="add-team-title" use:backdropClose>
 		<div class="members-dialog-content stack">

@@ -5,6 +5,7 @@
 	import { netIds } from '$lib/ui';
 	import type { TeamPageData } from '$lib/server/team-page';
 	import BoardTaskForm from './BoardTaskForm.svelte';
+	import Contacts from './Contacts.svelte';
 	import Field from './Field.svelte';
 	import Kanban from './Kanban.svelte';
 	import Markdown from './Markdown.svelte';
@@ -182,6 +183,7 @@
 		</section>
 	{/if}
 	<Kanban tasks={data.tasks} legacy={data.legacy} viewer={v} today={data.today} back={data.back} canCreate={data.canCreate} />
+	{#if data.contacts}<Contacts data={data.contacts} root={data.root} />{/if}
 	{#if !selected}
 		<div class="grid-2">
 			<section>

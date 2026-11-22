@@ -354,9 +354,13 @@ export function meetingEmail(name: string | null, m: EmailMeeting, today: string
 	const repeats = opts.repeats ? ` ${opts.repeats}` : '';
 	const url = `${appUrl}/meetings/${m.id}`;
 	const agenda = m.agenda.trim();
+	// Reminders ask for a written update before the meeting.
+	const askUpdate = m.kind !== 'event' && !opts.announce && !opts.changed && !opts.added && !opts.hosting;
+	const updateUrl = `${appUrl}/meetings/${m.id}?view=preparation#updates`;
 	const html =
 		p(`Hi ${esc(first)},`) +
 		p(esc(intro + repeats)) +
+		(askUpdate ? p(`Before the meeting, <a href="${esc(updateUrl)}" style="color:${FG};">write a couple of sentences</a> on what you’ve actually done.`) : '') +
 		(opts.why ? p(`<b>Reason:</b> ${esc(opts.why.reason)}${opts.why.by ? `<br><span style="color:${MUTED};">— ${esc(opts.why.by)}</span>` : ''}`) : '') +
 		box(`<div style="font:700 17px/1.3 ${DISPLAY};"><a href="${esc(url)}" style="color:${FG};text-decoration:none;">${esc(m.title)}</a></div>
 <div style="font-size:14px;color:${MUTED};margin-top:2px;">${esc(when)}</div>
@@ -364,7 +368,7 @@ ${m.host_name ? `<div style="font-size:14px;color:${MUTED};margin-top:2px;">Host
 ${agenda ? `<div style="font-size:14px;margin-top:12px;color:${FG};"><div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:${MUTED};margin-bottom:4px;">Agenda</div>${esc(agenda).replace(/\n/g, '<br>')}</div>` : ''}
 <div style="margin-top:14px;">${m.doc_url ? `${button(m.doc_url, 'Open the meeting doc')}&nbsp; ` : ''}${button(url, 'Meeting page', !m.doc_url)}</div>`, '16px 18px');
 	const text =
-		`Hi ${first},\n\n${intro}${repeats}${opts.why ? `\n\nReason: ${opts.why.reason}${opts.why.by ? `\n— ${opts.why.by}` : ''}` : ''}\n\n${m.title}\n${when}${m.host_name ? `\nHosted by ${m.host_name}` : ''}` +
+		`Hi ${first},\n\n${intro}${repeats}${askUpdate ? `\n\nBefore the meeting, write a couple of sentences on what you’ve actually done: ${updateUrl}` : ''}${opts.why ? `\n\nReason: ${opts.why.reason}${opts.why.by ? `\n— ${opts.why.by}` : ''}` : ''}\n\n${m.title}\n${when}${m.host_name ? `\nHosted by ${m.host_name}` : ''}` +
 		(agenda ? `\n\nAgenda\n${agenda}` : '') +
 		(m.doc_url ? `\n\nMeeting doc: ${m.doc_url}` : '') +
 		`\nMeeting page: ${url}`;

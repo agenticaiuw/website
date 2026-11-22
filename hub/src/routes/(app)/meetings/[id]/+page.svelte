@@ -11,6 +11,7 @@
 	import MeetingAgenda from '$lib/components/MeetingAgenda.svelte';
 	import MeetingFiles from '$lib/components/MeetingFiles.svelte';
 	import MeetingSummary from '$lib/components/MeetingSummary.svelte';
+	import Markdown from '$lib/components/Markdown.svelte';
 	import MemberSelect from '$lib/components/MemberSelect.svelte';
 	import PageHead from '$lib/components/PageHead.svelte';
 	import PersonName from '$lib/components/PersonName.svelte';
@@ -32,6 +33,8 @@
 	const joint = $derived(m.kind === 'meeting' && meetingTeams(m).length > 1);
 	const netId = $derived(netIds(roster));
 	const people = (n: number) => `${n} ${n === 1 ? 'person' : 'people'}`;
+	// Everyone who came should leave with a task from the meeting.
+	const here = $derived(roster.filter((r) => (r.status === 'present' || r.status === 'late') && !data.actions.some((t) => t.assignee_id === r.id)).map((r) => r.name));
 
 	// The five stages are tabs. Picking one updates the address (so a reload stays on it) without a
 	// round trip; a link to something inside a tab (#files, #actions) opens that tab.
@@ -129,6 +132,25 @@
 					<a href="/meetings/{m.id}/reminder" target="_blank">Preview</a>
 				</p>
 			{/if}
+			<h2 class="section-title" id="updates">Written updates</h2>
+			{#if data.mayUpdate}
+				{@const mine = data.updates.find((u) => u.member_id === v.id)}
+				<form method="post" action="/meetings/{m.id}/update" class="card stack">
+					<Field label="Your update" hint="What you've actually done since last time, and your blockers.">
+						<textarea name="body" rows={3} maxlength={2000} value={mine?.body ?? ''}></textarea>
+					</Field>
+					<div><button class="btn primary">Save update</button></div>
+				</form>
+			{/if}
+			{#each data.updates as u (u.member_id)}
+				<div class="card update">
+					<p class="update-who"><a href="/people/{u.member_id}">{u.name}</a></p>
+					<Markdown text={u.body} />
+				</div>
+			{:else}
+				{#if !data.mayUpdate}<p class="hint">No updates.</p>{/if}
+			{/each}
+			{#if data.noUpdate.length}<p class="hint">No update yet: {data.noUpdate.join(', ')}</p>{/if}
 		</aside>
 	</div>
 	<div id="meeting-follow-up" class="meeting-tab-panel grid-2 wide-left" role="tabpanel" aria-labelledby="follow-up-tab" hidden={view !== 'follow-up'}>
@@ -155,7 +177,9 @@
 				</form>
 			{/if}
 		</section>
-		<aside></aside>
+		<aside>
+			{#if data.editable && here.length}<p class="hint">Here without an action item: {here.join(', ')}</p>{/if}
+		</aside>
 	</div>
 	<div id="meeting-attendance-panel" class="meeting-tab-panel" role="tabpanel" aria-labelledby="attendance-tab" hidden={view !== 'attendance'}>
 		{#if data.canCheckIn}

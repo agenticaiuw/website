@@ -176,6 +176,8 @@ export type Viewer = Member & {
 	teamIds: Set<number>;
 	/** Teams this person leads. */
 	leadOf: Set<number>;
+	/** On the Business team, which runs the website, social posts and contacts. */
+	business: boolean;
 };
 
 export type AppEnv = { Bindings: Env; Variables: { viewer: Viewer } };

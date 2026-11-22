@@ -6,6 +6,9 @@ export const isOwner = (v: Pick<Member, 'is_owner'>) => !!v.is_owner;
 
 export const isExec = (v: Viewer) => v.role === 'exec';
 
+/** Execs and the Business team run the website, social posts and outside contacts. */
+export const canRunBusiness = (v: Viewer) => isExec(v) || v.business;
+
 /** Execs and team leads can schedule meetings and assign work to others. */
 export const canAssign = (v: Viewer) => isExec(v) || v.leadOf.size > 0;
 

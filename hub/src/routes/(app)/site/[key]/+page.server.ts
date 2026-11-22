@@ -1,13 +1,13 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { id, readForm, str } from '$lib/server/form';
-import { execOnly } from '$lib/server/perm';
+import { businessOnly } from '$lib/server/perm';
 import { sectionByKey, TOKENS } from '$lib/server/site/schema';
 import { coerce, history, hubTeams, saveSection, sectionData, withHubTeams } from '$lib/server/site/store';
 import { edit } from '$lib/server/site/views';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, locals: { env, viewer } }) => {
-	execOnly(viewer);
+	businessOnly(viewer);
 	const section = sectionByKey(params.key);
 	if (!section) error(404, 'Not found');
 	const [{ row, data }, recent, teams] = await Promise.all([sectionData(env.DB, section.key), history(env.DB, { section: section.key, limit: 5 }), hubTeams(env.DB)]);
@@ -27,7 +27,7 @@ export const load: PageServerLoad = async ({ params, locals: { env, viewer } }) 
 
 export const actions: Actions = {
 	default: async ({ params, request, locals: { env, viewer } }) => {
-		execOnly(viewer);
+		businessOnly(viewer);
 		const section = sectionByKey(params.key);
 		if (!section) error(404, 'Not found');
 		const form = await readForm(request);

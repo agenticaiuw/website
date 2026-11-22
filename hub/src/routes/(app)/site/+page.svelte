@@ -1,6 +1,7 @@
 <script lang="ts">
 	import PageHead from '$lib/components/PageHead.svelte';
 	import SiteEdited from '$lib/components/SiteEdited.svelte';
+	import Tabs from '$lib/components/Tabs.svelte';
 	import { PAGE_HREF, SITE } from '$lib/site';
 	import type { PageData } from './$types';
 
@@ -13,6 +14,7 @@
 		<a class="btn" href={SITE} target="_blank" rel="noopener noreferrer">Open the site ↗</a>
 	{/snippet}
 </PageHead>
+<Tabs label="Website or social posts" options={[['site', 'Website'], ['posts', 'Social posts']]} current="site" href={(v) => (v === 'site' ? '/site' : '/site/posts')} />
 <div class="site-pages">
 	{#each data.pages as p}
 		<section class="site-page">

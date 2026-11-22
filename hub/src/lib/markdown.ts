@@ -1,12 +1,12 @@
 // A small, safe Markdown subset for agendas and notes: headings, bullet and numbered lists,
-// checkboxes, **bold**, `code`, [links](https://…) and bare URLs. Text is escaped first,
+// checkboxes, **bold**, `code`, [links](https://…), [hub links](/path) and bare URLs. Text is escaped first,
 // so nothing typed into a note can become HTML.
 
 import { esc } from './text.ts';
 
 // Bare URLs stop before an escaped quote or bracket and before trailing punctuation.
 const URL_CHAR = String.raw`(?!&(?:quot|#39|lt|gt);)[^\s<]`;
-const LINK = new RegExp(String.raw`\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/(?:${URL_CHAR})*(?:(?!&(?:quot|#39|lt|gt);)[^\s<.,;:!?)\]]))`, 'g');
+const LINK = new RegExp(String.raw`\[([^\]\n]+)\]\((https?:\/\/[^\s)]+|\/(?![\/\\])[^\s)]*)\)|(https?:\/\/(?:${URL_CHAR})*(?:(?!&(?:quot|#39|lt|gt);)[^\s<.,;:!?)\]]))`, 'g');
 
 function inline(escaped: string) {
 	let out = '';
@@ -14,7 +14,9 @@ function inline(escaped: string) {
 	for (const m of escaped.matchAll(LINK)) {
 		out += emphasis(escaped.slice(last, m.index));
 		const href = m[2] ?? m[3];
-		out += `<a href="${href}" target="_blank" rel="noopener noreferrer">${m[1] ? emphasis(m[1]) : href}</a>`;
+		// A link to a page in the hub opens in the same tab.
+		const away = href.startsWith('/') ? '' : ' target="_blank" rel="noopener noreferrer"';
+		out += `<a href="${href}"${away}>${m[1] ? emphasis(m[1]) : href}</a>`;
 		last = m.index! + m[0].length;
 	}
 	return out + emphasis(escaped.slice(last));

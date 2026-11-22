@@ -4,7 +4,8 @@
 	import type { MeetingRow } from '$lib/types';
 	import Empty from './Empty.svelte';
 
-	let { meetings, today }: { meetings: MeetingRow[]; today: string } = $props();
+	/** `updateDue`: meetings still waiting on the viewer's written update. */
+	let { meetings, today, updateDue = [] }: { meetings: MeetingRow[]; today: string; updateDue?: number[] } = $props();
 </script>
 
 {#if !meetings.length}
@@ -13,8 +14,9 @@
 	<ul class="meetings">
 		{#each meetings as m (m.id)}
 			{@const [day, date] = formatDate(m.date, today).split(', ')}
+			{@const due = updateDue.includes(m.id)}
 			<li>
-				<a href="/meetings/{m.id}">
+				<a href={due ? `/meetings/${m.id}?view=preparation#updates` : `/meetings/${m.id}`}>
 					<span class="m-date">
 						<b>{date}</b>
 						<small>{day}</small>
@@ -26,6 +28,7 @@
 								? ` · Host: ${m.host_name}`
 								: ''}</span
 						>
+						{#if due}<span class="m-due">Write your update</span>{/if}
 					</span>
 				</a>
 			</li>

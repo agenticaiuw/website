@@ -3,6 +3,7 @@
 	import NewPersonForm from '$lib/components/NewPersonForm.svelte';
 	import PageHead from '$lib/components/PageHead.svelte';
 	import Stat from '$lib/components/Stat.svelte';
+	import Tabs from '$lib/components/Tabs.svelte';
 	import { attendanceRate } from '$lib/people';
 	import { pct } from '$lib/ui';
 	import type { PageData } from './$types';
@@ -17,6 +18,7 @@
 
 {#if !data.exec}
 	<PageHead title="People" sub="Everyone on the club roster." />
+	<Tabs label="Teams or people" options={[["teams", "Teams"], ["people", "People"]]} current="people" href={(v) => `/${v}`} />
 	<ul class="roster">
 		{#each data.roster as r}
 			<li>
@@ -31,6 +33,7 @@
 			<button type="button" class="btn primary" aria-haspopup="dialog" aria-controls="add-people-dialog" data-members-dialog="add-people-dialog" use:opensDialog={'add-people-dialog'}>Add people</button>
 		{/snippet}
 	</PageHead>
+	<Tabs label="Teams or people" options={[["teams", "Teams"], ["people", "People"]]} current="people" href={(v) => `/${v}`} />
 	<dialog id="add-people-dialog" class="members-dialog" aria-labelledby="add-people-title" use:backdropClose>
 		<div class="members-dialog-content stack">
 			<header>

@@ -12,7 +12,7 @@ export const load: PageServerLoad = async ({ url, locals: { env, viewer: v } }) 
 		all<BoardRow>(env.DB, `${BOARD_SQL} ${showInactive ? '' : 'WHERE m.active = 1'} ORDER BY ${exec ? 'overdue DESC, open DESC, ' : ''}m.name COLLATE NOCASE`, today),
 		exec ? teams(env.DB) : Promise.resolve([])
 	]);
-	const base = { title: 'People', active: 'people' as const, showInactive };
+	const base = { title: 'People', active: 'teams' as const, showInactive };
 	// Members see the roster only: names, titles, majors and teams, no emails or stats.
 	if (!exec) return { ...base, exec: false as const, roster: rows.map((r) => ({ id: r.id, name: r.name, title: r.title, role: r.role, major: r.major, team_names: r.team_names })) };
 	return { ...base, exec: true as const, rows: rows.map(boardPerson), teams: teamList.map(({ id, name }) => ({ id, name })) };

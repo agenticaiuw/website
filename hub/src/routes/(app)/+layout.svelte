@@ -4,26 +4,23 @@
 	import { page } from '$app/state';
 	import Notice from '$lib/components/Notice.svelte';
 	import { ERRORS, FLASH } from '$lib/flash';
-	import { isExec } from '$lib/perm';
+	import { canRunBusiness, isExec } from '$lib/perm';
 	import { initials } from '$lib/ui';
 
-	let { data, children }: { data: { viewer: import('$lib/types').Viewer }; children: Snippet } = $props();
+	let { data, children }: { data: { viewer: import('$lib/types').Viewer; collab: boolean }; children: Snippet } = $props();
 
-	type NavKey = 'home' | 'tasks' | 'meetings' | 'people' | 'teams' | 'handbook' | 'decisions' | 'email' | 'collaboration' | 'site' | 'outreach';
+	type NavKey = 'home' | 'tasks' | 'meetings' | 'teams' | 'handbook' | 'email' | 'collaboration' | 'site';
 
 	/** Simple line icons for the sidebar, drawn on a 24px grid. */
 	const ICONS: Record<NavKey, string> = {
 		home: '<circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/>',
 		tasks: '<path d="M10 6h10M10 12h10M10 18h10"/><path d="m3.5 6 1.5 1.5L7.5 5M3.5 12l1.5 1.5L7.5 11"/><circle cx="5.25" cy="18" r="1.5"/>',
 		meetings: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
-		people: '<circle cx="12" cy="8" r="3.75"/><path d="M4.5 20.5c.6-3.9 3.6-6 7.5-6s6.9 2.1 7.5 6"/>',
 		teams: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.75"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.75"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.75"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.75"/>',
 		handbook: '<path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5v-15Z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3M9 7.5h6"/>',
-		decisions: '<path d="M12 3.5v17M7 20.5h10M4.5 7h15"/><path d="M4.5 7 2 13a2.75 2.75 0 0 0 5 0L4.5 7ZM19.5 7 17 13a2.75 2.75 0 0 0 5 0l-2.5-6Z"/>',
 		collaboration: '<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="m8.2 10.8 7.6-3.6M8.2 13.2l7.6 3.6"/>',
 		email: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 7 8.5 6 8.5-6"/>',
-		site: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 3.8 5.6 3.8 9s-1.2 6.4-3.8 9c-2.6-2.6-3.8-5.6-3.8-9S9.4 5.6 12 3Z"/>',
-		outreach: '<path d="M20.5 3.5 10 14"/><path d="M20.5 3.5 14 20.5l-4-6.5-6.5-4 17-6.5Z"/>'
+		site: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 3.8 5.6 3.8 9s-1.2 6.4-3.8 9c-2.6-2.6-3.8-5.6-3.8-9S9.4 5.6 12 3Z"/>'
 	};
 
 	const viewer = $derived(data.viewer);
@@ -32,12 +29,13 @@
 			['home', '/', 'My work'],
 			['tasks', '/tasks', 'Tasks'],
 			['meetings', '/meetings', 'Meetings'],
-			['people', '/people', 'People'],
 			['teams', '/teams', 'Teams'],
-			['handbook', '/handbook', 'Handbook'],
-			['decisions', '/decisions', 'Decisions']
+			['handbook', '/handbook', 'Handbook']
 		];
-		if (isExec(viewer)) list.push(['site', '/site', 'Website'], ['outreach', '/outreach', 'Outreach'], ['collaboration', '/collaboration', 'Collaboration'], ['email', '/email', 'Email']);
+		if (canRunBusiness(viewer)) list.push(['site', '/site', 'Website']);
+		if (isExec(viewer)) list.push(['email', '/email', 'Email']);
+		// Only once the agent workspace is connected; until then the page has nothing to show.
+		if (isExec(viewer) && data.collab) list.push(['collaboration', '/collaboration', 'Collaboration']);
 		return list;
 	});
 	const active = $derived(page.data.active as NavKey | undefined);

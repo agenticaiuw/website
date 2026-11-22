@@ -43,7 +43,7 @@ export const load: PageServerLoad = async ({ params, locals: { env, viewer: v } 
 	const person = { ...boardPerson(row), email: exec || self ? row.email : '', discord: row.discord, github: row.github ?? '' };
 	return {
 		title: row.name,
-		active: 'people' as const,
+		active: 'teams' as const,
 		today,
 		person,
 		self,

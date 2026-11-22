@@ -2,6 +2,7 @@
 // arbitrary text on the page.
 export const FLASH: Record<string, string> = {
 	saved: 'Saved.',
+	'update-saved': 'Update saved.',
 	created: 'Created.',
 	scheduled: 'Scheduled. The repeats are on the Meetings page, each with its own notes and attendance.',
 	emailed: 'Created, and everyone on it was emailed.',

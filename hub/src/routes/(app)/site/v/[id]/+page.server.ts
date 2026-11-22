@@ -1,13 +1,13 @@
 import { error } from '@sveltejs/kit';
 import { id } from '$lib/server/form';
-import { execOnly } from '$lib/server/perm';
+import { businessOnly } from '$lib/server/perm';
 import { sectionByKey } from '$lib/server/site/schema';
 import { latestRows, teamNames, versionById } from '$lib/server/site/store';
 import { changesOf } from '$lib/server/site/views';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, locals: { env, viewer } }) => {
-	execOnly(viewer);
+	businessOnly(viewer);
 	const v = await versionById(env.DB, id(params.id) ?? 0);
 	const section = v && sectionByKey(v.section);
 	if (!v || !section) error(404, 'Not found');

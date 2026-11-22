@@ -37,16 +37,20 @@ export function teams(db: D1Database, includeArchived = false) {
 	);
 }
 
+/** The team that runs the website, social posts and outside contacts. */
+export const BUSINESS_TEAM = 'Business';
+
 export async function loadViewer(db: D1Database, member: Member): Promise<Viewer> {
-	const rows = await all<{ team_id: number; is_lead: number }>(
+	const rows = await all<{ team_id: number; is_lead: number; name: string }>(
 		db,
-		'SELECT team_id, is_lead FROM team_members WHERE member_id = ?',
+		'SELECT x.team_id, x.is_lead, t.name FROM team_members x JOIN teams t ON t.id = x.team_id WHERE x.member_id = ?',
 		member.id
 	);
 	return {
 		...member,
 		teamIds: new Set(rows.map((r) => r.team_id)),
-		leadOf: new Set(rows.filter((r) => r.is_lead).map((r) => r.team_id))
+		leadOf: new Set(rows.filter((r) => r.is_lead).map((r) => r.team_id)),
+		business: rows.some((r) => r.name === BUSINESS_TEAM)
 	};
 }
 

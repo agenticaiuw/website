@@ -1,5 +1,5 @@
 import { redirect } from '@sveltejs/kit';
-import { isExec, isOwner } from '../perm.ts';
+import { canRunBusiness, isExec, isOwner } from '../perm.ts';
 import type { Viewer } from '../types.ts';
 
 export * from '../perm.ts';
@@ -14,4 +14,9 @@ export async function canManageRoles(db: D1Database, v: Viewer) {
 /** Exec-only pages and actions; anyone else goes home with a notice. */
 export function execOnly(v: Viewer) {
 	if (!isExec(v)) redirect(303, '/?error=forbidden');
+}
+
+/** The website, social posts and outside contacts: execs and the Business team. */
+export function businessOnly(v: Viewer) {
+	if (!canRunBusiness(v)) redirect(303, '/?error=forbidden');
 }

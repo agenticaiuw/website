@@ -315,6 +315,10 @@ fieldset > legend { padding: 0; margin-bottom: 8px; font-size: 13px; font-weight
 .time-range { display: flex; align-items: center; gap: 8px; }
 .time-range select, .time-range input { flex: 1; min-width: 0; }
 .reminder-note { margin: 0 0 18px; }
+.update { margin-top: 10px; }
+.m-due { display: block; font-size: 13px; font-weight: 600; color: var(--accent, var(--fg)); }
+.update-who { margin: 0 0 4px; font-weight: 600; }
+#updates + form, #updates + .card { margin-top: 0; }
 .time-range span { color: var(--muted); font-size: 13px; }
 
 /* A row of choices that reads as one control (radio inputs or links). */
@@ -781,7 +785,15 @@ td.answer { min-width: 180px; white-space: pre-wrap; }
 .handbook-history { margin: 0; padding-left: 20px; }
 .handbook-history li { margin: 6px 0; }
 .handbook-history a[aria-current] { font-weight: 600; }
-.handbook ~ .disclose textarea[name="body"] { min-height: 24rem; font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
+/* Editing: the text on the left, how it will read on the right; stacked on a phone. */
+.handbook-editor { display: grid; gap: 16px; align-items: start; }
+.handbook-editor textarea[name="body"] { min-height: 70vh; resize: vertical; font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.handbook-editor .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.handbook-editor .handbook { max-width: none; }
+@media (min-width: 1000px) {
+	.handbook-editor { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+	.handbook-editor .handbook { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; }
+}
 @media (max-width: 640px) { .handbook { padding: 18px 16px; } }
 /* Decisions */
 .decisions-tabs { margin-bottom: 20px; }
@@ -823,3 +835,16 @@ td.answer { min-width: 180px; white-space: pre-wrap; }
 .decide-more > div { margin-top: 10px; }
 .decide-nav { display: flex; justify-content: space-between; gap: 10px; max-width: 46rem; margin-top: 14px; }
 @media (max-width: 640px) { .decide-card { padding: 18px 16px; } .decision-list li { padding: 12px 16px; } .decide-body { font-size: 17px; } }
+
+/* Social posts: a timeline of days, each with its posts. */
+.post-days, .post-list { list-style: none; margin: 0; padding: 0; }
+.post-days > li + li { margin-top: 20px; }
+.post-day { margin: 0 0 8px; font-size: 14px; font-weight: 600; color: var(--muted); }
+.post-day.bad { color: var(--danger); }
+.post-list { display: grid; gap: 10px; }
+.post { display: grid; gap: 8px; padding: 14px 16px; }
+.post-meta { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.post-meta b { color: var(--fg); }
+.post-body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.post-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+details > .post-days { margin-top: 14px; }

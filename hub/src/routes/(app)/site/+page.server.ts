@@ -1,11 +1,11 @@
-import { execOnly } from '$lib/server/perm';
+import { businessOnly } from '$lib/server/perm';
 import { PAGES, SECTIONS } from '$lib/server/site/schema';
 import { latestRows } from '$lib/server/site/store';
 import { edit } from '$lib/server/site/views';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals: { env, viewer } }) => {
-	execOnly(viewer);
+	businessOnly(viewer);
 	const latest = await latestRows(env.DB);
 	return {
 		title: 'Website',
