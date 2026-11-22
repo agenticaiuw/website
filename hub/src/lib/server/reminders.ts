@@ -2,7 +2,7 @@ import { signDoneLink } from './auth';
 import { boardTaskHref, type BoardTask } from './board';
 import { addDays, clubTime, daysBetween, hourIn, isTime, todayIn, weekday } from '../dates.ts';
 import { all, first, getMeta, logTask, MEETING_EXPECTED, MEETING_SELECT, MEETING_TEAMS_JSON, meetingTeams, setMeta, TASK_SELECT, teamNames } from './db';
-import { assignedEmail, canceledEmail, digestEmail, dueChangedEmail, taskNoticeEmail, meetingEmail, reminderEmail, teamAddedEmail, urgentEmail, type DigestData, type EmailTask, type MeetingChanges, type ReminderGroups } from './emails';
+import { andList, assignedEmail, canceledEmail, digestEmail, dueChangedEmail, taskNoticeEmail, taskReminderEmail, meetingEmail, reminderEmail, teamAddedEmail, urgentEmail, type DigestData, type EmailTask, type MeetingChanges, type ReminderGroups } from './emails';
 import { sendMail } from './mail';
 import { MEETING_SOON_HOURS, reminderFor, remindKey, SEND_HOUR, shouldEscalate, SOON_DAYS, TASK_SOON_HOURS, timedReminderFor, urgentReminderFor, type ReminderKind, type TimedKind } from './schedule';
 import type { Env, Member, MeetingRow, TaskRow, Team } from '../types.ts';
@@ -480,6 +480,43 @@ export async function notifyTaskEnded(env: Env, changer: { id: number; name: str
 		if (how === 'dropped') await logTask(env.DB, t.id, null, 'notified', res.ok ? `Drop emailed to ${t.assignee_name}` : `Drop email failed: ${res.error}`).run();
 	}
 	return sent;
+}
+
+/**
+ * A reminder sent from the task page with the sender's own message: one email to everyone on the task
+ * who hasn't finished it (BCC when there are several), except the sender. Each of their copies logs it
+ * and counts it as a reminder sent.
+ */
+export async function remindTask(env: Env, sender: { id: number; name: string }, task: TaskRow, message: string) {
+	const copies = await all<TaskRow & { assignee_active: number }>(
+		env.DB,
+		TASK_SELECT.replace('b.name AS assigner_name', 'b.name AS assigner_name, a.active AS assignee_active') + (task.group_id ? ' WHERE t.group_id = ?' : ' WHERE t.id = ?') + ' ORDER BY a.name COLLATE NOCASE',
+		task.group_id ?? task.id
+	);
+	const to = copies.filter((t) => t.assignee_active && t.status === 'open' && t.assignee_id !== sender.id);
+	if (!to.length) return { sent: 0, error: '' };
+	const today = todayIn(env.TIMEZONE);
+	const one = to.length === 1;
+	const item = await emailTask(env, to[0], { withDone: one });
+	// One email for several people: the link opens each reader's own copy.
+	if (!one) item.url += '?mine=1';
+	const res = await sendMail(env, {
+		to: one ? { name: to[0].assignee_name, email: to[0].assignee_email } : { name: env.MAIL_FROM_NAME, email: env.MAIL_FROM },
+		bcc: one ? undefined : to.map((t) => ({ name: t.assignee_name, email: t.assignee_email })),
+		kind: 'task-reminder',
+		...taskReminderEmail(one ? to[0].assignee_name : 'everyone', sender.name, message, item, today, env.APP_URL)
+	});
+	const names = andList(to.map((t) => t.assignee_name));
+	const logIds = [...new Set([...to.map((t) => t.id), task.id])];
+	await env.DB.batch(
+		res.ok
+			? [
+					...logIds.flatMap((id) => [logTask(env.DB, id, sender.id, 'reminded', message), logTask(env.DB, id, null, 'notified', `Reminder emailed to ${names}`)]),
+					...to.map((t) => env.DB.prepare('UPDATE tasks SET reminders_sent = reminders_sent + 1 WHERE id = ?').bind(t.id))
+				]
+			: logIds.map((id) => logTask(env.DB, id, null, 'notified', `Reminder email to ${names} failed: ${res.error}`))
+	);
+	return { sent: res.ok ? to.length : 0, error: res.ok ? '' : (res.error ?? 'failed') };
 }
 
 /** One BCC email to `people` saying the meeting (and `later` dates of its series) is canceled. */

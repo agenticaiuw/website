@@ -26,6 +26,9 @@ export const load: PageServerLoad = async ({ params, url, locals: { env, viewer:
 		task.group_id ? all<TaskRow>(env.DB, `${TASK_SELECT} WHERE t.group_id = ? ORDER BY a.name COLLATE NOCASE`, task.group_id) : Promise.resolve([]),
 		task.meeting_id ? loadMeeting(env, v, String(task.meeting_id)) : null
 	]);
+	// A link in one email to everyone on a shared task opens each reader's own copy.
+	const own = url.searchParams.get('mine') === '1' && copies.find((t) => t.assignee_id === v.id);
+	if (own) redirect(302, `/tasks/${own.id}`);
 	return {
 		title: task.title,
 		active: 'tasks' as const,

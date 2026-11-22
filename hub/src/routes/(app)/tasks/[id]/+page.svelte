@@ -7,6 +7,7 @@
 	import { formatDue, formatTimestamp } from '$lib/dates';
 	import { canCompleteTask, canManageTask, canSeeTask } from '$lib/perm';
 	import { ACTIVITY_VERB, repeatText } from '$lib/tasks';
+	import { andList } from '$lib/text';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -19,11 +20,27 @@
 	const total = $derived(data.copies.filter((t) => t.status !== 'dropped').length);
 	const done = $derived(data.copies.filter((t) => t.status === 'done').length);
 	const team = $derived(task.team_name ?? 'Task');
+	// Who a reminder goes to: everyone on it who hasn't finished, except you.
+	const pending = $derived((shared ? data.copies : [task]).filter((t) => t.status === 'open' && t.assignee_id !== v.id));
 </script>
 
 {#snippet progress()}
 	<h2 class="section-title" id="everyone">Everyone <span class="count">{done} of {total} done</span></h2>
 	<TaskList tasks={data.copies} {today} viewer={v} show={[]} by="assignee" back={overview ? `${back}?all=1` : `${back}#everyone`} removable={data.copies.length > 1} />
+{/snippet}
+
+{#snippet remind()}
+	<h2 class="section-title" id="remind">Send a reminder</h2>
+	<form method="post" action="/tasks/{task.id}/remind" class="stack">
+		{#if overview}<input type="hidden" name="all" value="1" />{/if}
+		<label class="field">
+			<span class="label">Message to {andList(pending.map((t) => t.assignee_name))}</span>
+			<textarea name="message" rows={3} maxlength={2000} required placeholder="What you need from them, and by when…"></textarea>
+		</label>
+		<div>
+			<button class="btn">Email reminder</button>
+		</div>
+	</form>
 {/snippet}
 
 <PageHead eyebrow={shared && !overview && task.assignee_id !== v.id ? `${team} · ${task.assignee_name}’s copy` : team} title={task.title}>
@@ -88,6 +105,7 @@
 		<h2 class="section-title">Details</h2>
 		<Markdown text={task.details} empty="No details." />
 		{#if !overview && shared}{@render progress()}{/if}
+		{#if pending.length && canManageTask(v, task)}{@render remind()}{/if}
 	</section>
 	{#if overview}
 		<section>{@render progress()}</section>
@@ -102,7 +120,7 @@
 							{a.member_name ? (ACTIVITY_VERB[a.kind] ?? a.kind) : ''}
 							<time>{formatTimestamp(a.created_at, data.timeZone)}</time>
 						</div>
-						{#if a.body}{#if a.kind === 'comment'}<Markdown text={a.body} />{:else}<p class="ev-body">{a.body}</p>{/if}{/if}
+						{#if a.body}{#if a.kind === 'comment' || a.kind === 'reminded'}<Markdown text={a.body} />{:else}<p class="ev-body">{a.body}</p>{/if}{/if}
 					</li>
 				{/each}
 			</ol>

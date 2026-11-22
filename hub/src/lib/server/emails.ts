@@ -182,6 +182,21 @@ export function taskNoticeEmail(name: string, subject: string, line: string, tas
 	};
 }
 
+/** A reminder someone sent from the task page, with their own message. `name` is 'everyone' for one BCC email. */
+export function taskReminderEmail(name: string, sender: string, message: string, task: EmailTask, today: string, appUrl: string) {
+	return {
+		subject: `Reminder: ${task.title} (due ${formatDue(task.due_date, task.due_time, today)})`,
+		text: `Hi ${name},\n\n${sender} sent a reminder about a task you're on:\n\n${message}\n— ${sender}\n\n${taskText(task, today)}`,
+		html: layout(
+			p(`Hi ${esc(name)},`) +
+				p(`${esc(sender)} sent a reminder about a task you’re on:`) +
+				p(`${esc(message).replace(/\r?\n/g, '<br>')}<br><span style="color:${MUTED};">— ${esc(sender)}</span>`) +
+				taskBlock(task, today),
+			appUrl
+		)
+	};
+}
+
 export function reminderEmail(name: string, g: ReminderGroups, today: string, appUrl: string) {
 	const mine = g.overdue.length + g.hours.length + g.today.length + g.soon.length;
 	const first = g.overdue[0] ?? g.hours[0] ?? g.today[0] ?? g.soon[0];

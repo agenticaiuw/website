@@ -18,6 +18,7 @@ export const repeatText = (t: { repeat_days: number; repeat_until: string | null
 export const ACTIVITY_VERB: Record<string, string> = {
 	created: 'created this task',
 	comment: 'commented',
+	reminded: 'sent a reminder',
 	done: 'marked it done',
 	reopened: 'reopened it',
 	dropped: 'dropped it',

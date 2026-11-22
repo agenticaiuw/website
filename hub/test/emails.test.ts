@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { andList, assignedEmail, canceledEmail, dueChangedEmail, meetingEmail, reminderEmail } from '../src/lib/server/emails.ts';
+import { andList, assignedEmail, canceledEmail, dueChangedEmail, meetingEmail, reminderEmail, taskReminderEmail } from '../src/lib/server/emails.ts';
 
 const joint = {
 	id: 7,
@@ -101,4 +101,15 @@ test('canceling the rest of a series says how many and through when', () => {
 	const e = canceledEmail({ ...joint, team_names: ['Business'], date: '2026-11-19', time: '16:30', end_time: '18:00' }, '2026-11-15', 'https://hub.example', ['2026-11-26', '2026-12-03', '2026-12-10']);
 	assert.match(e.subject, /^Canceled: Joint sync, Thu, Nov 19, 4:30–6:00 PM and the 3 after it$/);
 	assert.match(e.text, /The Business meeting on Thu, Nov 19 \(4:30–6:00 PM\) is canceled\. So are the 3 after it, through Thu, Dec 10\./);
+});
+
+test('a reminder from the task page carries the sender’s message, escaped, with its line breaks', () => {
+	const task = { id: 12, title: 'Upload Photos to Photos Folder', due_date: '2026-11-21', due_time: '', team_name: null, meeting_title: null, url: 'https://hub.example/tasks/12?mine=1' };
+	const e = taskReminderEmail('everyone', 'Evan Liu', 'Please upload <b>tonight</b>.\nThe folder is shared.', task, '2026-11-20', 'https://hub.example');
+	assert.equal(e.subject, 'Reminder: Upload Photos to Photos Folder (due Sat, Nov 21)');
+	assert.match(e.text, /^Hi everyone,\n\nEvan Liu sent a reminder about a task you're on:\n\nPlease upload <b>tonight<\/b>\.\nThe folder is shared\.\n— Evan Liu/);
+	assert.match(e.html, /Please upload &lt;b&gt;tonight&lt;\/b&gt;\.<br>The folder is shared\./);
+	assert.match(e.html, /href="https:\/\/hub\.example\/tasks\/12\?mine=1"/);
+	// One email to several people has no personal Mark done link.
+	assert.doesNotMatch(e.html, /Mark done/);
 });
