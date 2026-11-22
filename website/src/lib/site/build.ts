@@ -63,7 +63,7 @@ export function richHtml(s: string) {
 }
 
 /** The vision with its **bold** phrases and the [^1] source marker. */
-function visionRuns(text: string): Run[] {
+export function visionRuns(text: string): Run[] {
 	const runs: Run[] = [];
 	for (const part of text.split(/(\*\*.+?\*\*|\[\^1\])/)) {
 		if (!part) continue;

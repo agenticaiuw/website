@@ -1,14 +1,14 @@
 /**
- * The link-preview image (og.png) that Discord, iMessage, Slack and others show for every page.
- * It is drawn at build time from the hub's text, the same words as the home page's hero, so it
- * changes whenever they do. Satori lays it out like a web page; resvg turns that into a PNG.
+ * The link-preview images (/og/<page>.png) that Discord, iMessage, Slack and others show. Each
+ * page's is drawn at build time from the hub's text: the heading and opening line at the top of
+ * that page, so it changes whenever they do. Satori lays it out like a web page; resvg makes the PNG.
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import satori from 'satori';
 import { Resvg } from '@resvg/resvg-js';
 import type { Run } from '$lib/site/build';
-import { ogSize, ogText, siteUrl } from '$lib/seo';
+import { ogSize, siteUrl, type OgCard } from '$lib/seo';
 import type { Site } from '$lib/site';
 
 /* The site's own colors (src/app.css). */
@@ -50,14 +50,16 @@ function richText(items: Run[], size: number, style: Record<string, unknown>, st
 	);
 }
 
-/** Smaller text for a longer vision, so it fits the card. */
-function textSize(runs: Run[]) {
-	const length = runs.reduce((n, r) => n + r.t.length, 0);
-	return length < 170 ? 40 : length < 240 ? 34 : length < 320 ? 30 : 26;
-}
+const length = (runs: Run[]) => runs.reduce((n, r) => n + r.t.length, 0);
 
-export async function ogPng(site: Site) {
-	const { shortName, university, label, text } = ogText(site);
+/** A short heading ("Events") runs large; a longer one smaller, so it takes at most two lines. */
+const headingSize = (runs: Run[]) => (length(runs) <= 14 ? 104 : length(runs) <= 26 ? 84 : 74);
+
+/** Smaller text for a longer opening line, so it fits the card. */
+const textSize = (runs: Run[]) => (length(runs) < 130 ? 40 : length(runs) < 175 ? 36 : length(runs) < 240 ? 32 : 28);
+
+export async function ogPng(site: Site, card: OgCard) {
+	const { shortName, university } = site.club;
 	const logo = `data:image/png;base64,${file('static/logo-192.png').toString('base64')}`;
 	const tree = h(
 		'div',
@@ -72,14 +74,14 @@ export async function ogPng(site: Site) {
 		h(
 			'div',
 			{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flexGrow: 1, gap: 28 },
-			richText(label, 74, { fontFamily: 'Baloo 2', fontWeight: 800, lineHeight: 1, textTransform: 'uppercase', letterSpacing: '-0.01em' }, { color: c.accent }),
-			richText(text, textSize(text), { lineHeight: 1.34, color: c.muted }, { color: c.fg, fontWeight: 700 })
+			richText(card.heading, headingSize(card.heading), { fontFamily: 'Baloo 2', fontWeight: 800, lineHeight: 1, textTransform: 'uppercase', letterSpacing: '-0.01em' }, { color: c.accent }),
+			richText(card.text, textSize(card.text), { lineHeight: 1.34, color: c.muted }, { color: c.fg, fontWeight: 700 })
 		),
 		h(
 			'div',
 			{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 26, borderTop: `1px solid ${c.line}`, fontSize: 26, color: c.faint },
 			h('div', { display: 'flex' }, `Student club · ${university}`),
-			h('div', { display: 'flex', color: c.fg, fontWeight: 700 }, new URL(siteUrl).host)
+			h('div', { display: 'flex', color: c.fg, fontWeight: 700 }, new URL(siteUrl).host + (card.path === '/' ? '' : card.path))
 		)
 	);
 	const svg = await satori(tree as Parameters<typeof satori>[0], {

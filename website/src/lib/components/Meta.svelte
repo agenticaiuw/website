@@ -13,7 +13,7 @@
 		shareDescription?: string;
 	}
 	let { title, description, shareDescription = description }: Props = $props();
-	const image = ogImage(site());
+	const image = $derived(ogImage(site(), page.url.pathname));
 	const imageAlt = ogImageAlt(site());
 </script>
 
