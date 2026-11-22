@@ -1,13 +1,44 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { richHtml, site } from '$lib/site';
 	const { project } = site();
-	// What people download: GitHub builds each one from the repo's main branch on every push.
+	// What people download: GitHub builds each one from the repo's main branch on every push. A Mac build runs on every
+	// Mac (Apple silicon and Intel in one file); Linux has one build per kind of processor.
 	const builds = 'https://github.com/agenticaiuw/hive/releases/download/latest/';
-	const downloads = [
-		{ name: 'Mac', note: 'Apple silicon and Intel', file: 'Hive-Mac.dmg' },
-		{ name: 'Windows', note: 'Windows 10 and 11', file: 'hive-windows.exe' },
-		{ name: 'Browser', note: 'Chrome, Edge and Brave: load the unzipped folder in Extensions with Developer mode on', file: 'Hive-Browser.zip' }
+	type Get = { name: string; note: string; file: string; os: string; arch?: string };
+	const servers: Get[] = [
+		{ name: 'Linux', note: 'Most VMs (Intel and AMD processors)', file: 'hive-server-linux-x86_64', os: 'linux', arch: 'x86' },
+		{ name: 'Linux on ARM', note: "ARM VMs, like Oracle Cloud's", file: 'hive-server-linux-aarch64', os: 'linux', arch: 'arm' },
+		{ name: 'Mac', note: 'Apple silicon and Intel', file: 'hive-server-macos.zip', os: 'mac' },
+		{ name: 'Windows', note: 'Windows 10 and 11', file: 'hive-server-windows.exe', os: 'windows' }
 	];
+	const devices: Get[] = [
+		{ name: 'Mac', note: 'Apple silicon and Intel', file: 'Hive-Mac.dmg', os: 'mac' },
+		{ name: 'Windows', note: 'Windows 10 and 11', file: 'hive-windows.exe', os: 'windows' },
+		{ name: 'Browser', note: 'Chrome, Edge and Brave: load the unzipped folder in Extensions with Developer mode on', file: 'Hive-Browser.zip', os: 'browser' }
+	];
+
+	// The visitor's computer and processor, so the builds for it come first.
+	let os = $state('');
+	let arch = $state('');
+	onMount(async () => {
+		const p = navigator.platform || '';
+		const phone = /iPhone|iPad|iPod|Android/.test(navigator.userAgent) || (p === 'MacIntel' && navigator.maxTouchPoints > 1);
+		os = phone ? '' : /Mac/.test(p) ? 'mac' : /Win/.test(p) ? 'windows' : /Linux/.test(p) ? 'linux' : '';
+		arch = /arm|aarch64/i.test(p) ? 'arm' : 'x86';
+		const hints = (navigator as Navigator & { userAgentData?: { getHighEntropyValues(h: string[]): Promise<{ architecture?: string }> } }).userAgentData;
+		if (hints) arch = (await hints.getHighEntropyValues(['architecture']).catch(() => ({ architecture: arch }))).architecture === 'arm' ? 'arm' : 'x86';
+	});
+	// A VM has no browser: one command there fetches the Linux build for its processor.
+	const linux = `curl -fLo hive-server ${builds}hive-server-linux-$(uname -m) && chmod +x hive-server && sudo ./hive-server`;
+	const mine = (g: Get) => g.os === os && (!g.arch || g.arch === arch);
+	const first = (list: Get[]) => [...list].sort((a, b) => Number(mine(b)) - Number(mine(a)));
+	const slides = $derived([
+		{ id: 'server', title: 'Get your Hive', gets: first(servers),
+			lede: "The server is your Hive, its own download: run it once on a computer that stays on, a VM or an old laptop. It signs in to ChatGPT with a code, starts with the computer from then on, and gives you your dashboard's link." },
+		{ id: 'download', title: 'Download Hive', gets: first(devices),
+			lede: "Then add your devices: each one connects to your Hive with the link from its dashboard's Pair a device." }
+	]);
 </script>
 
 <!-- Slide 1: the project's name and goal, big, with why it matters. -->
@@ -26,26 +57,30 @@
 	</div>
 </section>
 
-<!-- Slide 2: download Hive for each device. -->
-<section id="download" class="slide hive-get scroll-mt-16" aria-labelledby="get-heading">
-	<div class="shell">
-		<h2 id="get-heading" class="slide-title" data-reveal>Download Hive</h2>
-		<p class="get-lede" data-reveal>Each one connects to a Hive with the code from its dashboard's Pair a device.</p>
-		<ul class="gets" role="list" data-stagger>
-			{#each downloads as d (d.file)}
-				<li data-reveal>
-					<a class="card get" href={builds + d.file} download>
-						<span class="get-name">{d.name}</span>
-						<span class="get-note">{d.note}</span>
-						<span class="get-file">{d.file} <span aria-hidden="true">↓</span></span>
-					</a>
-				</li>
-			{/each}
-		</ul>
-	</div>
-</section>
+<!-- Slides 2 and 3: get the server, then the devices; this computer's builds first. -->
+{#each slides as sl (sl.id)}
+	<section id={sl.id} class="slide hive-get scroll-mt-16" aria-labelledby="{sl.id}-heading">
+		<div class="shell">
+			<h2 id="{sl.id}-heading" class="slide-title" data-reveal>{sl.title}</h2>
+			<p class="get-lede" data-reveal>{sl.lede}</p>
+			<ul class="gets" class:four={sl.gets.length > 3} role="list" data-stagger>
+				{#each sl.gets as d (d.file)}
+					<li data-reveal>
+						<a class="card get" class:mine={mine(d)} href={builds + d.file} download>
+							<span class="get-name">{d.name}</span>
+							{#if mine(d)}<span class="get-mine">For this computer</span>{/if}
+							<span class="get-note">{d.note}</span>
+							<span class="get-file">{d.file} <span aria-hidden="true">↓</span></span>
+						</a>
+					</li>
+				{/each}
+			</ul>
+			{#if sl.id === 'server'}<p class="get-cmd" data-reveal>On a Linux VM, one command gets the build for its processor: <code>{linux}</code></p>{/if}
+		</div>
+	</section>
+{/each}
 
-<!-- Slide 3: this semester's plan and the code. -->
+<!-- Slide 4: this semester's plan and the code. -->
 <section class="slide hive-plan" aria-labelledby="plan-heading">
 	<div class="shell">
 		<h2 id="plan-heading" class="slide-title" data-reveal>{project.semesterLabel}</h2>
@@ -73,6 +108,11 @@
 	.get-name { font-family: var(--font-sans); font-size: clamp(1.6rem, min(2.8vw, 5svh), 2.4rem); font-weight: 900; letter-spacing: -0.04em; color: var(--fg); }
 	.get-note { flex: 1; font-size: 1rem; line-height: 1.5; color: var(--muted); }
 	.get-file { font-family: var(--font-sans); font-weight: 700; color: var(--accent); }
+	@media (min-width: 1000px) { .gets.four { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+	.get.mine { background: linear-gradient(140deg, var(--accent-surface), var(--surface) 70%); border-color: var(--accent-border); }
+	.get-cmd { margin-top: clamp(0.9rem, 2.4svh, 1.4rem); font-size: 0.95rem; line-height: 1.6; color: var(--muted); }
+	.get-cmd code { display: block; margin-top: 0.35rem; padding: 0.6rem 0.8rem; border-radius: 0.5rem; background: var(--surface); color: var(--fg); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; overflow-wrap: anywhere; user-select: all; }
+	.get-mine { font-size: 0.8rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
 
 	/* ---- slide 1 ---- */
 	.hive-hero { overflow: clip; }
