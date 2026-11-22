@@ -4,7 +4,7 @@
 	// What people download: GitHub builds each one from the repo's main branch on every push.
 	const builds = 'https://github.com/agenticaiuw/hive/releases/download/latest/';
 	const downloads = [
-		{ name: 'Mac', note: 'Apple silicon and Intel', file: 'Hive-Mac.zip' },
+		{ name: 'Mac', note: 'Apple silicon and Intel', file: 'Hive-Mac.dmg' },
 		{ name: 'Windows', note: 'Windows 10 and 11', file: 'hive-windows.exe' },
 		{ name: 'Browser', note: 'Chrome, Edge and Brave: load the unzipped folder in Extensions with Developer mode on', file: 'Hive-Browser.zip' }
 	];
