@@ -4,7 +4,7 @@
 	const { project } = site();
 	// What people download: GitHub builds each one from the repo's main branch on every push. A Mac build runs on every
 	// Mac (Apple silicon and Intel in one file); Linux has one build per kind of processor.
-	const builds = 'https://github.com/agenticaiuw/hive/releases/download/latest/';
+	const builds = 'https://github.com/agenticaiuw-org/hive/releases/download/latest/';
 	type Get = { name: string; note: string; file: string; os: string; arch?: string };
 	const servers: Get[] = [
 		{ name: 'Linux', note: 'Most VMs (Intel and AMD processors)', file: 'hive-server-linux-x86_64', os: 'linux', arch: 'x86' },
@@ -14,8 +14,13 @@
 	];
 	const devices: Get[] = [
 		{ name: 'Mac', note: 'Apple silicon and Intel', file: 'Hive-Mac.dmg', os: 'mac' },
-		{ name: 'Windows', note: 'Windows 10 and 11', file: 'hive-windows.exe', os: 'windows' },
-		{ name: 'Browser', note: 'Chrome, Edge and Brave: load the unzipped folder in Extensions with Developer mode on', file: 'Hive-Browser.zip', os: 'browser' }
+		{ name: 'Windows', note: 'Windows 10 and 11', file: 'hive-windows.exe', os: 'windows' }
+	];
+	// Each becomes a link once Hive is listed there.
+	const soon = [
+		{ name: 'Browser extension', href: '' },
+		{ name: 'App Store', href: '' },
+		{ name: 'Play Store', href: '' }
 	];
 
 	// The visitor's computer and processor, so the builds for it come first.
@@ -33,21 +38,27 @@
 	const linux = `curl -fLo hive-server ${builds}hive-server-linux-$(uname -m) && chmod +x hive-server && sudo ./hive-server`;
 	const mine = (g: Get) => g.os === os && (!g.arch || g.arch === arch);
 	const first = (list: Get[]) => [...list].sort((a, b) => Number(mine(b)) - Number(mine(a)));
+	const here = $derived(devices.find(mine));
 	const slides = $derived([
 		{ id: 'server', title: 'Get your Hive', gets: first(servers),
-			lede: "The server is your Hive, its own download: run it once on a computer that stays on, a VM or an old laptop. It signs in to ChatGPT with a code, starts with the computer from then on, and gives you your dashboard's link." },
-		{ id: 'download', title: 'Download Hive', gets: first(devices),
-			lede: "Then add your devices: each one connects to your Hive with the link from its dashboard's Pair a device." }
+			lede: "The server is your Hive, its own download: run it once on a computer that stays on, a VM or an old laptop. It signs in to ChatGPT with a code, starts with the computer from then on, and gives you your dashboard's link. Then add your devices: each one connects to your Hive with the link from its dashboard's Pair a device." }
 	]);
 </script>
 
-<!-- Slide 1: the project's name and goal, big, with why it matters. -->
+<!-- Slide 1: the project's name and goal, big, with why it matters and the download for this computer. -->
 <section id="hive" class="slide hive-hero scroll-mt-16">
 	<header class="shell hero-inner" data-hero>
 		<p class="eyebrow accent" data-hero-after>{project.eyebrow}</p>
 		<h1 class="title"><span class="word" data-word>{project.title}<span class="title-dot">.</span></span></h1>
 		<p class="goal" data-hero-after>{@html richHtml(project.goal)}</p>
 		{#if project.why}<p class="why" data-hero-after>{project.why}</p>{/if}
+		<div class="get-hive" data-hero-after>
+			{#if here}<a class="btn btn-red" href={builds + here.file} download>Download for {here.name} <span aria-hidden="true">↓</span></a>{/if}
+			{#each soon as s (s.name)}
+				{#if s.href}<a class="btn btn-ghost btn-sm" href={s.href} target="_blank" rel="noopener noreferrer">{s.name}</a>
+				{:else}<span class="btn btn-ghost btn-sm soon" aria-disabled="true">{s.name} <small>soon</small></span>{/if}
+			{/each}
+		</div>
 	</header>
 
 	<div class="cue" aria-hidden="true" data-cue>
@@ -57,7 +68,7 @@
 	</div>
 </section>
 
-<!-- Slides 2 and 3: get the server, then the devices; this computer's builds first. -->
+<!-- Slide 2: get the server, this computer's build first. -->
 {#each slides as sl (sl.id)}
 	<section id={sl.id} class="slide hive-get scroll-mt-16" aria-labelledby="{sl.id}-heading">
 		<div class="shell">
@@ -80,7 +91,7 @@
 	</section>
 {/each}
 
-<!-- Slide 4: this semester's plan and the code. -->
+<!-- Slide 3: this semester's plan and the code. -->
 <section class="slide hive-plan" aria-labelledby="plan-heading">
 	<div class="shell">
 		<h2 id="plan-heading" class="slide-title" data-reveal>{project.semesterLabel}</h2>
@@ -147,6 +158,10 @@
 		line-height: 1.6;
 		color: var(--muted);
 	}
+	.get-hive { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-top: clamp(1.1rem, 3.2svh, 2rem); }
+	.soon { opacity: 0.55; cursor: default; }
+	.soon:hover { transform: none; border-color: var(--line-strong); }
+	.soon small { font-size: 0.75em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
 	.cue {
 		position: absolute;
 		inset-inline: 0;
