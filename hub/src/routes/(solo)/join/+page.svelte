@@ -8,23 +8,19 @@
 	const names = (list: string[]) => (list.length < 3 ? list.join(' or ') : `${list.slice(0, -1).join(', ')} or ${list.at(-1)}`);
 </script>
 
-{#if form?.first}
-	<h1>You're signed up for {form.team}, {form.first}</h1>
-	{#if form.bookings.length === 1}
-		{@const b = form.bookings[0]}
-		<p class="sub">Book a meeting with {b.name ? `${b.name}, the head of ${form.team},` : `the head of ${form.team}`} to join the team.</p>
-		<a class="btn primary" href={b.url} target="_blank" rel="noopener noreferrer">Book a meeting{b.name ? ` with ${b.name.split(' ')[0]}` : ''} ↗</a>
-	{:else if form.bookings.length}
-		<p class="sub">{form.team} has {form.bookings.length === 2 ? 'two heads' : `${form.bookings.length} heads`}. Book a meeting with {form.bookings.length === 2 ? 'either' : 'any'} of them to join the team.</p>
+{#if form?.team}
+	{#if form.bookings.length}
+		<h1>Book a meeting with the head of {form.team}</h1>
 		<div class="join-bookings">
 			{#each form.bookings as b (b.url)}
-				<a class="btn primary" href={b.url} target="_blank" rel="noopener noreferrer">Book with {b.name || 'a head'} ↗</a>
+				<a class="btn primary" href={b.url} target="_blank" rel="noopener noreferrer">{b.name ? `Book with ${b.name}` : 'Book a meeting'} ↗</a>
 			{/each}
 		</div>
 	{:else if form.heads.length}
-		<p class="sub">{form.team} doesn't have a meeting link yet. Reach out to {names(form.heads)}.</p>
-	{:else}
+		<h1>Reach out to {names(form.heads)}</h1>
 		<p class="sub">{form.team} doesn't have a meeting link yet.</p>
+	{:else}
+		<h1>{form.team} doesn't have a meeting link yet</h1>
 	{/if}
 {:else}
 	<h1>Join a team</h1>

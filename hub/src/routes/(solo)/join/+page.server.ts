@@ -21,6 +21,6 @@ export const actions: Actions = {
 		const [teams, board] = await Promise.all([sectionData(env.DB, 'teams'), sectionData(env.DB, 'board')]);
 		const result = await addSignup(env.DB, { teams: teams.data, board: board.data }, name, str(form.major, 200), id(form.team));
 		if ('error' in result) redirect(303, `/join?error=${result.error}`);
-		return { title: 'Signed up', first: name.split(' ')[0], ...result };
+		return { title: 'Book a meeting', ...result };
 	}
 };
