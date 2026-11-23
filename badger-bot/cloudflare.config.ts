@@ -71,6 +71,8 @@ export default defineConfig({
 			// Runs the apps the bot deploys (Dynamic Workers), each isolated with no bindings.
 			LOADER: bindings.workerLoader(),
 			DISCORD_BOT_TOKEN: bindings.secret(),
+			// Signs the bot's reads of the hub (its meetings); the hub has the same value as BADGER_TOKEN.
+			HUB_TOKEN: bindings.secret(),
 			// The optional CHATGPT_CREDENTIALS secret (written by `npm run signin`)
 			// seeds CHATGPT_PLAN; it isn't declared so the bot can deploy before sign-in.
 			PUBLIC_URL: bindings.text(publicUrl),

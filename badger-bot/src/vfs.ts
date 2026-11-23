@@ -9,6 +9,7 @@ import type { BrainSession } from "./brain-tools.ts";
 import { type ServerView, canSee, listChannels, readChannel, serverView } from "./channel-reader.ts";
 import { CLUB_INFO } from "./club-info.ts";
 import { clubDrive } from "./club-drive.ts";
+import { hubMeetings } from "./hub.ts";
 import { isDiscordFileUrl, readAttachmentUrl } from "./documents.ts";
 import { MAX_OPENED_IMAGES, isImageLink, openImage } from "./media.ts";
 import { type DiscordMessage, fetchAllMembers } from "./discord.ts";
@@ -83,7 +84,7 @@ export function fileSystem(options: FileSystemOptions): FunctionTool[] {
 	const channelName = async (channelId: string) => (await view())?.channels.find((c) => c.id === channelId)?.name ?? "a thread or DM";
 
 	const root = [
-		"club/  club info and the member handbook",
+		"club/  club info, its meetings and events (live from the hub), and the member handbook",
 		"channels/  this server's channels; read one for its messages (to look through a lot of history at once, run search_messages from /tools)",
 		"memory/  what you remember (one file per memory)",
 		"sessions/  your past conversations: what was asked, looked up and answered",
@@ -112,7 +113,7 @@ export function fileSystem(options: FileSystemOptions): FunctionTool[] {
 		const q = query.toLowerCase();
 		switch (top) {
 			case "club":
-				return "info.md  club facts from the website\nhandbook.md  more from the club's working documents";
+				return "info.md  club facts from the website\nmeetings.md  meetings and events from the hub, the only place the schedule is kept: the next two weeks, or from=/to= dates (YYYY-MM-DD)\nhandbook.md  more from the club's working documents";
 			case "channels":
 				return listChannels(env, message, query);
 			case "memory": {
@@ -212,8 +213,9 @@ export function fileSystem(options: FileSystemOptions): FunctionTool[] {
 		switch (top) {
 			case "club":
 				if (/^info(\.md)?$/.test(name)) return CLUB_INFO;
+				if (/^meetings(\.md)?$/.test(name)) return hubMeetings(env, message, exec, args.from, args.to);
 				if (/^handbook(\.md)?$/.test(name)) return (await clubDrive(env).knowledge("member")).handbook || "The handbook hasn't been built yet.";
-				return "Files here: info.md, handbook.md.";
+				return "Files here: info.md, meetings.md, handbook.md.";
 			case "channels":
 				if (!name) return "Read a channel, like /channels/general or /channels/here.";
 				return readChannel(env, message, name, {
@@ -354,6 +356,8 @@ export function fileSystem(options: FileSystemOptions): FunctionTool[] {
 					path: { type: "string" },
 					before: { type: "string", description: "For channels: read messages older than this id" },
 					limit: { type: "integer", description: "For channels: how many messages (default 50, at most 100)" },
+					from: { type: "string", description: "For /club/meetings.md: first date, YYYY-MM-DD (default today)" },
+					to: { type: "string", description: "For /club/meetings.md: last date, YYYY-MM-DD (default two weeks on)" },
 				},
 				required: ["path"],
 				additionalProperties: false,

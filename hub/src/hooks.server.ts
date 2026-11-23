@@ -3,8 +3,8 @@ import { sessionMember } from '$lib/server/auth';
 import { loadViewer } from '$lib/server/db';
 import { rebuildWebsiteQuietly } from '$lib/server/website';
 
-/** Pages and endpoints anyone can reach: sign-in, the iPhone app's API, public meeting forms, the website's text. */
-const PUBLIC = [/^\/(login|verify|logout|done|privacy)$/, /^\/api\/app\//, /^\/f\/[^/]+$/, /^\/api\/site$/];
+/** Pages and endpoints anyone can reach: sign-in, the iPhone app's API, public meeting forms, the website's text, Badger's (signed with its token). */
+const PUBLIC = [/^\/(login|verify|logout|done|privacy)$/, /^\/api\/app\//, /^\/f\/[^/]+$/, /^\/api\/site$/, /^\/api\/bot\//];
 
 export const handle: Handle = async ({ event, resolve }) => {
 	event.locals.env = event.platform!.env;

@@ -18,6 +18,8 @@ export type Env = {
 	COLLAB_ACCESS_CLIENT_SECRET?: string;
 	/** Fine-grained GitHub token (Actions: read and write, on agenticaiuw/website) that starts the website rebuild. */
 	GITHUB_DISPATCH_TOKEN?: string;
+	/** Shared with the Discord bot, Badger: it signs Badger's reads of the hub (/api/bot/...). */
+	BADGER_TOKEN?: string;
 };
 
 export type Role = 'exec' | 'member';
