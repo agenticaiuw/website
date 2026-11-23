@@ -154,6 +154,7 @@ export function buildContent(input: Partial<Sections>) {
 		faq: { ...s.faq, items: s.faq.items.map((f) => ({ q: f.q, a: f.a, links: f.links.length ? f.links.map((l): Link => ({ label: l.label, href: safeHref(l.href) })) : undefined })) },
 		social,
 		contact: { heading: s.links.contactHeading, lede: s.links.contactLede, email: s.links.email },
+		newsletter: { heading: s.links.newsletterHeading, placeholder: s.links.newsletterPlaceholder, button: s.links.newsletterButton, done: s.links.newsletterDone, error: s.links.newsletterError },
 		memberHub: { label: s.links.hubLabel, href: safeHref(s.links.hubHref), blurb: s.links.hubBlurb },
 		/* A page the hub doesn't have text for yet uses the snapshot's. */
 		pages,

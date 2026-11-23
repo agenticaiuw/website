@@ -3,15 +3,18 @@ import { sessionMember } from '$lib/server/auth';
 import { loadViewer } from '$lib/server/db';
 import { rebuildWebsiteQuietly } from '$lib/server/website';
 
-/** Pages and endpoints anyone can reach: sign-in, the iPhone app's API, public meeting forms, the website's text, Badger's (signed with its token). */
-const PUBLIC = [/^\/(login|verify|logout|done|privacy)$/, /^\/api\/app\//, /^\/f\/[^/]+$/, /^\/api\/site$/, /^\/api\/bot\//];
+/** Pages and endpoints anyone can reach: sign-in, the iPhone app's API, public meeting forms, the website's text and newsletter signup, Badger's (signed with its token). */
+const PUBLIC = [/^\/(login|verify|logout|done|privacy)$/, /^\/api\/app\//, /^\/f\/[^/]+$/, /^\/api\/site$/, /^\/api\/newsletter$/, /^\/api\/bot\//];
+
+/** Posted to from the public website, so it checks the website's origin itself. */
+const FROM_WEBSITE = /^\/api\/newsletter$/;
 
 export const handle: Handle = async ({ event, resolve }) => {
 	event.locals.env = event.platform!.env;
 	const { request, url } = event;
 
 	// Every form posts to this site. Refuse cross-site posts on top of SameSite cookies.
-	if (request.method !== 'GET' && request.method !== 'HEAD') {
+	if (request.method !== 'GET' && request.method !== 'HEAD' && !FROM_WEBSITE.test(url.pathname)) {
 		const origin = request.headers.get('Origin');
 		const site = request.headers.get('Sec-Fetch-Site');
 		if ((origin && origin !== url.origin) || (site && site !== 'same-origin' && site !== 'none')) {
@@ -31,7 +34,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	const response = await resolve(event);
 	// A save may have changed the website's text (a section, a team's people): rebuild it if so.
-	if (request.method === 'POST' && response.status < 400) event.platform?.ctx.waitUntil(rebuildWebsiteQuietly(event.locals.env));
+	if (request.method === 'POST' && response.status < 400 && !FROM_WEBSITE.test(url.pathname)) event.platform?.ctx.waitUntil(rebuildWebsiteQuietly(event.locals.env));
 	try {
 		response.headers.set('X-Frame-Options', 'DENY');
 		response.headers.set('Referrer-Policy', 'same-origin');

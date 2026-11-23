@@ -476,6 +476,11 @@ export default {
 		"contactHeading": "Contact",
 		"contactLede": "Reach out with questions about the club, collaborations or speaking.",
 		"email": "team@agenticaiuw.com",
+		"newsletterHeading": "Newsletter",
+		"newsletterPlaceholder": "Your email",
+		"newsletterButton": "Subscribe",
+		"newsletterDone": "You’re subscribed.",
+		"newsletterError": "That didn’t go through. Try again.",
 		"hubLabel": "Member hub",
 		"hubHref": "https://hub.agenticaiuw.com/",
 		"hubBlurb": "Where members track the project’s tasks. Sign-in required."

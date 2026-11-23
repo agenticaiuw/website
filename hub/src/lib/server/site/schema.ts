@@ -41,7 +41,7 @@ export const SECTIONS: Section[] = [
 		key: 'links',
 		title: 'Social links and contact',
 		page: 'Every page',
-		where: 'The footer’s Follow and Contact columns, and the Member hub button in the header.',
+		where: 'The footer’s Follow, Contact and Newsletter columns, and the Member hub button in the header.',
 		fields: [
 			{
 				t: 'list',
@@ -55,6 +55,11 @@ export const SECTIONS: Section[] = [
 			text('contactHeading', 'Contact heading'),
 			long('contactLede', 'Contact text'),
 			text('email', 'Contact email'),
+			text('newsletterHeading', 'Newsletter heading'),
+			text('newsletterPlaceholder', 'Newsletter email box'),
+			text('newsletterButton', 'Newsletter button'),
+			text('newsletterDone', 'Newsletter thank-you'),
+			text('newsletterError', 'Newsletter error'),
 			text('hubLabel', 'Member hub button'),
 			url('hubHref', 'Member hub link'),
 			text('hubBlurb', 'Member hub tooltip')

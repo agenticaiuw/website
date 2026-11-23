@@ -13,7 +13,10 @@ export default defineConfig({
 				config: 'wrangler.build.jsonc',
 				// Local dev uses the bindings, vars and .dev.vars of the real config.
 				platformProxy: { configPath: 'wrangler.jsonc' }
-			})
+			}),
+			// The public website posts its newsletter signup here. hooks.server.ts still refuses
+			// cross-site posts to every other address.
+			csrf: { trustedOrigins: ['https://agenticaiuw.com', 'https://www.agenticaiuw.com'] }
 		})
 	]
 });

@@ -10,11 +10,12 @@
 	import Badge from '$lib/components/Badge.svelte';
 	import SocialIcon from '$lib/components/SocialIcon.svelte';
 	import EmailLink from '$lib/components/EmailLink.svelte';
+	import NewsletterForm from '$lib/components/NewsletterForm.svelte';
 	import { provideSite, richHtml } from '$lib/site';
 
 	let { children, data } = $props();
 	provideSite(() => data.site);
-	const { club, social, contact } = $derived(data.site);
+	const { club, social, contact, newsletter } = $derived(data.site);
 
 	let still = $state(false);
 	onMount(() => {
@@ -101,6 +102,8 @@
 					<span class="f-email"><EmailLink email={contact.email} class="font-semibold" /></span>
 				</div>
 			</div>
+
+			<NewsletterForm text={newsletter} />
 
 			<div class="f-badge" aria-hidden="true"><Badge size={150} mood="happy" /></div>
 		</div>
