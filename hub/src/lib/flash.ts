@@ -28,7 +28,10 @@ export const FLASH: Record<string, string> = {
 	invited: 'Sign-in invites sent. See the log below.',
 	'site-saved': 'Saved. The website shows it within a minute.',
 	'site-unchanged': 'Nothing changed, so no new version was saved.',
-	restored: 'Restored. That version is live again, and the text it replaced stays in the history.'
+	restored: 'Restored. That version is live again, and the text it replaced stays in the history.',
+	uploaded: 'Uploaded.',
+	'file-removed': 'Removed. Execs can put it back from Removed files.',
+	'file-restored': 'Put back.'
 };
 
 export const ERRORS: Record<string, string> = {

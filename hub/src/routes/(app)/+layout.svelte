@@ -9,7 +9,7 @@
 
 	let { data, children }: { data: { viewer: import('$lib/types').Viewer; collab: boolean }; children: Snippet } = $props();
 
-	type NavKey = 'home' | 'tasks' | 'meetings' | 'teams' | 'handbook' | 'email' | 'collaboration' | 'site';
+	type NavKey = 'home' | 'tasks' | 'meetings' | 'teams' | 'handbook' | 'files' | 'email' | 'collaboration' | 'site';
 
 	/** Simple line icons for the sidebar, drawn on a 24px grid. */
 	const ICONS: Record<NavKey, string> = {
@@ -18,6 +18,7 @@
 		meetings: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
 		teams: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.75"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.75"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.75"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.75"/>',
 		handbook: '<path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5v-15Z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3M9 7.5h6"/>',
+		files: '<path d="M3.5 7A2 2 0 0 1 5.5 5h4l2 2.5h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2V7Z"/>',
 		collaboration: '<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="m8.2 10.8 7.6-3.6M8.2 13.2l7.6 3.6"/>',
 		email: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 7 8.5 6 8.5-6"/>',
 		site: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.6 3.8 5.6 3.8 9s-1.2 6.4-3.8 9c-2.6-2.6-3.8-5.6-3.8-9S9.4 5.6 12 3Z"/>'
@@ -30,7 +31,8 @@
 			['tasks', '/tasks', 'Tasks'],
 			['meetings', '/meetings', 'Meetings'],
 			['teams', '/teams', 'Teams'],
-			['handbook', '/handbook', 'Handbook']
+			['handbook', '/handbook', 'Handbook'],
+			['files', '/files', 'Files']
 		];
 		if (canRunBusiness(viewer)) list.push(['site', '/site', 'Website']);
 		if (isExec(viewer)) list.push(['email', '/email', 'Email']);

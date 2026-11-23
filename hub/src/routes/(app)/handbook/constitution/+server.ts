@@ -5,7 +5,7 @@ import type { RequestHandler } from './$types';
 /** The club constitution, for any signed-in member to download, put back together from its chunks. */
 export const GET: RequestHandler = async ({ locals: { env } }) => {
 	const db = env.DB;
-	const file = await first<{ name: string; media_type: string; size: number }>(db, "SELECT name, media_type, size FROM club_files WHERE key = 'constitution'");
+	const file = await first<{ name: string; media_type: string; size: number }>(db, "SELECT name, media_type, size FROM club_files WHERE key = 'constitution' AND removed_at = ''");
 	if (!file) error(404, 'Not found');
 	const chunks = await all<{ data: number[] }>(db, "SELECT data FROM club_file_chunks WHERE file_key = 'constitution' ORDER BY part");
 	const bytes = new Uint8Array(file.size);
