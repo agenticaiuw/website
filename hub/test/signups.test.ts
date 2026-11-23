@@ -31,35 +31,55 @@ function fakeD1() {
 }
 
 const MAJOR = 'Computer Sciences, BS';
+// The website's teams (linked to hub teams by id, or by name) and board cards with their booking links.
+const SITE = {
+	teams: { items: [{ k: 'hardware', name: 'Hardware Team', short: 'Hardware', team: 2 }, { k: 'automation', name: 'Automation Team', short: 'Automation' }] },
+	board: {
+		members: [
+			{ name: 'Ana Exec', subteam: 'hardware', officeHours: 'https://cal.com/ana' },
+			{ name: 'Gus Head', subteam: 'automation', officeHours: 'https://cal.com/gus' },
+			{ name: 'Hal Head', subteam: 'automation', officeHours: 'javascript:alert(1)' },
+			{ name: 'Ivy Head', subteam: 'automation', officeHours: 'https://cal.com/ivy' }
+		]
+	}
+};
+const NO_SITE = { teams: {}, board: {} };
 
 test('only active project teams can be picked', async () => {
 	const { db } = fakeD1();
 	assert.deepEqual((await joinTeams(db)).map((t) => t.name), ['Automation', 'Cloud', 'Hardware']);
-	assert.deepEqual(await addSignup(db, 'Dee Student', MAJOR, 1), { error: 'missing' });
-	assert.deepEqual(await addSignup(db, 'Dee Student', MAJOR, 4), { error: 'missing' });
+	assert.deepEqual(await addSignup(db, SITE, 'Dee Student', MAJOR, 1), { error: 'missing' });
+	assert.deepEqual(await addSignup(db, SITE, 'Dee Student', MAJOR, 4), { error: 'missing' });
 });
 
-test('a sign-up gets the team head’s booking link and shows on the team page', async () => {
+test('a sign-up gets the team heads’ booking links from the website and shows on the team page', async () => {
 	const { db } = fakeD1();
-	assert.deepEqual(await addSignup(db, 'Dee Student', MAJOR, 2), { team: 'Hardware', cal: 'https://cal.com/hardware-head', heads: ['Ana Exec'] });
-	// No link yet: the heads are named instead. A link that isn't http(s) is never shown.
-	assert.deepEqual(await addSignup(db, 'Eve Student', MAJOR, 3), { team: 'Cloud', cal: '', heads: ['Ana Exec', 'Cy Exec'] });
-	assert.deepEqual(await addSignup(db, 'Fay Student', MAJOR, 5), { team: 'Automation', cal: '', heads: [] });
+	assert.deepEqual(await addSignup(db, SITE, 'Dee Student', MAJOR, 2), { team: 'Hardware', bookings: [{ name: 'Ana Exec', url: 'https://cal.com/ana' }], heads: ['Ana Exec'] });
+	// A team with two heads gets both links, matched by name when the website team has no hub id. A link that isn't http(s) is never shown.
+	assert.deepEqual((await addSignup(db, SITE, 'Fay Student', MAJOR, 5)).bookings, [{ name: 'Gus Head', url: 'https://cal.com/gus' }, { name: 'Ivy Head', url: 'https://cal.com/ivy' }]);
+	// No board card for the team: the heads are named instead.
+	assert.deepEqual(await addSignup(db, SITE, 'Eve Student', MAJOR, 3), { team: 'Cloud', bookings: [], heads: ['Ana Exec', 'Cy Exec'] });
 	assert.deepEqual((await teamSignups(db, 2)).map((s) => [s.name, s.major]), [['Dee Student', MAJOR]]);
+});
+
+test('the team’s own meeting link stands in only when the website has none', async () => {
+	const { db } = fakeD1();
+	assert.deepEqual((await addSignup(db, NO_SITE, 'Dee Student', MAJOR, 2)).bookings, [{ name: '', url: 'https://cal.com/hardware-head' }]);
+	assert.deepEqual((await addSignup(db, NO_SITE, 'Fay Student', MAJOR, 5)).bookings, []);
 });
 
 test('a name, a major from the list and a team are required', async () => {
 	const { sql, db } = fakeD1();
-	assert.deepEqual(await addSignup(db, '', MAJOR, 2), { error: 'missing' });
-	assert.deepEqual(await addSignup(db, 'Dee Student', 'Underwater Basket Weaving', 2), { error: 'missing' });
-	assert.deepEqual(await addSignup(db, 'Dee Student', MAJOR, null), { error: 'missing' });
+	assert.deepEqual(await addSignup(db, SITE, '', MAJOR, 2), { error: 'missing' });
+	assert.deepEqual(await addSignup(db, SITE, 'Dee Student', 'Underwater Basket Weaving', 2), { error: 'missing' });
+	assert.deepEqual(await addSignup(db, SITE, 'Dee Student', MAJOR, null), { error: 'missing' });
 	assert.equal((sql.prepare('SELECT COUNT(*) AS n FROM team_signups').get() as { n: number }).n, 0);
 });
 
 test('a burst of sign-ups is turned away', async () => {
 	const { sql, db } = fakeD1();
 	for (let i = 0; i < 30; i++) sql.exec(`INSERT INTO team_signups (name, major, team_id) VALUES ('Bot ${i}', '${MAJOR}', 2)`);
-	assert.deepEqual(await addSignup(db, 'Dee Student', MAJOR, 2), { error: 'busy' });
+	assert.deepEqual(await addSignup(db, SITE, 'Dee Student', MAJOR, 2), { error: 'busy' });
 	// Ten minutes later it opens again.
-	assert.equal((await addSignup(db, 'Dee Student', MAJOR, 2, new Date(Date.now() + 11 * 60_000))).team, 'Hardware');
+	assert.equal((await addSignup(db, SITE, 'Dee Student', MAJOR, 2, new Date(Date.now() + 11 * 60_000))).team, 'Hardware');
 });

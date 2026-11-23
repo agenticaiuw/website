@@ -10,9 +10,17 @@
 
 {#if form?.thanks}
 	<h1>Thanks, {form.thanks}</h1>
-	{#if form.cal}
-		<p class="sub">Book a meeting with the head of {form.team} to join the team.</p>
-		<a class="btn primary" href={form.cal} target="_blank" rel="noopener noreferrer">Book a meeting ↗</a>
+	{#if form.bookings.length === 1}
+		{@const b = form.bookings[0]}
+		<p class="sub">Book a meeting with {b.name ? `${b.name}, the head of ${form.team},` : `the head of ${form.team}`} to join the team.</p>
+		<a class="btn primary" href={b.url} target="_blank" rel="noopener noreferrer">Book a meeting{b.name ? ` with ${b.name.split(' ')[0]}` : ''} ↗</a>
+	{:else if form.bookings.length}
+		<p class="sub">{form.team} has {form.bookings.length === 2 ? 'two heads' : `${form.bookings.length} heads`}. Book a meeting with {form.bookings.length === 2 ? 'either' : 'any'} of them to join the team.</p>
+		<div class="join-bookings">
+			{#each form.bookings as b (b.url)}
+				<a class="btn primary" href={b.url} target="_blank" rel="noopener noreferrer">Book with {b.name || 'a head'} ↗</a>
+			{/each}
+		</div>
 	{:else if form.heads.length}
 		<p class="sub">{form.team} doesn't have a meeting link yet. Reach out to {names(form.heads)}.</p>
 	{:else}
@@ -48,5 +56,6 @@
 {/if}
 
 <style>
+	.join-bookings { display: flex; flex-wrap: wrap; gap: 12px; }
 	.join-trap { position: absolute; left: -10000px; width: 1px; height: 1px; opacity: 0; }
 </style>
