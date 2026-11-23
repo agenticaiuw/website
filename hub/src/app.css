@@ -83,6 +83,7 @@ form.inline { display: inline; margin: 0; }
 .nav a[aria-current='page'] { color: var(--fg); background: var(--surface-3); font-weight: 600; }
 .nav a[aria-current='page'] .nav-icon { color: var(--accent); }
 .nav-icon { flex: none; opacity: 0.85; }
+.nav-count { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--primary); color: var(--primary-ink); font-size: 12px; font-weight: 600; line-height: 20px; text-align: center; }
 .nav a[aria-current='page'] .nav-icon { opacity: 1; }
 .side-badge { display: block; width: 72px; height: auto; margin: auto auto -22px 12px; position: relative; z-index: 0; pointer-events: none; }
 .side-badge + .who { margin-top: 0; }

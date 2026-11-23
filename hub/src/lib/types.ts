@@ -2,13 +2,15 @@ export type Env = {
 	DB: D1Database;
 	/** The Files page's files, by club_files.key. */
 	FILES: R2Bucket;
+	/** The Inbox's emails as received and their attachments, by the keys in inbox_messages and inbox_attachments. */
+	MAIL: R2Bucket;
 	APP_URL: string;
 	MAIL_FROM: string;
 	MAIL_FROM_NAME: string;
 	ADMIN_EMAILS: string;
 	TIMEZONE: string;
-	/** Google app password for MAIL_FROM. Without it, nothing is emailed. */
-	SMTP_PASSWORD?: string;
+	/** Cloudflare Email Sending, from MAIL_FROM. Without it, nothing is emailed. */
+	EMAIL?: SendEmailBinding;
 	/** The hub's Google sign-in client (Google Cloud project agenticaiuw-hub), used to add website signups to the Google Group. */
 	GOOGLE_CLIENT_ID?: string;
 	GOOGLE_CLIENT_SECRET?: string;
@@ -25,6 +27,22 @@ export type Env = {
 	GITHUB_DISPATCH_TOKEN?: string;
 	/** Shared with the Discord bot, Badger: it signs Badger's reads of the hub (/api/bot/...). */
 	BADGER_TOKEN?: string;
+};
+
+/** Cloudflare's send_email binding, the structured form. Errors are thrown with a `code`. */
+export type SendEmailBinding = {
+	send(message: {
+		from: string | { name: string; email: string };
+		to?: string | { name: string; email: string } | (string | { name: string; email: string })[];
+		cc?: (string | { name: string; email: string })[];
+		bcc?: (string | { name: string; email: string })[];
+		replyTo?: string;
+		subject: string;
+		text?: string;
+		html?: string;
+		headers?: Record<string, string>;
+		attachments?: { content: string | ArrayBuffer; filename: string; type: string; disposition: 'attachment' | 'inline'; contentId?: string }[];
+	}): Promise<{ messageId: string }>;
 };
 
 export type Role = 'exec' | 'member';

@@ -12,7 +12,7 @@
 	<p class="callout">Local dev mode: emails are written to this log and the terminal, not sent.</p>
 {:else if !data.configured}
 	<p class="flash err">
-		Email isn't connected yet. Create a Google app password for {data.from} and save it with <code>npx wrangler secret put SMTP_PASSWORD</code>. Until then, nothing is delivered.
+		Email isn't connected yet: the Worker has no EMAIL sending binding. Until it does, nothing is delivered.
 	</p>
 {/if}
 <section class="card stack google" id="google">

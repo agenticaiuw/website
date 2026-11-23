@@ -5,6 +5,7 @@ Task and meeting tracker for the club, live at https://hub.agenticaiuw.com.
 - **Tasks** have one assignee and a due date. People are emailed when a task is assigned, and reminded until it's done.
 - **Meetings** (exec and project) keep the agenda, notes, who attended and the action items that came out of them.
 - **Forms**: a meeting can have one (feedback, say) that people open from a QR code without signing in. Show on screen puts the QR code and a live count on the projector; roster members who fill it out are checked off as there.
+- **Inbox** (`/inbox`, execs only) is the club's shared email: what's sent to @agenticaiuw.com, threaded, with replies sent from team@agenticaiuw.com.
 - **People** shows execs who has open and overdue work and each person's attendance.
 - **Website** (`/site`, execs only) edits every word, link and number on agenticaiuw.com. Each save is a new row in `site_content_versions`, so History shows who changed what and any version can be restored. The website is built from the newest versions, read from the public `/api/site`, and `src/lib/server/website.ts` starts a rebuild whenever they change; `src/lib/server/site/defaults.ts` holds the original text. The owner (`members.is_owner`) is the only one who can change roles.
 
@@ -29,8 +30,8 @@ Every email has a one-click "Mark done" link. Exec → Email shows the log and c
 
 ## Setup still needed
 
-1. **Email password.** Sign in to team@agenticaiuw.com, turn on 2-Step Verification, create an app password at https://myaccount.google.com/apppasswords, then run `npx wrangler secret put SMTP_PASSWORD` here and paste it. Until then no email goes out, including sign-in codes.
-2. **SPF record**, so club mail isn't marked as spam. In Cloudflare DNS for agenticaiuw.com, add a TXT record on `@`: `v=spf1 include:_spf.google.com ~all`.
+1. **Sending email.** The hub sends everything from team@agenticaiuw.com through Cloudflare Email Sending (the `EMAIL` binding in `wrangler.jsonc`). In the Cloudflare dashboard, Compute → Email Service → Email Sending → Onboard Domain, pick agenticaiuw.com. It adds its own records on `cf-bounce.agenticaiuw.com` and doesn't touch the domain's MX. Sending to anyone (not only verified addresses) needs the Workers Paid plan. Lists longer than 50 people go out in batches.
+2. **Receiving email (the Inbox).** Email Routing for agenticaiuw.com, with a catch-all rule that sends to the `agenticaiuw-hub` Worker. That replaces the domain's MX records, so mail stops reaching Google. Execs read and reply at /inbox.
 3. **Website rebuilds.** Create a fine-grained GitHub token for the `agenticaiuw/website` repository with Actions: Read and write, then save it as the `GITHUB_DISPATCH_TOKEN` secret on this Worker (`npx wrangler secret put GITHUB_DISPATCH_TOKEN`, or the Worker's Settings in the Cloudflare dashboard). Without it, saved text reaches the website only with the nightly rebuild. The website's GitHub Action also needs a `CLOUDFLARE_API_TOKEN` repository secret to deploy at all.
 4. **First sign-in** at https://hub.agenticaiuw.com with eliu59@wisc.edu (already an exec) or team@agenticaiuw.com; both are bootstrap admins in `ADMIN_EMAILS`. Add the execs on the People page (`Name, email, exec`, one per line). Turn off the club account on its profile page so it doesn't appear in attendance.
 

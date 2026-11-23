@@ -12,5 +12,5 @@ export const load: PageServerLoad = async ({ locals: { env, viewer } }) => {
 		all<LogRow>(env.DB, "SELECT id, to_email, subject, kind, status, error, created_at FROM email_log WHERE kind != 'login' ORDER BY id DESC LIMIT 150"),
 		groupStatus(env)
 	]);
-	return { title: 'Email', active: 'email' as const, zone: env.TIMEZONE, from: env.MAIL_FROM, dev: !!env.DEV_MODE, configured: !!env.SMTP_PASSWORD, log, google };
+	return { title: 'Email', active: 'email' as const, zone: env.TIMEZONE, from: env.MAIL_FROM, dev: !!env.DEV_MODE, configured: !!env.EMAIL, log, google };
 };

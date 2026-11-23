@@ -4,8 +4,10 @@
 	// The SvelteKit app plus the hourly reminder run. `npm run build` first.
 	"main": "src/worker.ts",
 	"compatibility_date": "2026-10-01",
-	// worker-mailer talks SMTP to Gmail over Cloudflare TCP sockets and needs Node's Buffer.
 	"compatibility_flags": ["nodejs_compat"],
+	// Every hub email goes out through Cloudflare Email Sending, from MAIL_FROM. agenticaiuw.com has to be
+	// onboarded under Email Service → Email Sending (it adds records on cf-bounce.agenticaiuw.com).
+	"send_email": [{ "name": "EMAIL", "allowed_sender_addresses": ["team@agenticaiuw.com"] }],
 	"assets": { "binding": "ASSETS", "directory": ".svelte-kit/cloudflare" },
 	"d1_databases": [
 		{
@@ -16,7 +18,11 @@
 		}
 	],
 	// The Files page's files (and the constitution). Their names and places are in D1's club_files.
-	"r2_buckets": [{ "binding": "FILES", "bucket_name": "agenticaiuw-hub-files" }],
+	// MAIL: the Inbox's emails and attachments, kept apart from the club's files.
+	"r2_buckets": [
+		{ "binding": "FILES", "bucket_name": "agenticaiuw-hub-files" },
+		{ "binding": "MAIL", "bucket_name": "agenticaiuw-hub-mail" }
+	],
 	// Every hour. The code checks the hour in club time: daily reminders at 9 AM, meeting reminders
 	// at 9 AM and 6 PM, urgent tasks every run.
 	"triggers": { "crons": ["*/5 * * * *"] },
@@ -30,5 +36,5 @@
 	},
 	"routes": [{ "pattern": "hub.agenticaiuw.com", "custom_domain": true }],
 	"observability": { "enabled": true }
-	// Secrets (wrangler secret put): SMTP_PASSWORD (Google app password for MAIL_FROM), APP_SECRET, BADGER_TOKEN (shared with the Discord bot), GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET (the sign-in client that adds website signups to the Google Group).
+	// Secrets (wrangler secret put): APP_SECRET, BADGER_TOKEN (shared with the Discord bot), GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET (the sign-in client that adds website signups to the Google Group).
 }

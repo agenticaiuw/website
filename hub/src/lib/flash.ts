@@ -1,6 +1,9 @@
 // Short confirmations shown after a redirect (?ok=…). Fixed strings, so a link can't put
 // arbitrary text on the page.
 export const FLASH: Record<string, string> = {
+	'inbox-sent': 'Reply sent.',
+	'inbox-sent-done': 'Reply sent, and the conversation is marked done.',
+	'inbox-done': 'Marked done. It comes back to Open if they write again.',
 	saved: 'Saved.',
 	'update-saved': 'Update saved.',
 	created: 'Created.',
@@ -35,6 +38,10 @@ export const FLASH: Record<string, string> = {
 };
 
 export const ERRORS: Record<string, string> = {
+	'inbox-address': 'Check the To and Cc addresses. Separate them with commas.',
+	'inbox-empty': 'Write the reply first.',
+	'inbox-files': 'The files together have to be under 18 MB.',
+	'inbox-failed': 'The reply didn’t send. It’s saved below with the reason; try again.',
 	reason: 'Add a reason for canceling. It goes in the email to everyone.',
 	'reason-change': 'Add a reason for the new date or time. It goes in the email to everyone.',
 	summary: 'Enter a summary contribution of 1 to 10000 characters.',
