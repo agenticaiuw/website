@@ -28,5 +28,5 @@
 	},
 	"routes": [{ "pattern": "hub.agenticaiuw.com", "custom_domain": true }],
 	"observability": { "enabled": true }
-	// Secrets (wrangler secret put): SMTP_PASSWORD (Google app password for MAIL_FROM), APP_SECRET, BADGER_TOKEN (shared with the Discord bot).
+	// Secrets (wrangler secret put): SMTP_PASSWORD (Google app password for MAIL_FROM), APP_SECRET, BADGER_TOKEN (shared with the Discord bot), GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET (the sign-in client that adds website signups to the Google Group).
 }

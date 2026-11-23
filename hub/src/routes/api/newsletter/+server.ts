@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import { todayIn } from '$lib/dates';
 import { first, run } from '$lib/server/db';
 import { isEmail, str } from '$lib/server/form';
+import { syncGroupQuietly } from '$lib/server/google-group';
 import type { RequestHandler } from './$types';
 
 /** The public website, the only page that posts here. */
@@ -21,10 +22,11 @@ export const OPTIONS: RequestHandler = ({ request, locals: { env } }) =>
 
 /**
  * The website's newsletter signup. Adds the email to the newsletter list (the only list the
- * newsletter and the Google Group come from), or notes the signup on the person already there.
+ * newsletter and the Google Group come from), or notes the signup on the person already there,
+ * then adds them to the Google Group.
  * Always answers the same way for a new or known email, so the form can't be used to check who's on it.
  */
-export const POST: RequestHandler = async ({ request, locals: { env } }) => {
+export const POST: RequestHandler = async ({ request, platform, locals: { env } }) => {
 	const origin = request.headers.get('Origin');
 	const headers = cors(origin, !!env.DEV_MODE);
 	if (!allowed(origin, !!env.DEV_MODE)) return json({ ok: false }, { status: 403, headers });
@@ -52,5 +54,7 @@ export const POST: RequestHandler = async ({ request, locals: { env } }) => {
 		today,
 		SOURCE
 	);
+	// Into the Google Group right away; the cron run picks up anything this misses.
+	platform?.ctx.waitUntil(syncGroupQuietly(env));
 	return json({ ok: true }, { headers });
 };

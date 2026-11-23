@@ -7,6 +7,9 @@ export type Env = {
 	TIMEZONE: string;
 	/** Google app password for MAIL_FROM. Without it, nothing is emailed. */
 	SMTP_PASSWORD?: string;
+	/** The hub's Google sign-in client (Google Cloud project agenticaiuw-hub), used to add website signups to the Google Group. */
+	GOOGLE_CLIENT_ID?: string;
+	GOOGLE_CLIENT_SECRET?: string;
 	/** Signs the "mark done" links in reminder emails. */
 	APP_SECRET: string;
 	/** Local development only: show sign-in codes on screen and log emails instead of sending. */
