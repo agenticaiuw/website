@@ -6,6 +6,7 @@ import { id, isHttpUrl } from './form';
 import { teamLibrary, teamRoster, teamSubteams } from './teams';
 import { canRunBusiness, isExec } from '../perm';
 import { contactsSection } from './outreach';
+import { teamSignups } from './signups';
 import type { Env, MeetingRow, TaskRow, Team, Viewer } from '../types';
 
 /** Everything the team page (and a subteam's view of it) shows. `subteamParam` is set on /teams/:id/subteams/:subteam. */
@@ -26,7 +27,8 @@ export async function loadTeamPage(env: Env, v: Viewer, url: URL, teamParam: str
 	const selectedIds = selected ? [selected.id] : [];
 	const back = selected ? `${root}/subteams/${selected.id}` : root;
 	const meetingsOn = `m.id IN (SELECT meeting_id FROM meeting_teams WHERE team_id = ?2) AND ${canSee(v, MEETING_VISIBLE)}`;
-	const [tasks, legacy, subRoster, library, upcoming, recent, contacts] = await Promise.all([
+	const manager = isExec(v) || v.leadOf.has(team.id);
+	const [tasks, legacy, subRoster, library, upcoming, recent, contacts, signups] = await Promise.all([
 		boardTasks(db, v.id, { team: team.id, subteams: selectedIds }),
 		// The hub's regular tasks for this team, as the viewer may see them; finished ones for 30 days.
 		selectedIds.length
@@ -37,10 +39,11 @@ export async function loadTeamPage(env: Env, v: Viewer, url: URL, teamParam: str
 		selected ? Promise.resolve([]) : all<MeetingRow>(db, `${MEETING_SELECT} WHERE ${meetingsOn} AND m.date >= ?3 ORDER BY m.date, m.time LIMIT 10`, v.id, team.id, today),
 		selected ? Promise.resolve([]) : all<MeetingRow>(db, `${MEETING_SELECT} WHERE ${meetingsOn} AND m.date < ?3 ORDER BY m.date DESC, m.time DESC LIMIT 5`, v.id, team.id, today),
 		// Outside contacts live on the Business team's page, for execs and the team.
-		!selected && team.name === BUSINESS_TEAM && canRunBusiness(v) ? contactsSection(db, url) : Promise.resolve(null)
+		!selected && team.name === BUSINESS_TEAM && canRunBusiness(v) ? contactsSection(db, url) : Promise.resolve(null),
+		// People who signed up for the team at /join, for its execs and leads.
+		!selected && manager && team.kind === 'project' ? teamSignups(db, team.id) : Promise.resolve([])
 	]);
 	const canCreate = !team.archived && !selected?.archived && (isExec(v) || v.teamIds.has(team.id));
-	const manager = isExec(v) || v.leadOf.has(team.id);
 	const resources = (
 		[
 			['Discord', team.discord_url],
@@ -72,6 +75,7 @@ export async function loadTeamPage(env: Env, v: Viewer, url: URL, teamParam: str
 		upcoming,
 		recent,
 		contacts,
+		signups: signups.map((s) => ({ name: s.name, major: s.major, day: todayIn(env.TIMEZONE, new Date(s.created_at)) })),
 		resources,
 		due: addDays(today, 7),
 		assignedPeople: new Set(!selectedIds.length && v.teamIds.has(team.id) ? [v.id] : []),

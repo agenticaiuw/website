@@ -3,8 +3,8 @@ import { sessionMember } from '$lib/server/auth';
 import { loadViewer } from '$lib/server/db';
 import { rebuildWebsiteQuietly } from '$lib/server/website';
 
-/** Pages and endpoints anyone can reach: sign-in, the iPhone app's API, public meeting forms, the website's text and newsletter signup, Badger's (signed with its token). */
-const PUBLIC = [/^\/(login|verify|logout|done|privacy)$/, /^\/api\/app\//, /^\/f\/[^/]+$/, /^\/api\/site$/, /^\/api\/newsletter$/, /^\/api\/bot\//];
+/** Pages and endpoints anyone can reach: sign-in, the iPhone app's API, public meeting forms, the team sign-up form, the website's text and newsletter signup, Badger's (signed with its token). */
+const PUBLIC = [/^\/(login|verify|logout|done|privacy|join)$/, /^\/api\/app\//, /^\/f\/[^/]+$/, /^\/api\/site$/, /^\/api\/newsletter$/, /^\/api\/bot\//];
 
 /** Posted to from the public website, so it checks the website's origin itself. */
 const FROM_WEBSITE = /^\/api\/newsletter$/;

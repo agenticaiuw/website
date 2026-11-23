@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { backdropClose, opensDialog, peopleList } from '$lib/actions.js';
+	import { formatDate } from '$lib/dates';
 	import { isExec } from '$lib/perm';
 	import type { Viewer } from '$lib/types';
 	import { netIds } from '$lib/ui';
@@ -130,6 +131,16 @@
 			</dialog>
 		{/if}
 		<SubteamCards root={data.root} subteams={data.subteams} members={data.members} subRoster={data.subRoster} editable={data.editable} />
+		{#if data.signups.length}
+			<details class="card disclose team-signups">
+				<summary>Sign-ups ({data.signups.length})</summary>
+				<ul class="team-signup-list">
+					{#each data.signups as s, i (i)}
+						<li><span class="team-signup-name">{s.name}</span><span class="hint">{s.major} · {formatDate(s.day, data.today)}</span></li>
+					{/each}
+				</ul>
+			</details>
+		{/if}
 	{/if}
 	<div class="task-board-heading"><h2 class="section-title">Task board</h2></div>
 	{#if selected}
@@ -200,3 +211,11 @@
 		<TeamLibrary items={data.library} root={data.root} subteams={data.selectedIds} filters={data.libraryFilters} />
 	{/if}
 </div>
+
+<style>
+	.team-signups { margin-bottom: 20px; }
+	.team-signup-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+	.team-signup-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; min-width: 0; }
+	.team-signup-name { font-weight: 500; overflow-wrap: anywhere; }
+	.team-signup-list .hint { overflow-wrap: anywhere; }
+</style>
