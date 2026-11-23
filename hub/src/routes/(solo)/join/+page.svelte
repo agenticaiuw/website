@@ -8,8 +8,8 @@
 	const names = (list: string[]) => (list.length < 3 ? list.join(' or ') : `${list.slice(0, -1).join(', ')} or ${list.at(-1)}`);
 </script>
 
-{#if form?.thanks}
-	<h1>Thanks, {form.thanks}</h1>
+{#if form?.first}
+	<h1>You're signed up for {form.team}, {form.first}</h1>
 	{#if form.bookings.length === 1}
 		{@const b = form.bookings[0]}
 		<p class="sub">Book a meeting with {b.name ? `${b.name}, the head of ${form.team},` : `the head of ${form.team}`} to join the team.</p>
