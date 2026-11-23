@@ -84,7 +84,7 @@ export function fileSystem(options: FileSystemOptions): FunctionTool[] {
 
 	const root = [
 		"club/  club info and the member handbook",
-		"channels/  this server's channels; read one for its messages",
+		"channels/  this server's channels; read one for its messages (to look through a lot of history at once, run search_messages from /tools)",
 		"memory/  what you remember (one file per memory)",
 		"sessions/  your past conversations: what was asked, looked up and answered",
 		"skills/  agent skills",
@@ -347,7 +347,7 @@ export function fileSystem(options: FileSystemOptions): FunctionTool[] {
 		{
 			name: "read",
 			description:
-				"Read a file, or a Discord attachment link (https://cdn.discordapp.com/...); an image link (.png, .jpg, .webp) shows you the image. /channels/<name> gives its messages, oldest first, with attachment and image links: before=<message id> reads older ones, and /channels/here continues before the messages you were given.",
+				"Read a file, or a Discord attachment link (https://cdn.discordapp.com/...); an image link (.png, .jpg, .webp) shows you the image. /channels/<name> gives its messages, oldest first, with attachment and image links: before=<message id> reads older ones, and /channels/here continues before the messages you were given. To look through more history than a page or two (say, everything someone said before a date), run the search_messages tool instead of paging.",
 			parameters: {
 				type: "object",
 				properties: {

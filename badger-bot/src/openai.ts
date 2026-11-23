@@ -202,8 +202,8 @@ export async function askChatGPT(options: {
 	webSearch: boolean;
 	functions?: FunctionTool[];
 	timeoutMs: number;
-	/** Set when it ran out of rounds or time and was told to wrap up. */
-	outcome?: { cutShort: boolean };
+	/** Set when it ran out of rounds or time and was told to wrap up, or (timedOut) hit the time limit mid-work. */
+	outcome?: { cutShort: boolean; timedOut?: boolean };
 	/** Images a function opened (data URLs); each round's are shown to the model after the results. */
 	openedImages?: string[];
 }): Promise<string> {
@@ -221,6 +221,8 @@ export async function askChatGPT(options: {
 	let retried = false;
 	let wrappingUp = false;
 	const started = Date.now();
+	// How long the slowest model call took; calls get slower as results pile up.
+	let slowestCall = 0;
 	let input: unknown[] = toInput(options.turns);
 	try {
 		for (let round = 0; ; round++) {
@@ -236,9 +238,17 @@ export async function askChatGPT(options: {
 			if (options.usageGate && await options.usageGate.usagePausedUntil() > Date.now()) {
 				throw new ChatGPTError("usage_backoff");
 			}
+			const callStarted = Date.now();
 			try {
 				result = await respond(options.accessToken, body, controller.signal);
+				slowestCall = Math.max(slowestCall, Date.now() - callStarted);
 			} catch (error) {
+				// Out of time partway through the work: say so rather than "ask something simpler".
+				if (controller.signal.aborted && controller.signal.reason instanceof DOMException && controller.signal.reason.name === "TimeoutError" && round > 0) {
+					console.log("ran out of time mid-work", { round, seconds: Math.round((Date.now() - started) / 1000) });
+					if (options.outcome) Object.assign(options.outcome, { cutShort: true, timedOut: true });
+					return "";
+				}
 				if (error instanceof ChatGPTError && error.code === "subscription_sharing_usage_limit_exceeded") {
 					await options.usageGate?.recordUsageLimit();
 					throw error;
@@ -277,7 +287,9 @@ export async function askChatGPT(options: {
 				: [];
 			input = [...input, ...replayable(result.output, withReasoning), ...results, ...shown];
 			// Out of rounds or most of the time used: ask for a reply instead of more work.
-			if (round + 1 >= MAX_TOOL_ROUNDS || Date.now() - started > options.timeoutMs * WRAP_UP_AT) {
+			// The reply itself takes a call, and it may be slower than any so far.
+			const elapsed = Date.now() - started;
+			if (round + 1 >= MAX_TOOL_ROUNDS || elapsed > options.timeoutMs * WRAP_UP_AT || elapsed + slowestCall * 1.5 > options.timeoutMs) {
 				wrappingUp = true;
 				if (options.outcome) options.outcome.cutShort = true;
 				console.log("asking the model to wrap up", { round, seconds: Math.round((Date.now() - started) / 1000) });

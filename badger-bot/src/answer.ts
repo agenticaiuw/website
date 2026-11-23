@@ -7,6 +7,7 @@ import { byCreation, isNewer, loadContext } from "./context.ts";
 import { dashboardTool } from "./dashboard.ts";
 import { type DiscordMessage, type FileUpload, displayName, fetchBotId, fetchBotUser, getMessage, reply, showTyping } from "./discord.ts";
 import { attachFileTool, loadDocuments } from "./documents.ts";
+import { searchMessagesTool } from "./channel-reader.ts";
 import { loadImages } from "./media.ts";
 import { memberTools } from "./members.ts";
 import { type Exchange, channelMemory } from "./memory.ts";
@@ -204,7 +205,7 @@ export async function answerMention(message: DiscordMessage, botRoleId: string |
 	const allowedReplyMentions = new Set<string>();
 	const privately = { takeFiles: () => [...outbox.splice(0), ...(vm?.attachments.splice(0) ?? [])], sent: sentPrivately };
 	const calls: AnswerTrace["calls"] = [];
-	const outcome = { cutShort: false };
+	const outcome: { cutShort: boolean; timedOut?: boolean } = { cutShort: false };
 	const openedImages: string[] = [];
 	let prompt = "";
 	try {
@@ -221,6 +222,7 @@ export async function answerMention(message: DiscordMessage, botRoleId: string |
 		heldIds = conversation.messageIds;
 		const actions = [
 			attachFileTool(outbox),
+			searchMessagesTool(env, message),
 			...(access === "exec"
 				? [
 						...(posting?.tools ?? []),
@@ -270,7 +272,9 @@ export async function answerMention(message: DiscordMessage, botRoleId: string |
 				? "Done."
 				: attached
 					? "Here you go!"
-					: outcome.cutShort
+					: outcome.timedOut
+						? "I ran out of time partway through this and lost what I'd found. Ask me again, or split it into smaller parts."
+						: outcome.cutShort
 						? `I got partway through this but ran out of time before I could finish. Say "continue" and I'll pick up where I left off.`
 						: calls.length
 							? "Done."
