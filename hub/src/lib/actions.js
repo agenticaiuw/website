@@ -19,10 +19,10 @@ export function libraryFilters(filters) {
 	return { destroy: () => filters.removeEventListener('change', apply) };
 }
 
-/** <input type=file name=file>: files over 8 MiB in total are refused before uploading. */
-export function fileLimit(input) {
+/** <input type=file name=file>: files over the limit (8 MiB unless given) in total are refused before uploading. */
+export function fileLimit(input, limit = 8 * 1024 * 1024) {
 	const check = () => {
-		input.setCustomValidity([...input.files].reduce((total, file) => total + file.size, 0) > 8 * 1024 * 1024 ? 'Choose files totaling no more than 8 MiB.' : '');
+		input.setCustomValidity([...input.files].reduce((total, file) => total + file.size, 0) > limit ? `Choose files totaling no more than ${limit / 1024 / 1024} MiB.` : '');
 		if (input.validationMessage) input.reportValidity();
 	};
 	input.addEventListener('change', check);

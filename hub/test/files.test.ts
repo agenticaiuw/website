@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { addFiles, canRemoveFile, canSeeFile, FILES_BUDGET, fileBytes, uploadPlaces, visibleFiles } from '../src/lib/server/files.ts';
+import { addFiles, canRemoveFile, canSeeFile, FILES_BUDGET, fileByKey, fileResponse, uploadPlaces, visibleFiles } from '../src/lib/server/files.ts';
 import type { Viewer } from '../src/lib/types.ts';
 
 /** Just enough of D1 over an in-memory SQLite for these queries. */
@@ -11,7 +11,6 @@ function fakeD1() {
 		CREATE TABLE members (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
 		CREATE TABLE club_files (key TEXT PRIMARY KEY, name TEXT NOT NULL, media_type TEXT NOT NULL, size INTEGER NOT NULL,
 			updated_at TEXT NOT NULL DEFAULT '2026-11-23T00:00:00Z', team_id INTEGER, uploaded_by INTEGER, removed_at TEXT NOT NULL DEFAULT '', removed_by INTEGER);
-		CREATE TABLE club_file_chunks (file_key TEXT NOT NULL, part INTEGER NOT NULL, data BLOB NOT NULL, PRIMARY KEY (file_key, part));
 		INSERT INTO teams VALUES (1, 'Exec Board', 'exec', 0), (2, 'Hardware', 'project', 0), (3, 'Business', 'project', 0), (4, 'Browser', 'project', 1);
 		INSERT INTO members VALUES (10, 'Exec'), (20, 'Hardware member'), (30, 'Hardware lead');`);
 	// D1 takes ArrayBuffers for BLOBs; node:sqlite wants a typed array.
@@ -39,7 +38,18 @@ function fakeD1() {
 			return out;
 		}
 	};
-	return { sql, db: db as unknown as D1Database };
+	// R2, as far as the Files page uses it.
+	const objects = new Map<string, { bytes: Uint8Array<ArrayBuffer>; type: string }>();
+	const files = {
+		put: async (key: string, bytes: ArrayBuffer, opts: { httpMetadata: { contentType: string } }) => void objects.set(key, { bytes: new Uint8Array(bytes), type: opts.httpMetadata.contentType }),
+		get: async (key: string) => {
+			const o = objects.get(key);
+			return o ? { body: new Blob([o.bytes]).stream(), size: o.bytes.byteLength } : null;
+		},
+		delete: async (keys: string[]) => keys.forEach((k) => objects.delete(k))
+	};
+	const env = { DB: db as unknown as D1Database, FILES: files as unknown as R2Bucket };
+	return { sql, db: env.DB, env, objects };
 }
 
 const viewer = (id: number, role: 'exec' | 'member', teams: number[] = [], leads: number[] = []) =>
@@ -80,31 +90,39 @@ test('execs upload anywhere; members only to their active project teams', async 
 	assert.deepEqual(await uploadPlaces(db, viewer(50, 'member', [4])), []);
 });
 
-test('files are stored in parts, read back whole, and listed by place for who can see them', async () => {
-	const { sql, db } = fakeD1();
+test('files go to R2, download whole, and are listed by place for who can see them', async () => {
+	const { sql, db, env, objects } = fakeD1();
 	const big = 'x'.repeat(1024 * 1024 + 10);
-	await db.batch(addFiles(db, member, 2, [file('notes.txt', big), file('plan.txt')]));
-	await db.batch(addFiles(db, exec, null, [file('logo.txt')]));
-	await db.batch(addFiles(db, exec, 1, [file('budget.txt')]));
-	const notes = sql.prepare("SELECT key, size FROM club_files WHERE name = 'notes.txt'").get() as { key: string; size: number };
-	assert.equal((sql.prepare('SELECT COUNT(*) AS n FROM club_file_chunks WHERE file_key = ?').get(notes.key) as { n: number }).n, 2);
-	assert.equal(new TextDecoder().decode((await fileBytes(db, notes.key, notes.size))!), big);
+	assert.ok(await addFiles(env, member.id, 2, [file('notes.txt', big), file('plan.txt')]));
+	assert.ok(await addFiles(env, exec.id, null, [file('logo.txt')]));
+	assert.ok(await addFiles(env, exec.id, 1, [file('budget.txt')]));
+	assert.equal(objects.size, 4);
+	const notes = sql.prepare("SELECT key FROM club_files WHERE name = 'notes.txt'").get() as { key: string };
+	const res = await fileResponse(env, (await fileByKey(db, notes.key))!);
+	assert.equal(await res.text(), big);
+	assert.match(res.headers.get('content-disposition')!, /notes\.txt/);
 
 	const seen = async (v: Viewer) => (await visibleFiles(db, v)).map((g) => [g.place.name, g.files.map((f) => f.name)]);
 	assert.deepEqual(await seen(member), [['Whole club', ['logo.txt']], ['Hardware', ['notes.txt', 'plan.txt']]]);
 	assert.deepEqual(await seen(outsider), [['Whole club', ['logo.txt']]]);
 	assert.deepEqual(await seen(exec), [['Whole club', ['logo.txt']], ['Exec Board', ['budget.txt']], ['Hardware', ['notes.txt', 'plan.txt']]]);
 
-	// Removed files leave the list.
+	// Removed files leave the list, and their bytes stay so they can be put back.
 	sql.exec(`UPDATE club_files SET removed_at = '2026-11-23T01:00:00Z' WHERE name = 'plan.txt'`);
 	assert.deepEqual(await seen(member), [['Whole club', ['logo.txt']], ['Hardware', ['notes.txt']]]);
+	assert.equal(objects.size, 4);
 });
 
 test('nothing is added when the library would go over its budget', async () => {
-	const { sql, db } = fakeD1();
+	const { sql, env, objects } = fakeD1();
 	sql.exec(`INSERT INTO club_files (key, name, media_type, size) VALUES ('old', 'old.pdf', 'application/pdf', ${FILES_BUDGET - 3})`);
-	const [result] = await db.batch(addFiles(db, exec, null, [file('a.txt', 'ab'), file('b.txt', 'cd')]));
-	assert.equal((result as { meta: { changes: number } }).meta.changes, 0);
+	assert.equal(await addFiles(env, exec.id, null, [file('a.txt', 'ab'), file('b.txt', 'cd')]), false);
 	assert.equal((sql.prepare('SELECT COUNT(*) AS n FROM club_files').get() as { n: number }).n, 1);
-	assert.equal((sql.prepare('SELECT COUNT(*) AS n FROM club_file_chunks').get() as { n: number }).n, 0);
+	assert.equal(objects.size, 0);
+});
+
+test('a missing R2 object is a server error, not an empty file', async () => {
+	const { env } = fakeD1();
+	const res = await fileResponse(env, { key: 'gone', name: 'gone.pdf', media_type: 'application/pdf' });
+	assert.equal(res.status, 500);
 });

@@ -43,6 +43,7 @@ export const ERRORS: Record<string, string> = {
 	hours: 'Enter a number from 0 to 168.',
 	stale: 'This item changed. Review the latest version and try again.',
 	file: 'Choose a supported file up to 8 MiB.',
+	'library-file': 'Choose PDF, Word, PowerPoint, Excel, text, image or audio files, up to 32 MiB at a time.',
 	'file-space': 'The attachment storage limit has been reached.',
 	link: 'Use valid HTTPS links.',
 	'library-link': 'Enter a valid HTTP or HTTPS link.',

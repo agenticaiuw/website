@@ -1,5 +1,7 @@
 export type Env = {
 	DB: D1Database;
+	/** The Files page's files, by club_files.key. */
+	FILES: R2Bucket;
 	APP_URL: string;
 	MAIL_FROM: string;
 	MAIL_FROM_NAME: string;

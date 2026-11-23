@@ -25,8 +25,8 @@
 	<form method="post" action="?/upload" enctype="multipart/form-data" class="card stack files-upload">
 		<h2 class="section-title">Upload</h2>
 		<div class="files-upload-fields">
-			<Field label="Files" hint="PDF, Word, PowerPoint, Excel, text, images or audio. Up to 8 MiB at a time.">
-				<input type="file" name="file" multiple required accept={FILE_TYPES} use:fileLimit />
+			<Field label="Files" hint="PDF, Word, PowerPoint, Excel, text, images or audio. Up to 32 MiB at a time.">
+				<input type="file" name="file" multiple required accept={FILE_TYPES} use:fileLimit={32 * 1024 * 1024} />
 			</Field>
 			<Field label="For">
 				<select name="place" required>

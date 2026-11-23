@@ -1,11 +1,14 @@
-// The Files page: the club's files, for the whole club or for one team, stored in D1 in 1 MiB parts.
+// The Files page: the club's files, for the whole club or for one team. The bytes are in R2 (FILES),
+// each under its club_files.key; the names, places and who added them are in D1.
 // A team's files are seen by its members and execs; Exec Board files by execs only.
 import { all, first } from './db.ts';
-import { FILE_PART } from './meeting-content.ts';
-import type { Viewer } from '../types.ts';
+import type { Env, Viewer } from '../types.ts';
 
-/** All the library's files together, removed ones included, stay under this. */
-export const FILES_BUDGET = 1024 * FILE_PART;
+const MiB = 1024 * 1024;
+/** One upload, all its files together. */
+export const UPLOAD_LIMIT = 32 * MiB;
+/** All the library's files together, removed ones included: half of R2's free 10 GB. */
+export const FILES_BUDGET = 5 * 1024 * MiB;
 
 /** Files other pages link to by key. They show in the library but can't be removed from it. */
 const FIXED = new Set(['constitution']);
@@ -64,48 +67,38 @@ export const removedFiles = (db: D1Database) => all<ClubFile>(db, `${SELECT} WHE
 
 export const fileByKey = (db: D1Database, key: string) => first<ClubFile>(db, `${SELECT} WHERE f.key = ?`, key);
 
-/**
- * The writes that add these files to one place, in one batch: nothing is added if the library
- * would go over its budget. Returns the statements; the first one's changes say whether it worked.
- */
-export function addFiles(db: D1Database, v: Pick<Viewer, 'id'> | null, team: number | null, files: { name: string; type: string; bytes: ArrayBuffer }[]) {
+/** Adds these files to one place: bytes to R2, then their rows. False if the library would go over its budget. */
+export async function addFiles(env: Pick<Env, 'DB' | 'FILES'>, uploader: number | null, team: number | null, files: { name: string; type: string; bytes: ArrayBuffer }[]) {
 	const total = files.reduce((sum, f) => sum + f.bytes.byteLength, 0);
+	const used = (await first<{ n: number }>(env.DB, 'SELECT COALESCE(SUM(size), 0) AS n FROM club_files'))?.n ?? 0;
+	if (used + total > FILES_BUDGET) return false;
 	const keys = files.map(() => crypto.randomUUID());
-	const writes: D1PreparedStatement[] = [];
-	for (const [i, f] of files.entries()) {
-		writes.push(
-			db
-				.prepare(
-					`INSERT INTO club_files (key, name, media_type, size, team_id, uploaded_by)
-					 SELECT ?1, ?2, ?3, ?4, ?5, ?6
-					 WHERE (?1 <> ?9 OR (SELECT COALESCE(SUM(size), 0) FROM club_files) + ?7 <= ?8)
-					 AND (?1 = ?9 OR EXISTS (SELECT 1 FROM club_files WHERE key = ?9))`
-				)
-				.bind(keys[i], f.name, f.type, f.bytes.byteLength, team, v?.id ?? null, total, FILES_BUDGET, keys[0])
+	await Promise.all(files.map((f, i) => env.FILES.put(keys[i], f.bytes, { httpMetadata: { contentType: f.type } })));
+	try {
+		await env.DB.batch(
+			files.map((f, i) =>
+				env.DB.prepare('INSERT INTO club_files (key, name, media_type, size, team_id, uploaded_by) VALUES (?, ?, ?, ?, ?, ?)').bind(keys[i], f.name, f.type, f.bytes.byteLength, team, uploader)
+			)
 		);
-		for (let offset = 0; offset < f.bytes.byteLength; offset += FILE_PART) {
-			writes.push(
-				db
-					.prepare('INSERT INTO club_file_chunks (file_key, part, data) SELECT ?1, ?2, ?3 WHERE EXISTS (SELECT 1 FROM club_files WHERE key = ?1)')
-					.bind(keys[i], offset / FILE_PART, f.bytes.slice(offset, offset + FILE_PART))
-			);
-		}
+	} catch (e) {
+		await env.FILES.delete(keys);
+		throw e;
 	}
-	return writes;
+	return true;
 }
 
-/** The file's bytes, put back together from its parts, or null if a part is missing. */
-export async function fileBytes(db: D1Database, key: string, size: number) {
-	const chunks = await all<{ data: number[] | ArrayBuffer }>(db, 'SELECT data FROM club_file_chunks WHERE file_key = ? ORDER BY part', key);
-	const bytes = new Uint8Array(size);
-	let offset = 0;
-	for (const { data } of chunks) {
-		const part = data instanceof ArrayBuffer ? new Uint8Array(data) : Uint8Array.from(data);
-		if (offset + part.length > size) return null;
-		bytes.set(part, offset);
-		offset += part.length;
-	}
-	return offset === size ? bytes : null;
+/** A download of the file's bytes from R2, or a 500 if they're missing. */
+export async function fileResponse(env: Pick<Env, 'FILES'>, file: Pick<ClubFile, 'key' | 'name' | 'media_type'>) {
+	const object = await env.FILES.get(file.key);
+	if (!object) return new Response('File unavailable.', { status: 500 });
+	return new Response(object.body, {
+		headers: {
+			'Content-Type': file.media_type,
+			'Content-Length': String(object.size),
+			'Content-Disposition': `attachment; filename*=UTF-8''${dispositionName(file.name)}`,
+			'Content-Security-Policy': "sandbox; default-src 'none'"
+		}
+	});
 }
 
 /** A Content-Disposition filename that works for any name. */

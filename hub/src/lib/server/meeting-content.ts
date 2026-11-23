@@ -15,12 +15,12 @@ export function meetingTiming(m: Pick<Meeting, 'date' | 'time' | 'end_time'>, ti
 }
 
 // Adapted from the tracker. Validate the name and file signature independently of the browser MIME type.
-export function meetingFileType(name: string, bytes: ArrayBuffer): string | null {
+export function meetingFileType(name: string, bytes: ArrayBuffer, limit = FILE_LIMIT): string | null {
 	const data = new Uint8Array(bytes);
 	const ext = name.split('.').pop()?.toLowerCase();
 	const head = data.subarray(0, 32);
 	const signature = String.fromCharCode(...head);
-	if (!name || name.length > 255 || /[\x00-\x1f\x7f/\\]/.test(name) || !data.length || data.length > FILE_LIMIT) return null;
+	if (!name || name.length > 255 || /[\x00-\x1f\x7f/\\]/.test(name) || !data.length || data.length > limit) return null;
 	if (ext === 'txt') {
 		try {
 			new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(data);

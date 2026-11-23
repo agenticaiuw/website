@@ -208,9 +208,9 @@ export async function meetingContent(db: D1Database, meetingId: number): Promise
 }
 
 /** Uploads over the limit are turned away before they're read. */
-export const tooBig = (request: Request) => Number(request.headers.get('content-length') ?? 0) > FILE_LIMIT + 65536;
+export const tooBig = (request: Request, limit = FILE_LIMIT) => Number(request.headers.get('content-length') ?? 0) > limit + 65536;
 
-export async function attachmentFiles(value: unknown): Promise<{ name: string; bytes: ArrayBuffer; type: string }[] | null> {
+export async function attachmentFiles(value: unknown, limit = FILE_LIMIT): Promise<{ name: string; bytes: ArrayBuffer; type: string }[] | null> {
 	const values = value === undefined ? [] : Array.isArray(value) ? value : [value];
 	const files: { name: string; bytes: ArrayBuffer; type: string }[] = [];
 	let total = 0;
@@ -219,9 +219,9 @@ export async function attachmentFiles(value: unknown): Promise<{ name: string; b
 		if (typeof file === 'string' || !(file instanceof File)) return null;
 		if (!file.name && !file.size) continue;
 		total += file.size;
-		if (!file.size || total > FILE_LIMIT) return null;
+		if (!file.size || total > limit) return null;
 		const bytes = await file.arrayBuffer();
-		const type = meetingFileType(file.name, bytes);
+		const type = meetingFileType(file.name, bytes, limit);
 		if (!type) return null;
 		files.push({ name: file.name, bytes, type });
 	}
