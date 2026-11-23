@@ -4,7 +4,7 @@
 	const { project } = site();
 	// What people download: GitHub builds each one from the repo's main branch on every push. A Mac build runs on every
 	// Mac (Apple silicon and Intel in one file); Linux has one build per kind of processor.
-	const builds = 'https://github.com/agenticaiuw-org/hive/releases/download/latest/';
+	const builds = 'https://github.com/agenticaiuw/hive/releases/download/latest/';
 	// One without a file or link yet (it isn't listed there) shows as coming soon.
 	type Get = { name: string; note: string; os: string; arch?: string; file?: string; href?: string };
 	const servers: Get[] = [
