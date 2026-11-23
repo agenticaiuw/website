@@ -46,7 +46,7 @@
 				<li class="library-file">
 					<span class="library-icon" aria-hidden="true">{icon(f.name)}</span>
 					<div class="library-file-info">
-						<a href={href(f.key)}>{f.name}</a>
+						<a href={href(f.key)} data-sveltekit-reload>{f.name}</a>
 						<span class="hint">{fileKind(f.name)} · {size(f.size)} · Added {f.uploader ? `by ${f.uploader}, ` : ''}{formatTimestamp(f.updated_at, data.zone)}</span>
 					</div>
 					{#if f.removable}
@@ -70,7 +70,7 @@
 			{#each data.removed as f (f.key)}
 				<li class="library-file">
 					<div class="library-file-info">
-						<a href="/files/{f.key}">{f.name}</a>
+						<a href="/files/{f.key}" data-sveltekit-reload>{f.name}</a>
 						<span class="hint">{f.team_name ?? 'Whole club'} · Removed {f.remover ? `by ${f.remover}, ` : ''}{formatTimestamp(f.removed_at, data.zone)}</span>
 					</div>
 					<form method="post" action="?/restore">

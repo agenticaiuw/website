@@ -14,8 +14,8 @@ function inline(escaped: string) {
 	for (const m of escaped.matchAll(LINK)) {
 		out += emphasis(escaped.slice(last, m.index));
 		const href = m[2] ?? m[3];
-		// A link to a page in the hub opens in the same tab.
-		const away = href.startsWith('/') ? '' : ' target="_blank" rel="noopener noreferrer"';
+		// A link to a page in the hub opens in the same tab, loaded from the server, so file downloads work too.
+		const away = href.startsWith('/') ? ' data-sveltekit-reload' : ' target="_blank" rel="noopener noreferrer"';
 		out += `<a href="${href}"${away}>${m[1] ? emphasis(m[1]) : href}</a>`;
 		last = m.index! + m[0].length;
 	}

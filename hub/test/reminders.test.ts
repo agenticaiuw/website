@@ -137,7 +137,7 @@ test('notes markdown escapes HTML and only links http(s)', () => {
 	assert.ok(quoted.includes('href="https://example.com/x"'));
 	assert.ok(quoted.includes('href="https://example.com/y"'));
 	const hub = renderMarkdown('[Download](/handbook/constitution) [far](//example.com) [slash](/\\example.com)');
-	assert.ok(hub.includes('<a href="/handbook/constitution">Download</a>'));
+	assert.ok(hub.includes('<a href="/handbook/constitution" data-sveltekit-reload>Download</a>'));
 	assert.ok(!hub.includes('href="//'));
 	assert.ok(!hub.includes('href="/\\'));
 });
