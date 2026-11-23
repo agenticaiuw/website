@@ -10,7 +10,7 @@
 	const servers: Get[] = [
 		{ name: 'Linux', note: 'Most VMs (Intel and AMD processors)', file: 'hive-server-linux-x86_64', os: 'linux', arch: 'x86' },
 		{ name: 'Linux on ARM', note: "ARM VMs, like Oracle Cloud's", file: 'hive-server-linux-aarch64', os: 'linux', arch: 'arm' },
-		{ name: 'Mac', note: 'Apple silicon and Intel', file: 'hive-server-macos.zip', os: 'mac' },
+		{ name: 'Mac', note: 'Apple silicon and Intel', file: 'Hive-Server.dmg', os: 'mac' },
 		{ name: 'Windows', note: 'Windows 10 and 11', file: 'hive-server-windows.exe', os: 'windows' }
 	];
 	const devices: Get[] = [
