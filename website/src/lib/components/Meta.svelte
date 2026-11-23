@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { siteUrl, ogImage, ogImageAlt } from '$lib/seo';
+	import { siteUrl, ogDescription, ogImage, ogImageAlt } from '$lib/seo';
 	import { site } from '$lib/site';
 
 	/* Title, description and the link-preview tags for one page. The canonical
@@ -9,11 +9,11 @@
 		title: string;
 		/** Search snippet; keep it near 155 characters. */
 		description: string;
-		/** Link-preview text, which can run longer. Defaults to `description`. */
-		shareDescription?: string;
 	}
-	let { title, description, shareDescription = description }: Props = $props();
+	let { title, description }: Props = $props();
+	/* The link preview (Discord, iMessage, Slack) shows the page's own opening line, on its image and as its text. */
 	const image = $derived(ogImage(site(), page.url.pathname));
+	const shareDescription = $derived(ogDescription(site(), page.url.pathname));
 	const imageAlt = ogImageAlt(site());
 </script>
 

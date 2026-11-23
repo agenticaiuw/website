@@ -64,9 +64,9 @@ export const SECTIONS: Section[] = [
 		key: 'pages',
 		title: 'Page titles and search descriptions',
 		page: 'Every page',
-		where: 'Browser tab titles, search result snippets and link previews.',
+		where: 'Browser tab titles and search result snippets. Link previews show each page’s own heading and opening line.',
 		fields: [
-			{ t: 'group', k: 'home', label: 'Home', fields: [text('title', 'Title'), long('description', 'Search description'), long('share', 'Link preview text'), text('blurb', 'One-line description')] },
+			{ t: 'group', k: 'home', label: 'Home', fields: [text('title', 'Title'), long('description', 'Search description'), text('blurb', 'One-line description')] },
 			{ t: 'group', k: 'hive', label: 'Hive', fields: [text('title', 'Title'), long('description', 'Search description'), text('blurb', 'One-line description')] },
 			{ t: 'group', k: 'teams', label: 'Teams', fields: [text('title', 'Title'), long('description', 'Search description'), text('blurb', 'One-line description')] },
 			{ t: 'group', k: 'events', label: 'Events', fields: [text('title', 'Title'), long('description', 'Search description'), text('blurb', 'One-line description')] },

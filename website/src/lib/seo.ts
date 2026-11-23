@@ -7,7 +7,7 @@ export const ogSize = { width: 1200, height: 630 };
 /** Bump when the link-preview images' design changes, so apps fetch the new ones. */
 const OG_DESIGN = 3;
 
-/** One page's link-preview card (src/lib/server/og.ts): the heading and opening line at the top of that page. */
+/** One page's link preview: the heading and opening line at the top of that page, drawn on its image (src/lib/server/og.ts) and used as its text. */
 export type OgCard = { path: string; heading: Run[]; text: Run[] };
 
 /** Every page's card, by the name its image is saved under (/og/<name>.png). */
@@ -49,6 +49,12 @@ export function ogImage(site: Site, pathname: string) {
 	const v = shortHash(JSON.stringify([OG_DESIGN, site.club.shortName, site.club.university, cards[name]]));
 	return { url: `${siteUrl}/og/${name}.png?v=${v}`, ...ogSize };
 }
+
+/** A page's link-preview text: its opening line, word for word, as on the page. */
+export const ogDescription = (site: Site, pathname: string) => {
+	const cards = ogCards(site);
+	return cards[ogName(pathname, cards)].text.map((r) => r.t).join('');
+};
 export const ogImageAlt = (c: Site) => `${c.club.name}, a student club at the ${c.club.university}`;
 
 /** Structured data for {@html}. Escaping `<` keeps copy from ever closing the script tag early. */
