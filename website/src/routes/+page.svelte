@@ -25,7 +25,7 @@
 	});
 </script>
 
-<Meta title={pages.home.title} description={pages.home.description} />
+<Meta title={pages.home.title} />
 
 <svelte:head>
 	{@html homeJsonLd}

@@ -62,17 +62,17 @@ export const SECTIONS: Section[] = [
 	},
 	{
 		key: 'pages',
-		title: 'Page titles and search descriptions',
+		title: 'Page titles',
 		page: 'Every page',
-		where: 'Browser tab titles and search result snippets. Link previews show each page’s own heading and opening line.',
+		where: 'Browser tabs and search results. Search results and link previews describe each page with its own opening line.',
 		fields: [
-			{ t: 'group', k: 'home', label: 'Home', fields: [text('title', 'Title'), long('description', 'Search description'), text('blurb', 'One-line description')] },
-			{ t: 'group', k: 'hive', label: 'Hive', fields: [text('title', 'Title'), long('description', 'Search description'), text('blurb', 'One-line description')] },
-			{ t: 'group', k: 'teams', label: 'Teams', fields: [text('title', 'Title'), long('description', 'Search description'), text('blurb', 'One-line description')] },
-			{ t: 'group', k: 'events', label: 'Events', fields: [text('title', 'Title'), long('description', 'Search description'), text('blurb', 'One-line description')] },
-			{ t: 'group', k: 'partners', label: 'Partners', fields: [text('title', 'Title'), long('description', 'Search description'), text('blurb', 'One-line description')] },
-			{ t: 'group', k: 'join', label: 'Join', fields: [text('title', 'Title'), long('description', 'Search description')] },
-			{ t: 'group', k: 'faq', label: 'FAQ', fields: [text('title', 'Title'), long('description', 'Search description')] }
+			{ t: 'group', k: 'home', label: 'Home', fields: [text('title', 'Title'), text('blurb', 'One-line description')] },
+			{ t: 'group', k: 'hive', label: 'Hive', fields: [text('title', 'Title'), text('blurb', 'One-line description')] },
+			{ t: 'group', k: 'teams', label: 'Teams', fields: [text('title', 'Title'), text('blurb', 'One-line description')] },
+			{ t: 'group', k: 'events', label: 'Events', fields: [text('title', 'Title'), text('blurb', 'One-line description')] },
+			{ t: 'group', k: 'partners', label: 'Partners', fields: [text('title', 'Title'), text('blurb', 'One-line description')] },
+			{ t: 'group', k: 'join', label: 'Join', fields: [text('title', 'Title')] },
+			{ t: 'group', k: 'faq', label: 'FAQ', fields: [text('title', 'Title')] }
 		]
 	},
 	{

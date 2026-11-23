@@ -483,37 +483,29 @@ export default {
 	"pages": {
 		"home": {
 			"title": "{{club}} · The flagship AI club at UW–Madison",
-			"description": "{{vision}}",
-			"share": "{{vision}}",
 			"blurb": "{{motto}}"
 		},
 		"hive": {
 			"title": "Hive · {{club}}",
-			"description": "Hive is the club project of {{club}} at {{university}}: AI agents that can use your laptop, phone and browser and do the digital work you do. See what we plan to finish this semester and the code on GitHub.",
 			"blurb": "The project the whole club builds together"
 		},
 		"teams": {
 			"title": "Teams · {{club}}",
-			"description": "The teams of {{club}} at {{university}}: Hardware, Automation, Cloud, Research, Product Design and Business. See who heads each team and what it is working on. No prior AI experience required.",
 			"blurb": "Who heads each team and what it is working on"
 		},
 		"events": {
 			"title": "Events · {{club}}",
-			"description": "Meetings, workshops, speaker events and socials from {{club}}, the agentic AI student club at the {{university}}.",
 			"blurb": "Meetings, workshops, speaker events and socials"
 		},
 		"partners": {
 			"title": "Partner with us · {{club}}",
-			"description": "Sponsor {{club}}, bring a real problem to our teams, collaborate on research or speak to our members. Email {{email}}.",
 			"blurb": "For sponsors, companies and faculty"
 		},
 		"join": {
-			"title": "How to join · {{club}}",
-			"description": "Join {{club}} at UW–Madison any time of year: join our Discord, the club’s official channel of communication, then book office hours with the head of the team you want to join. No application, no cutoff."
+			"title": "How to join · {{club}}"
 		},
 		"faq": {
-			"title": "FAQ · {{club}}",
-			"description": "Answers about {{club}} at UW–Madison: why the club exists, what agentic AI is, what we’re building, who can join, how to join and how to reach us."
+			"title": "FAQ · {{club}}"
 		}
 	}
 };

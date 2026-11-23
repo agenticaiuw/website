@@ -7,7 +7,7 @@
 	const { pages } = site();
 </script>
 
-<Meta title={pages.hive.title} description={pages.hive.description} />
+<Meta title={pages.hive.title} />
 
 <div>
 	<Hive />

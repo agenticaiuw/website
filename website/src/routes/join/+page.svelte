@@ -7,7 +7,7 @@
 	const { pages } = site();
 </script>
 
-<Meta title={pages.join.title} description={pages.join.description} />
+<Meta title={pages.join.title} />
 
 <div>
 	<Join />

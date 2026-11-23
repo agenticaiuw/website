@@ -24,7 +24,7 @@
 	const columns = [faq.items.slice(0, half), faq.items.slice(half)];
 </script>
 
-<Meta title={pages.faq.title} description={pages.faq.description} />
+<Meta title={pages.faq.title} />
 
 <svelte:head>
 	{@html faqJsonLd}

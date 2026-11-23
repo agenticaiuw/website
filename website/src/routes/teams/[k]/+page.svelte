@@ -15,7 +15,7 @@
 	const lead = (l: TeamLead) => (l.title ? `${l.name}, ${l.title}` : l.name);
 </script>
 
-<Meta title="{t.name} · {club.name}" description={t.line} />
+<Meta title="{t.name} · {club.name}" />
 
 <!-- One slide: the team, its goals, its people and its code. -->
 <section class="slide team-page">

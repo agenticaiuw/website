@@ -1,19 +1,14 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { siteUrl, ogDescription, ogImage, ogImageAlt } from '$lib/seo';
+	import { siteUrl, ogImage, ogImageAlt, openingLine } from '$lib/seo';
 	import { site } from '$lib/site';
 
 	/* Title, description and the link-preview tags for one page. The canonical
-	   link lives in the layout. */
-	interface Props {
-		title: string;
-		/** Search snippet; keep it near 155 characters. */
-		description: string;
-	}
-	let { title, description }: Props = $props();
-	/* The link preview (Discord, iMessage, Slack) shows the page's own opening line, on its image and as its text. */
+	   link lives in the layout. The description, in search results and link previews
+	   (Discord, iMessage, Slack), is the page's own opening line, also drawn on its image. */
+	let { title }: { title: string } = $props();
+	const description = $derived(openingLine(site(), page.url.pathname));
 	const image = $derived(ogImage(site(), page.url.pathname));
-	const shareDescription = $derived(ogDescription(site(), page.url.pathname));
 	const imageAlt = ogImageAlt(site());
 </script>
 
@@ -23,7 +18,7 @@
 	<meta property="og:type" content="website" />
 	<meta property="og:url" content="{siteUrl}{page.url.pathname}" />
 	<meta property="og:title" content={title} />
-	<meta property="og:description" content={shareDescription} />
+	<meta property="og:description" content={description} />
 	<meta property="og:image" content={image.url} />
 	<meta property="og:image:width" content={String(image.width)} />
 	<meta property="og:image:height" content={String(image.height)} />

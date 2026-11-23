@@ -7,7 +7,7 @@
 	const { pages } = site();
 </script>
 
-<Meta title={pages.partners.title} description={pages.partners.description} />
+<Meta title={pages.partners.title} />
 
 <div>
 	<Partners />
