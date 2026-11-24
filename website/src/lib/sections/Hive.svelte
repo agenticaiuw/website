@@ -20,7 +20,8 @@
 	// Once GitHub signs Hive.ipa with the club's Apple team, the release also has manifest.plist, and this link installs
 	// Hive straight onto an iPhone the club has registered. Until then the link would fail, so it isn't shown.
 	const install = `itms-services://?action=download-manifest&url=${builds}manifest.plist`;
-	const DEV_MODE = 'On your iPhone, open Settings > Privacy & Security > Developer Mode, turn it on, and restart when asked. Developer Mode appears there after Hive is installed.';
+	// Developer Mode shows up in Settings only once the iPhone has been paired with a Mac: plugging it into the Hive Mac app does that.
+	const DEV_MODE = 'Plug your iPhone into your Mac with Hive open, and tap Trust on the iPhone. Then on the iPhone open Settings > Privacy & Security > Developer Mode, turn it on, and tap Restart. After it restarts, tap Turn On and enter your passcode.';
 	let signed = $state(false);
 	let checked = false;
 	// GitHub's API lists the release's files; its download links can't be checked from a browser.
