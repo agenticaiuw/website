@@ -24,7 +24,7 @@
 	const SERVER_NOTE = 'For a computer that stays on and online 24/7: an old laptop at home, a desktop, or a cloud server. Hive runs here.';
 	const APP_NOTE = 'For the laptop you use every day. It connects to your Hive Server so Hive can work on it.';
 
-	// The visitor's system: a computer gets one button for it; a phone or anything else goes to Show all.
+	// The visitor's system: a computer or phone gets one button for it; anything else goes to Show all.
 	let os = $state('');
 	onMount(() => {
 		const p = navigator.platform || '';
@@ -33,6 +33,9 @@
 			: /Mac/.test(p) ? 'mac' : /Win/.test(p) ? 'windows' : /Linux/.test(p) ? 'linux' : '';
 	});
 	const computer = $derived(os in computers ? computers[os as Computer] : null);
+	// A phone gets its own short window too: just what fits it, with Show all for the rest.
+	const phone = $derived(os === 'ios' ? 'iPhone' : os === 'android' ? 'Android' : '');
+	const picks = $derived(!!computer || !!phone);
 
 	// One floating window: the question for this computer, or every download.
 	let dialog: HTMLDialogElement;
@@ -74,13 +77,9 @@
 			<!-- Like most download pages: one centred column, the download right under the intro. -->
 			<div class="get-panel" data-hero-after>
 				<div class="get-hive">
-					{#if computer}
-						<button type="button" class="btn btn-red get-btn" onclick={() => open('pick')} aria-haspopup="dialog">Download for {computer.name} <span aria-hidden="true">↓</span></button>
-					{:else}
-						<button type="button" class="btn btn-red get-btn" onclick={() => open('all', os === 'ios' ? 'dl-iphone' : '')} aria-haspopup="dialog">
-							{os === 'ios' ? 'Get Hive for iPhone' : 'Download Hive'} <span aria-hidden="true">↓</span>
-						</button>
-					{/if}
+					<button type="button" class="btn btn-red get-btn" onclick={() => open(picks ? 'pick' : 'all')} aria-haspopup="dialog">
+						{computer ? `Download for ${computer.name}` : phone ? `Get Hive for ${phone}` : 'Download Hive'} <span aria-hidden="true">↓</span>
+					</button>
 					<!-- Small, like other sites' download rows. The stores are placeholders until Hive is listed there. -->
 					<div class="get-more">
 						<span class="store soon" title="Coming soon to the App Store" aria-label="App Store, coming soon">
@@ -109,7 +108,7 @@
 	</div>
 </section>
 
-<dialog bind:this={dialog} class="chooser" aria-labelledby={view === 'pick' && computer ? 'chooser-title' : undefined} aria-label={view === 'pick' && computer ? undefined : 'All downloads'} onclick={(e) => e.target === dialog && dialog.close()}>
+<dialog bind:this={dialog} class="chooser" aria-labelledby={view === 'pick' && picks ? 'chooser-title' : undefined} aria-label={view === 'pick' && picks ? undefined : 'All downloads'} onclick={(e) => e.target === dialog && dialog.close()}>
 	<div class="chooser-inner">
 		<button type="button" class="close" onclick={() => dialog.close()} aria-label="Close">×</button>
 
@@ -138,6 +137,23 @@
 					{@render command()}
 				</div>
 			{/if}
+			<button type="button" class="show-all" onclick={() => (view = 'all')}>Show all downloads</button>
+		{:else if view === 'pick' && phone === 'iPhone'}
+			<!-- Only what fits an iPhone. -->
+			<h2 id="chooser-title" class="chooser-title">Hive for iPhone</h2>
+			<p class="chooser-lede">Hive isn't in the App Store yet, so these are installed by sideloading.</p>
+			<div class="options">
+				{#each iphone as g (g.file)}
+					<a class="card option" href={builds + g.file} download onclick={() => dialog.close()}>
+						<span class="option-name">{g.name}</span>
+						<span class="option-go">{g.file} <span aria-hidden="true">↓</span></span>
+					</a>
+				{/each}
+			</div>
+			<button type="button" class="show-all" onclick={() => (view = 'all')}>Show all downloads</button>
+		{:else if view === 'pick' && phone === 'Android'}
+			<h2 id="chooser-title" class="chooser-title">Hive for Android</h2>
+			<p class="chooser-lede">There's no Android app yet. It's coming to Google Play. Until then, Hive runs on a computer.</p>
 			<button type="button" class="show-all" onclick={() => (view = 'all')}>Show all downloads</button>
 		{:else}
 			<!-- Every download, each with what it's for. -->
