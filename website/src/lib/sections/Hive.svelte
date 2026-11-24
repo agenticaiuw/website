@@ -43,7 +43,8 @@
 	// A cloud server has no browser: this one command fetches the Linux build for its processor.
 	const linux = `curl -fLo hive-server ${builds}hive-server-linux-$(uname -m) && chmod +x hive-server && sudo ./hive-server`;
 	const SERVER_NOTE = 'For a computer that stays on and online 24/7: an old laptop at home, a desktop, or a cloud server. Hive runs here.';
-	const APP_NOTE = 'For the laptop you use every day. It connects to your Hive Server so Hive can work on it.';
+	const APP_NOTE = 'For the laptop you use every day. Sign in with the same Tailscale account you used for Hive Server.';
+	const MAC_INSTALL = 'Open Hive-Mac.dmg and double-click Hive. It installs in Applications and opens automatically.';
 
 	// The visitor's system: a computer or phone gets one button for it; anything else goes to Show all.
 	let os = $state('');
@@ -151,6 +152,7 @@
 						<span class="option-go">{computer.app} <span aria-hidden="true">↓</span></span>
 					</a>
 				</div>
+				{#if os === 'mac'}<p class="hint">{MAC_INSTALL}</p>{/if}
 				<p class="hint">Not sure? Set up Hive Server once on a computer that's always on, then install the Hive app on your laptop.</p>
 			{:else}
 				<div class="card option solo">
@@ -210,7 +212,9 @@
 				{/each}
 			</ul>
 
-			<h3 class="group" id="dl-browser">Browser extension <span>Lets Hive use your browser. For Chrome, Edge and Brave; on a Mac, Hive for Safari comes inside the Hive app.</span></h3>
+			<p class="hint">{MAC_INSTALL}</p>
+
+			<h3 class="group" id="dl-browser">Browser extension <span>For Chrome, Edge and Brave. On Mac, install the Hive app, then turn on Hive in Safari Settings under Extensions.</span></h3>
 			<ul class="files" role="list">
 				<li><a class="card file" href={builds + extension} download>
 					<span class="file-name">Chrome, Edge, Brave</span>
