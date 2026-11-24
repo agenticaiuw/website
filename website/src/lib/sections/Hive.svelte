@@ -64,13 +64,12 @@
 <!-- Slide 1: the project's name and goal, big, with why it matters and the download beside it. -->
 <section id="hive" class="slide hive-hero scroll-mt-16">
 	<header class="shell hero-inner" data-hero>
-		<p class="eyebrow accent" data-hero-after>{project.eyebrow}</p>
-		<h1 class="title"><span class="word" data-word>{project.title}<span class="title-dot">.</span></span></h1>
-		<div class="intro">
-			<div>
+		<div class="hero-grid">
+			<div class="hero-copy">
+				<p class="eyebrow accent" data-hero-after>{project.eyebrow}</p>
+				<h1 class="title"><span class="word" data-word>{project.title}<span class="title-dot">.</span></span></h1>
 				<p class="goal" data-hero-after>{@html richHtml(project.goal)}</p>
 				{#if project.why}<p class="why" data-hero-after>{project.why}</p>{/if}
-			</div>
 			<div class="get-hive" data-hero-after>
 				{#if computer}
 					<button type="button" class="btn btn-red get-btn" onclick={() => open('pick')} aria-haspopup="dialog">Download for {computer.name} <span aria-hidden="true">↓</span></button>
@@ -96,6 +95,33 @@
 					<button type="button" class="show-all" onclick={() => open('all')}>Show all</button>
 				</div>
 			</div>
+			</div>
+
+			<!-- How Hive fits together, at a glance: one always-on server, your devices around it. -->
+			<figure class="hero-visual" data-hero-after aria-label="Hive Server stays on all the time and connects to your laptop, phone and browser.">
+				<svg class="links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+					<line x1="50" y1="52" x2="15" y2="14" /><line x1="50" y1="52" x2="85" y2="14" /><line x1="50" y1="52" x2="50" y2="90" />
+				</svg>
+				<div class="node server" style="left: 50%; top: 52%">
+					<span class="node-icon">
+						<svg viewBox="0 0 24 24" width="38" height="38" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.8 19.5 7v8.6L12 19.8l-7.5-4.2V7L12 2.8Z" /><path d="M12 7.5 15.6 9.6v4.2L12 15.9l-3.6-2.1V9.6L12 7.5Z" /></svg>
+					</span>
+					<span class="node-name">Hive Server</span>
+					<span class="node-note"><span class="live" aria-hidden="true"></span>On 24/7 · agents run here</span>
+				</div>
+				<div class="node" style="left: 15%; top: 14%">
+					<span class="node-icon"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="1.5" /><path d="M2.5 19h19" /></svg></span>
+					<span class="node-name">Your laptop</span>
+				</div>
+				<div class="node" style="left: 85%; top: 14%">
+					<span class="node-icon"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2" /><path d="M3 9h18M6.5 6.8h.01M9 6.8h.01" /></svg></span>
+					<span class="node-name">Your browser</span>
+				</div>
+				<div class="node" style="left: 50%; top: 90%">
+					<span class="node-icon"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5" /><path d="M10.5 18.5h3" /></svg></span>
+					<span class="node-name">Your phone</span>
+				</div>
+			</figure>
 		</div>
 	</header>
 
@@ -106,7 +132,7 @@
 	</div>
 </section>
 
-<dialog bind:this={dialog} class="chooser" aria-labelledby="chooser-title" onclick={(e) => e.target === dialog && dialog.close()}>
+<dialog bind:this={dialog} class="chooser" aria-labelledby={view === 'pick' && computer ? 'chooser-title' : undefined} aria-label={view === 'pick' && computer ? undefined : 'All downloads'} onclick={(e) => e.target === dialog && dialog.close()}>
 	<div class="chooser-inner">
 		<button type="button" class="close" onclick={() => dialog.close()} aria-label="Close">×</button>
 
@@ -138,8 +164,6 @@
 			<button type="button" class="show-all" onclick={() => (view = 'all')}>Show all downloads</button>
 		{:else}
 			<!-- Every download, each with what it's for. -->
-			<h2 id="chooser-title" class="chooser-title">All downloads</h2>
-			<p class="chooser-lede">Set up Hive Server once, on a computer that's always on and online. Then install the Hive app on the laptop you use every day.</p>
 
 			<h3 class="group" id="dl-server">Hive Server <span>{SERVER_NOTE}</span></h3>
 			<ul class="files" role="list">
@@ -234,6 +258,7 @@
 	.hint { margin-top: 1rem; font-size: 0.95rem; line-height: 1.5; color: var(--muted); }
 	.chooser .show-all { margin: 1rem 0 0; }
 	.group { margin-top: 1.6rem; font-family: var(--font-sans); font-size: 1.25rem; font-weight: 900; letter-spacing: -0.02em; scroll-margin-top: 1rem; }
+	.group:first-of-type { margin-top: 0; padding-right: 2.5rem; }
 	.group span { display: block; margin-top: 0.25rem; font-family: var(--font-body, inherit); font-size: 0.95rem; font-weight: 400; letter-spacing: 0; line-height: 1.5; color: var(--muted); }
 	.files { display: grid; gap: 0.65rem; margin-top: 0.75rem; list-style: none; padding: 0; }
 	@media (min-width: 560px) { .files { grid-template-columns: 1fr 1fr; } .files .wide { grid-column: 1 / -1; } }
@@ -279,10 +304,28 @@
 		line-height: 1.6;
 		color: var(--muted);
 	}
-	/* The button sits to the right of the intro text on a wide screen, under it on a narrow one. */
-	.intro { display: flex; flex-wrap: wrap; align-items: flex-end; gap: clamp(1.1rem, 3.2svh, 2rem) clamp(1.5rem, 4vw, 3.5rem); }
-	.intro > div:first-child { flex: 1 1 32rem; min-width: 0; }
-	.get-hive { display: flex; flex-direction: column; align-items: flex-start; gap: 0.8rem; }
+	/* Text and download read as one unit on the left; on a wide screen, the picture of Hive fills the right. */
+	.hero-grid { display: grid; align-items: center; gap: clamp(2rem, 5vw, 4.5rem); }
+	.hero-copy { min-width: 0; }
+	.get-hive { display: flex; flex-direction: column; align-items: flex-start; gap: 0.8rem; margin-top: clamp(1.25rem, 3.6svh, 2.25rem); }
+	.hero-visual { display: none; }
+	@media (min-width: 960px) {
+		.hero-grid { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
+		.title { font-size: clamp(4.5rem, min(13vw, 24svh), 12rem); }
+		.goal { font-size: clamp(1.3rem, min(2.1vw, 4svh), 1.9rem); }
+		.hero-visual { display: block; position: relative; aspect-ratio: 1 / 0.95; margin: 0; }
+	}
+	.links { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+	.links line { stroke: var(--line-strong); stroke-width: 1.5; stroke-dasharray: 3 5; vector-effect: non-scaling-stroke; animation: flow 1.6s linear infinite; }
+	@keyframes flow { to { stroke-dashoffset: -16; } }
+	.node { position: absolute; translate: -50% -50%; display: flex; flex-direction: column; align-items: center; gap: 0.45rem; text-align: center; }
+	.node-icon { display: grid; place-items: center; width: 4.4rem; height: 4.4rem; border-radius: 1.3rem; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); box-shadow: var(--shadow); }
+	.node-name { font-family: var(--font-sans); font-size: 1.05rem; font-weight: 700; color: var(--fg); white-space: nowrap; }
+	.server { gap: 0.55rem; }
+	.server .node-icon { width: 7rem; height: 7rem; border-radius: 2rem; border-color: var(--accent-border); background: linear-gradient(150deg, var(--accent-surface), var(--surface) 75%); color: var(--accent); box-shadow: 0 0 0 10px rgb(var(--glow) / 0.05), 0 0 60px -10px rgb(var(--glow) / 0.45), var(--shadow); }
+	.server .node-name { font-size: 1.4rem; font-weight: 900; letter-spacing: -0.02em; }
+	.node-note { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.9rem; color: var(--muted); white-space: nowrap; }
+	.live { width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px rgb(124 196 136 / 0.18); }
 	.get-btn { min-height: 3.5rem; padding-inline: 1.9rem; font-size: 1.15rem; }
 	.get-more { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; }
 	.store { display: inline-flex; align-items: center; gap: 0.4rem; height: 2.1rem; padding: 0 0.75rem; border-radius: 999px; border: 1.5px solid var(--line-strong); font-family: var(--font-sans); font-size: 0.85rem; font-weight: 700; color: var(--fg); transition: border-color 0.2s ease; }
@@ -337,5 +380,6 @@
 
 	@media (prefers-reduced-motion: reduce) {
 		.cue span { animation: none; }
+		.links line { animation: none; }
 	}
 </style>
