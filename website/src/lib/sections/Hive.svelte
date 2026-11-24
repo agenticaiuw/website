@@ -2,68 +2,100 @@
 	import { onMount } from 'svelte';
 	import { richHtml, site } from '$lib/site';
 	const { project } = site();
-	// What people download: GitHub builds each one from the repo's main branch on every push. A Mac build runs on every
-	// Mac (Apple silicon and Intel in one file); Linux has one build per kind of processor.
+	// What people download: GitHub builds each one from the repo's main branch on every push, and /latest/ always
+	// serves the newest. A Mac build runs on every Mac (Apple silicon and Intel in one file).
 	const builds = 'https://github.com/agenticaiuw/hive/releases/download/latest/';
-	// One without a file or link yet (it isn't listed there) shows as coming soon.
-	type Get = { name: string; note: string; os: string; arch?: string; file?: string; href?: string };
-	const servers: Get[] = [
-		{ name: 'Linux', note: 'Most VMs (Intel and AMD processors)', file: 'hive-server-linux-x86_64', os: 'linux', arch: 'x86' },
-		{ name: 'Linux on ARM', note: "ARM VMs, like Oracle Cloud's", file: 'hive-server-linux-aarch64', os: 'linux', arch: 'arm' },
-		{ name: 'Mac', note: 'Apple silicon and Intel', file: 'Hive-Server.dmg', os: 'mac' },
-		{ name: 'Windows', note: 'Windows 10 and 11', file: 'hive-server-windows.exe', os: 'windows' }
+	// Hive is the whole system. Hive Server runs on a computer that's always on; the Hive app goes on the laptop you
+	// use every day and connects to it. Hive isn't in the App Store or Google Play: the iPhone apps are sideloaded.
+	type Computer = 'mac' | 'windows' | 'linux';
+	const computers: Record<Computer, { name: string; server?: string; app?: string }> = {
+		mac: { name: 'Mac', server: 'Hive-Server.dmg', app: 'Hive-Mac.dmg' },
+		windows: { name: 'Windows', server: 'hive-server-windows.exe', app: 'hive-windows.exe' },
+		// Linux has Hive Server only, by one command.
+		linux: { name: 'Linux' }
+	};
+	const extension = 'Hive-Browser.zip';
+	const iphone = [
+		{ name: 'Hive', file: 'Hive.ipa' },
+		{ name: 'Hive Phone', file: 'HivePhone.ipa' }
 	];
-	const devices: Get[] = [
-		{ name: 'Mac', note: 'Apple silicon and Intel', file: 'Hive-Mac.dmg', os: 'mac' },
-		{ name: 'Windows', note: 'Windows 10 and 11', file: 'hive-windows.exe', os: 'windows' },
-		{ name: 'Browser extension', note: 'Safari, Chrome, Edge and Brave', os: 'browser' },
-		{ name: 'App Store', note: 'iPhone and iPad', os: 'ios' },
-		{ name: 'Play Store', note: 'Android phones and tablets', os: 'android' }
-	];
-	const link = (g: Get) => g.href || (g.file ? builds + g.file : '');
+	// A cloud server has no browser: this one command fetches the Linux build for its processor.
+	const linux = `curl -fLo hive-server ${builds}hive-server-linux-$(uname -m) && chmod +x hive-server && sudo ./hive-server`;
+	const SERVER_NOTE = 'For a computer that stays on and online 24/7: an old laptop at home, a desktop, or a cloud server. Hive runs here.';
+	const APP_NOTE = 'For the laptop you use every day. It connects to your Hive Server so Hive can work on it.';
 
-	// The visitor's device and processor, so what fits it comes first.
+	// The visitor's system: a computer gets one button for it; a phone or anything else goes to Show all.
 	let os = $state('');
-	let arch = $state('');
-	onMount(async () => {
+	onMount(() => {
 		const p = navigator.platform || '';
 		const ua = navigator.userAgent;
 		os = /Android/.test(ua) ? 'android' : /iPhone|iPad|iPod/.test(ua) || (p === 'MacIntel' && navigator.maxTouchPoints > 1) ? 'ios'
 			: /Mac/.test(p) ? 'mac' : /Win/.test(p) ? 'windows' : /Linux/.test(p) ? 'linux' : '';
-		arch = /arm|aarch64/i.test(p) ? 'arm' : 'x86';
-		const hints = (navigator as Navigator & { userAgentData?: { getHighEntropyValues(h: string[]): Promise<{ architecture?: string }> } }).userAgentData;
-		if (hints) arch = (await hints.getHighEntropyValues(['architecture']).catch(() => ({ architecture: arch }))).architecture === 'arm' ? 'arm' : 'x86';
 	});
-	// A VM has no browser: one command there fetches the Linux build for its processor.
-	const linux = `curl -fLo hive-server ${builds}hive-server-linux-$(uname -m) && chmod +x hive-server && sudo ./hive-server`;
-	const mine = (g: Get) => g.os === os && (!g.arch || g.arch === arch);
-	const first = (list: Get[]) => [...list].sort((a, b) => Number(mine(b)) - Number(mine(a)));
-	// Beside the explanation: this device's app (Linux has only the server), and on a computer the browser extension.
-	const picks = $derived(
-		[[...devices, ...servers].find(mine), ['mac', 'windows', 'linux'].includes(os) ? devices.find((d) => d.os === 'browser') : undefined]
-			.filter((g): g is Get => !!g)
-	);
-	const groups = $derived([
-		{ id: 'server', title: 'Your Hive', gets: first(servers),
-			lede: "The server is your Hive, its own download: run it once on a computer that stays on, a VM or an old laptop. It signs in to ChatGPT with a code, starts with the computer from then on, and gives you your dashboard's link." },
-		{ id: 'devices', title: 'Your devices', gets: first(devices),
-			lede: "Then add your devices: each one connects to your Hive with the link from its dashboard's Pair a device." }
-	]);
+	const computer = $derived(os in computers ? computers[os as Computer] : null);
+
+	// One floating window: the question for this computer, or every download.
+	let dialog: HTMLDialogElement;
+	let view = $state<'pick' | 'all'>('pick');
+	function open(v: 'pick' | 'all', section = '') {
+		view = v;
+		dialog.showModal();
+		if (section) requestAnimationFrame(() => dialog.querySelector(`#${section}`)?.scrollIntoView({ block: 'start' }));
+	}
+	let copied = $state(false);
+	async function copy() {
+		try {
+			await navigator.clipboard.writeText(linux);
+			copied = true;
+			setTimeout(() => (copied = false), 2000);
+		} catch {
+			// The command is selectable; copying by hand still works.
+		}
+	}
 </script>
 
-<!-- Slide 1: the project's name and goal, big, with why it matters and the download for this computer. -->
+{#snippet command()}
+	<div class="cmd">
+		<code>{linux}</code>
+		<button type="button" class="btn btn-ghost btn-sm" onclick={copy}>{copied ? 'Copied' : 'Copy command'}</button>
+	</div>
+{/snippet}
+
+<!-- Slide 1: the project's name and goal, big, with why it matters and the download beside it. -->
 <section id="hive" class="slide hive-hero scroll-mt-16">
 	<header class="shell hero-inner" data-hero>
 		<p class="eyebrow accent" data-hero-after>{project.eyebrow}</p>
 		<h1 class="title"><span class="word" data-word>{project.title}<span class="title-dot">.</span></span></h1>
-		<p class="goal" data-hero-after>{@html richHtml(project.goal)}</p>
-		{#if project.why}<p class="why" data-hero-after>{project.why}</p>{/if}
-		<div class="get-hive" data-hero-after>
-			{#each picks as g (g.name)}
-				{#if link(g)}<a class="btn btn-red" href={link(g)} download>Download {g.os === 'linux' ? 'the server ' : ''}for {g.name} <span aria-hidden="true">↓</span></a>
-				{:else}<span class="btn btn-ghost soon" aria-disabled="true">{g.name} <small>soon</small></span>{/if}
-			{/each}
-			<a class="btn btn-ghost" href="#downloads">All downloads</a>
+		<div class="intro">
+			<div>
+				<p class="goal" data-hero-after>{@html richHtml(project.goal)}</p>
+				{#if project.why}<p class="why" data-hero-after>{project.why}</p>{/if}
+			</div>
+			<div class="get-hive" data-hero-after>
+				{#if computer}
+					<button type="button" class="btn btn-red get-btn" onclick={() => open('pick')} aria-haspopup="dialog">Download for {computer.name} <span aria-hidden="true">↓</span></button>
+				{:else}
+					<button type="button" class="btn btn-red get-btn" onclick={() => open('all', os === 'ios' ? 'dl-iphone' : '')} aria-haspopup="dialog">
+						{os === 'ios' ? 'Get Hive for iPhone' : 'Download Hive'} <span aria-hidden="true">↓</span>
+					</button>
+				{/if}
+				<!-- Small, like other sites' download rows. The stores are placeholders until Hive is listed there. -->
+				<div class="get-more">
+					<span class="store soon" title="Coming soon to the App Store" aria-label="App Store, coming soon">
+						<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.3 1.9-3.4 2-3.5a4.3 4.3 0 0 0-3.4-1.8c-1.4-.2-2.8.8-3.5.8s-1.8-.8-3-.8a4.5 4.5 0 0 0-3.8 2.3c-1.6 2.8-.4 7 1.2 9.2.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7 2-1.1 2.8-2.2a9.6 9.6 0 0 0 1.2-2.6 4 4 0 0 1-2.4-3.7ZM14.2 5.8a4 4 0 0 0 .9-2.9 4.1 4.1 0 0 0-2.7 1.4 3.8 3.8 0 0 0-.9 2.8 3.4 3.4 0 0 0 2.7-1.3Z" /></svg>
+						App Store <small>Soon</small>
+					</span>
+					<span class="store soon" title="Coming soon to Google Play" aria-label="Google Play, coming soon">
+						<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M4.6 2.8a1.3 1.3 0 0 0-.6 1.1v16.2a1.3 1.3 0 0 0 .6 1.1L13.4 12 4.6 2.8Zm9.9 10.3 2.4 2.4-10.5 6 8.1-8.4Zm3.8-4.7 2.9 1.7a1.1 1.1 0 0 1 0 1.9l-2.9 1.7-2.6-2.7 2.6-2.6ZM6.4 2.5l10.5 6-2.4 2.4-8.1-8.4Z" /></svg>
+						Google Play <small>Soon</small>
+					</span>
+					<a class="store" href={builds + extension} download title="Browser extension for Chrome, Edge and Brave">
+						<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4.5a2 2 0 1 1 4 0V6h3.5A1.5 1.5 0 0 1 18 7.5V11h1.5a2 2 0 1 1 0 4H18v3.5a1.5 1.5 0 0 1-1.5 1.5H13v-1.5a2 2 0 1 0-4 0V20H5.5A1.5 1.5 0 0 1 4 18.5V15h1.5a2 2 0 1 0 0-4H4V7.5A1.5 1.5 0 0 1 5.5 6H9V4.5Z" /></svg>
+						Extension
+					</a>
+					<button type="button" class="show-all" onclick={() => open('all')}>Show all</button>
+				</div>
+			</div>
 		</div>
 	</header>
 
@@ -74,29 +106,85 @@
 	</div>
 </section>
 
-<!-- Slide 2: every download, what fits this device first. -->
-<section id="downloads" class="slide hive-get scroll-mt-16" aria-labelledby="downloads-heading">
-	<div class="shell">
-		<h2 id="downloads-heading" class="slide-title" data-reveal>All downloads</h2>
-		{#each groups as gr (gr.id)}
-			<h3 class="get-group" data-reveal>{gr.title}</h3>
-			<p class="get-lede" data-reveal>{gr.lede}</p>
-			<ul class="gets" role="list" data-stagger>
-				{#each gr.gets as d (d.name)}
-					<li data-reveal>
-						<svelte:element this={link(d) ? 'a' : 'div'} class="card get" class:mine={mine(d)} class:soon={!link(d)} href={link(d) || undefined} download={link(d) ? '' : undefined}>
-							<span class="get-name">{d.name}</span>
-							{#if mine(d)}<span class="get-mine">For this device</span>{/if}
-							<span class="get-note">{d.note}</span>
-							<span class="get-file">{d.file ?? 'Coming soon'} {#if link(d)}<span aria-hidden="true">↓</span>{/if}</span>
-						</svelte:element>
-					</li>
+<dialog bind:this={dialog} class="chooser" aria-labelledby="chooser-title" onclick={(e) => e.target === dialog && dialog.close()}>
+	<div class="chooser-inner">
+		<button type="button" class="close" onclick={() => dialog.close()} aria-label="Close">×</button>
+
+		{#if view === 'pick' && computer}
+			<!-- The one question for this computer. -->
+			<h2 id="chooser-title" class="chooser-title">Hive for {computer.name}</h2>
+			<p class="chooser-lede">Which one is this computer for?</p>
+			{#if computer.server}
+				<div class="options">
+					<a class="card option" href={builds + computer.server} download onclick={() => dialog.close()}>
+						<span class="option-name">Hive Server</span>
+						<span class="option-note">{SERVER_NOTE}</span>
+						<span class="option-go">{computer.server} <span aria-hidden="true">↓</span></span>
+					</a>
+					<a class="card option" href={builds + computer.app} download onclick={() => dialog.close()}>
+						<span class="option-name">Hive app</span>
+						<span class="option-note">{APP_NOTE}</span>
+						<span class="option-go">{computer.app} <span aria-hidden="true">↓</span></span>
+					</a>
+				</div>
+				<p class="hint">Not sure? Set up Hive Server once on a computer that's always on, then install the Hive app on your laptop.</p>
+			{:else}
+				<div class="card option solo">
+					<span class="option-name">Hive Server</span>
+					<span class="option-note">{SERVER_NOTE} On Linux, run this one command. There's no Hive app for Linux yet.</span>
+					{@render command()}
+				</div>
+			{/if}
+			<button type="button" class="show-all" onclick={() => (view = 'all')}>Show all downloads</button>
+		{:else}
+			<!-- Every download, each with what it's for. -->
+			<h2 id="chooser-title" class="chooser-title">All downloads</h2>
+			<p class="chooser-lede">Set up Hive Server once, on a computer that's always on and online. Then install the Hive app on the laptop you use every day.</p>
+
+			<h3 class="group" id="dl-server">Hive Server <span>{SERVER_NOTE}</span></h3>
+			<ul class="files" role="list">
+				{#each ['mac', 'windows'] as const as k (k)}
+					<li><a class="card file" class:mine={os === k} href={builds + computers[k].server} download>
+						<span class="file-name">{computers[k].name}{#if os === k}<span class="mine-tag">This computer</span>{/if}</span>
+						<span class="file-get">{computers[k].server} <span aria-hidden="true">↓</span></span>
+					</a></li>
+				{/each}
+				<li class="card file wide" class:mine={os === 'linux'}>
+					<span class="file-name">Linux or a cloud server{#if os === 'linux'}<span class="mine-tag">This computer</span>{/if}</span>
+					{@render command()}
+				</li>
+			</ul>
+
+			<h3 class="group" id="dl-app">Hive app <span>{APP_NOTE}</span></h3>
+			<ul class="files" role="list">
+				{#each ['mac', 'windows'] as const as k (k)}
+					<li><a class="card file" class:mine={os === k} href={builds + computers[k].app} download>
+						<span class="file-name">{computers[k].name}{#if os === k}<span class="mine-tag">This computer</span>{/if}</span>
+						<span class="file-get">{computers[k].app} <span aria-hidden="true">↓</span></span>
+					</a></li>
 				{/each}
 			</ul>
-			{#if gr.id === 'server'}<p class="get-cmd" data-reveal>On a Linux VM, one command gets the build for its processor: <code>{linux}</code></p>{/if}
-		{/each}
+
+			<h3 class="group" id="dl-browser">Browser extension <span>Lets Hive use your browser. For Chrome, Edge and Brave; on a Mac, Hive for Safari comes inside the Hive app.</span></h3>
+			<ul class="files" role="list">
+				<li><a class="card file" href={builds + extension} download>
+					<span class="file-name">Chrome, Edge, Brave</span>
+					<span class="file-get">{extension} <span aria-hidden="true">↓</span></span>
+				</a></li>
+			</ul>
+
+			<h3 class="group" id="dl-iphone">iPhone <span>Not in the App Store yet: these are installed by sideloading.</span></h3>
+			<ul class="files" role="list">
+				{#each iphone as g (g.file)}
+					<li><a class="card file" class:mine={os === 'ios'} href={builds + g.file} download>
+						<span class="file-name">{g.name}</span>
+						<span class="file-get">{g.file} <span aria-hidden="true">↓</span></span>
+					</a></li>
+				{/each}
+			</ul>
+		{/if}
 	</div>
-</section>
+</dialog>
 
 <!-- Slide 3: this semester's plan and the code. -->
 <section class="slide hive-plan" aria-labelledby="plan-heading">
@@ -117,20 +205,46 @@
 </section>
 
 <style>
-	/* ---- download slide ---- */
-	.get-lede { margin-top: clamp(0.6rem, 1.8svh, 1rem); max-width: 46rem; font-size: clamp(1rem, min(1.25vw, 2.3svh), 1.15rem); line-height: 1.6; color: var(--muted); }
-	.gets { display: grid; gap: clamp(0.75rem, 1.6svh, 1rem); margin-top: clamp(1.1rem, 3.5svh, 2.25rem); list-style: none; padding: 0; }
-	.gets { grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr)); }
-	.get-group { margin-top: clamp(1.4rem, 4svh, 2.5rem); font-family: var(--font-sans); font-size: clamp(1.3rem, min(2vw, 3.6svh), 1.7rem); font-weight: 800; letter-spacing: -0.02em; }
-	.get { display: flex; flex-direction: column; gap: 0.5rem; height: 100%; padding: clamp(1.1rem, min(2vw, 3.2svh), 1.75rem); transition: border-color 0.2s ease; }
-	a.get:hover, a.get:focus-visible { border-color: var(--accent); }
-	.get-name { font-family: var(--font-sans); font-size: clamp(1.4rem, min(2.2vw, 4svh), 2rem); font-weight: 900; letter-spacing: -0.04em; color: var(--fg); }
-	.get-note { flex: 1; font-size: 1rem; line-height: 1.5; color: var(--muted); }
-	.get-file { font-family: var(--font-sans); font-weight: 700; color: var(--accent); }
-	.get.mine { background: linear-gradient(140deg, var(--accent-surface), var(--surface) 70%); border-color: var(--accent-border); }
-	.get-cmd { margin-top: clamp(0.9rem, 2.4svh, 1.4rem); font-size: 0.95rem; line-height: 1.6; color: var(--muted); }
-	.get-cmd code { display: block; margin-top: 0.35rem; padding: 0.6rem 0.8rem; border-radius: 0.5rem; background: var(--surface); color: var(--fg); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; overflow-wrap: anywhere; user-select: all; }
-	.get-mine { font-size: 0.8rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+	/* ---- download window ---- */
+	.chooser {
+		width: min(100% - 2rem, 50rem);
+		max-height: min(100% - 2rem, 48rem);
+		margin: auto;
+		padding: 0;
+		border: 1px solid var(--line-strong);
+		border-radius: var(--r-lg);
+		background: var(--bg);
+		color: var(--fg);
+		box-shadow: var(--shadow-lift);
+	}
+	.chooser::backdrop { background: rgb(0 0 0 / 0.6); backdrop-filter: blur(4px); }
+	.chooser-inner { position: relative; padding: clamp(1.25rem, 3vw, 2rem); }
+	.close { position: absolute; top: 0.75rem; right: 0.75rem; width: 2.4rem; height: 2.4rem; border-radius: 999px; font-size: 1.6rem; line-height: 1; color: var(--muted); }
+	.close:hover, .close:focus-visible { color: var(--fg); background: var(--surface-2); }
+	.chooser-title { padding-right: 2.5rem; font-family: var(--font-sans); font-size: clamp(1.6rem, 4vw, 2.2rem); font-weight: 900; letter-spacing: -0.03em; line-height: 1.1; }
+	.chooser-lede { margin-top: 0.5rem; max-width: 40rem; font-size: 1.05rem; line-height: 1.55; color: var(--muted); }
+	.options { display: grid; gap: 0.9rem; margin-top: 1.25rem; }
+	@media (min-width: 640px) { .options { grid-template-columns: 1fr 1fr; } }
+	.option { display: flex; flex-direction: column; gap: 0.55rem; padding: clamp(1.1rem, 2.5vw, 1.5rem); text-align: left; transition: border-color 0.2s ease, transform 0.25s var(--ease-spring); }
+	a.option:hover, a.option:focus-visible { border-color: var(--accent); transform: translateY(-2px); }
+	.option.solo { margin-top: 1.25rem; }
+	.option-name { font-family: var(--font-sans); font-size: clamp(1.4rem, 3vw, 1.75rem); font-weight: 900; letter-spacing: -0.03em; }
+	.option-note { flex: 1; font-size: 1rem; line-height: 1.5; color: var(--muted); }
+	.option-go { margin-top: 0.3rem; font-family: var(--font-sans); font-weight: 700; color: var(--accent); }
+	.hint { margin-top: 1rem; font-size: 0.95rem; line-height: 1.5; color: var(--muted); }
+	.chooser .show-all { margin: 1rem 0 0; }
+	.group { margin-top: 1.6rem; font-family: var(--font-sans); font-size: 1.25rem; font-weight: 900; letter-spacing: -0.02em; scroll-margin-top: 1rem; }
+	.group span { display: block; margin-top: 0.25rem; font-family: var(--font-body, inherit); font-size: 0.95rem; font-weight: 400; letter-spacing: 0; line-height: 1.5; color: var(--muted); }
+	.files { display: grid; gap: 0.65rem; margin-top: 0.75rem; list-style: none; padding: 0; }
+	@media (min-width: 560px) { .files { grid-template-columns: 1fr 1fr; } .files .wide { grid-column: 1 / -1; } }
+	.file { display: flex; flex-direction: column; align-items: flex-start; gap: 0.35rem; height: 100%; padding: 0.95rem 1.15rem; border-radius: var(--r); transition: border-color 0.2s ease; }
+	a.file:hover, a.file:focus-visible { border-color: var(--accent); }
+	.file.mine { background: linear-gradient(140deg, var(--accent-surface), var(--surface) 70%); border-color: var(--accent-border); }
+	.file-name { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; font-family: var(--font-sans); font-size: 1.1rem; font-weight: 800; letter-spacing: -0.02em; }
+	.mine-tag { font-size: 0.7rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+	.file-get { font-family: var(--font-sans); font-size: 0.95rem; font-weight: 700; color: var(--accent); overflow-wrap: anywhere; }
+	.cmd { display: flex; flex-direction: column; align-items: flex-start; gap: 0.6rem; width: 100%; margin-top: 0.25rem; }
+	.cmd code { display: block; width: 100%; padding: 0.6rem 0.8rem; border-radius: 0.5rem; background: var(--bg); color: var(--fg); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; overflow-wrap: anywhere; user-select: all; }
 
 	/* ---- slide 1 ---- */
 	.hive-hero { overflow: clip; }
@@ -165,10 +279,18 @@
 		line-height: 1.6;
 		color: var(--muted);
 	}
-	.get-hive { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-top: clamp(1.1rem, 3.2svh, 2rem); }
-	.soon { opacity: 0.55; cursor: default; }
-	.soon:hover { transform: none; }
-	.soon small { font-size: 0.75em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
+	/* The button sits to the right of the intro text on a wide screen, under it on a narrow one. */
+	.intro { display: flex; flex-wrap: wrap; align-items: flex-end; gap: clamp(1.1rem, 3.2svh, 2rem) clamp(1.5rem, 4vw, 3.5rem); }
+	.intro > div:first-child { flex: 1 1 32rem; min-width: 0; }
+	.get-hive { display: flex; flex-direction: column; align-items: flex-start; gap: 0.8rem; }
+	.get-btn { min-height: 3.5rem; padding-inline: 1.9rem; font-size: 1.15rem; }
+	.get-more { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; }
+	.store { display: inline-flex; align-items: center; gap: 0.4rem; height: 2.1rem; padding: 0 0.75rem; border-radius: 999px; border: 1.5px solid var(--line-strong); font-family: var(--font-sans); font-size: 0.85rem; font-weight: 700; color: var(--fg); transition: border-color 0.2s ease; }
+	a.store:hover, a.store:focus-visible { border-color: var(--fg); }
+	.store.soon { color: var(--faint); border-style: dashed; cursor: default; }
+	.store small { font-size: 0.65rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+	.show-all { margin-left: 0.35rem; font-family: var(--font-sans); font-weight: 700; color: var(--accent); }
+	.show-all:hover, .show-all:focus-visible { text-decoration: underline; text-underline-offset: 3px; }
 	.cue {
 		position: absolute;
 		inset-inline: 0;
