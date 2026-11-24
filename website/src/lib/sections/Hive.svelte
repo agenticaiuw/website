@@ -6,7 +6,8 @@
 	// serves the newest. A Mac build runs on every Mac (Apple silicon and Intel in one file).
 	const builds = 'https://github.com/agenticaiuw/hive/releases/download/latest/';
 	// Hive is the whole system. Hive Server runs on a computer that's always on; the Hive app goes on the laptop you
-	// use every day and connects to it. Hive isn't in the App Store or Google Play: the iPhone apps are sideloaded.
+	// use every day and connects to it. Hive isn't in the App Store or Google Play: on iPhone it's sideloaded, or
+	// installed from a signed link once the release has one.
 	type Computer = 'mac' | 'windows' | 'linux';
 	const computers: Record<Computer, { name: string; server?: string; app?: string }> = {
 		mac: { name: 'Mac', server: 'Hive-Server.dmg', app: 'Hive-Mac.dmg' },
@@ -15,10 +16,22 @@
 		linux: { name: 'Linux' }
 	};
 	const extension = 'Hive-Browser.zip';
-	const iphone = [
-		{ name: 'Hive', file: 'Hive.ipa' },
-		{ name: 'Hive Phone', file: 'HivePhone.ipa' }
-	];
+	const ipa = 'Hive.ipa';
+	// Once GitHub signs Hive.ipa with the club's Apple team, the release also has manifest.plist, and this link installs
+	// Hive straight onto an iPhone the club has registered. Until then the link would fail, so it isn't shown.
+	const install = `itms-services://?action=download-manifest&url=${builds}manifest.plist`;
+	const DEV_MODE = 'On your iPhone, open Settings > Privacy & Security > Developer Mode, turn it on, and restart when asked. Developer Mode appears there after Hive is installed.';
+	let signed = $state(false);
+	let checked = false;
+	// GitHub's API lists the release's files; its download links can't be checked from a browser.
+	function checkSigned() {
+		if (checked) return;
+		checked = true;
+		fetch('https://api.github.com/repos/agenticaiuw/hive/releases/tags/latest')
+			.then((r) => (r.ok ? r.json() : null))
+			.then((release) => (signed = !!release?.assets?.some((a: { name: string }) => a.name === 'manifest.plist')))
+			.catch(() => {});
+	}
 	// A cloud server has no browser: this one command fetches the Linux build for its processor.
 	const linux = `curl -fLo hive-server ${builds}hive-server-linux-$(uname -m) && chmod +x hive-server && sudo ./hive-server`;
 	const SERVER_NOTE = 'For a computer that stays on and online 24/7: an old laptop at home, a desktop, or a cloud server. Hive runs here.';
@@ -42,6 +55,7 @@
 	let view = $state<'pick' | 'all'>('pick');
 	function open(v: 'pick' | 'all', section = '') {
 		view = v;
+		checkSigned();
 		dialog.showModal();
 		if (section) requestAnimationFrame(() => dialog.querySelector(`#${section}`)?.scrollIntoView({ block: 'start' }));
 	}
@@ -141,15 +155,21 @@
 		{:else if view === 'pick' && phone === 'iPhone'}
 			<!-- Only what fits an iPhone. -->
 			<h2 id="chooser-title" class="chooser-title">Hive for iPhone</h2>
-			<p class="chooser-lede">Hive isn't in the App Store yet, so these are installed by sideloading.</p>
-			<div class="options">
-				{#each iphone as g (g.file)}
-					<a class="card option" href={builds + g.file} download onclick={() => dialog.close()}>
-						<span class="option-name">{g.name}</span>
-						<span class="option-go">{g.file} <span aria-hidden="true">↓</span></span>
+			<p class="chooser-lede">Hive isn't in the App Store yet{signed ? '.' : ", so it's installed by sideloading."}</p>
+			<div class="options" class:one={!signed}>
+				{#if signed}
+					<a class="card option" href={install}>
+						<span class="option-name">Install Hive</span>
+						<span class="option-note">Installs straight onto this iPhone. Only for iPhones the club has registered.</span>
+						<span class="option-go">Install <span aria-hidden="true">↓</span></span>
 					</a>
-				{/each}
+				{/if}
+				<a class="card option" href={builds + ipa} download onclick={() => dialog.close()}>
+					<span class="option-name">Hive</span>
+					<span class="option-go">{ipa} <span aria-hidden="true">↓</span></span>
+				</a>
 			</div>
+			<p class="hint">{DEV_MODE}</p>
 			<button type="button" class="show-all" onclick={() => (view = 'all')}>Show all downloads</button>
 		{:else if view === 'pick' && phone === 'Android'}
 			<h2 id="chooser-title" class="chooser-title">Hive for Android</h2>
@@ -190,15 +210,20 @@
 				</a></li>
 			</ul>
 
-			<h3 class="group" id="dl-iphone">iPhone <span>Not in the App Store yet: these are installed by sideloading.</span></h3>
+			<h3 class="group" id="dl-iphone">iPhone <span>Not in the App Store yet{signed && os === 'ios' ? '.' : ": it's installed by sideloading."}</span></h3>
 			<ul class="files" role="list">
-				{#each iphone as g (g.file)}
-					<li><a class="card file" class:mine={os === 'ios'} href={builds + g.file} download>
-						<span class="file-name">{g.name}</span>
-						<span class="file-get">{g.file} <span aria-hidden="true">↓</span></span>
+				{#if signed && os === 'ios'}
+					<li><a class="card file mine" href={install}>
+						<span class="file-name">Install Hive<span class="mine-tag">This iPhone</span></span>
+						<span class="file-get">Install <span aria-hidden="true">↓</span></span>
 					</a></li>
-				{/each}
+				{/if}
+				<li><a class="card file" class:mine={os === 'ios' && !signed} href={builds + ipa} download>
+					<span class="file-name">Hive</span>
+					<span class="file-get">{ipa} <span aria-hidden="true">↓</span></span>
+				</a></li>
 			</ul>
+			<p class="hint">{DEV_MODE}</p>
 		{/if}
 	</div>
 </dialog>
@@ -241,7 +266,7 @@
 	.chooser-title { padding-right: 2.5rem; font-family: var(--font-sans); font-size: clamp(1.6rem, 4vw, 2.2rem); font-weight: 900; letter-spacing: -0.03em; line-height: 1.1; }
 	.chooser-lede { margin-top: 0.5rem; max-width: 40rem; font-size: 1.05rem; line-height: 1.55; color: var(--muted); }
 	.options { display: grid; gap: 0.9rem; margin-top: 1.25rem; }
-	@media (min-width: 640px) { .options { grid-template-columns: 1fr 1fr; } }
+	@media (min-width: 640px) { .options { grid-template-columns: 1fr 1fr; } .options.one { grid-template-columns: minmax(0, 1fr); } }
 	.option { display: flex; flex-direction: column; gap: 0.55rem; padding: clamp(1.1rem, 2.5vw, 1.5rem); text-align: left; transition: border-color 0.2s ease, transform 0.25s var(--ease-spring); }
 	a.option:hover, a.option:focus-visible { border-color: var(--accent); transform: translateY(-2px); }
 	.option.solo { margin-top: 1.25rem; }
