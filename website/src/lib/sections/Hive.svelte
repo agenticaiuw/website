@@ -61,67 +61,44 @@
 	</div>
 {/snippet}
 
-<!-- Slide 1: the project's name and goal, big, with why it matters and the download beside it. -->
+<!-- Slide 1: the logo and name, what Hive does, and the download right under it. -->
 <section id="hive" class="slide hive-hero scroll-mt-16">
 	<header class="shell hero-inner" data-hero>
 		<div class="hero-grid">
 			<div class="hero-copy">
-				<p class="eyebrow accent" data-hero-after>{project.eyebrow}</p>
-				<h1 class="title"><span class="word" data-word>{project.title}<span class="title-dot">.</span></span></h1>
+				<!-- The logo beside the name, as one lockup. -->
+				<h1 class="title"><img class="hive-logo" src="/images/hive-icon.png" alt="" width="256" height="256" data-word /><span class="word" data-word>{project.title}</span></h1>
 				<p class="goal" data-hero-after>{@html richHtml(project.goal)}</p>
-				{#if project.why}<p class="why" data-hero-after>{project.why}</p>{/if}
-			<div class="get-hive" data-hero-after>
-				{#if computer}
-					<button type="button" class="btn btn-red get-btn" onclick={() => open('pick')} aria-haspopup="dialog">Download for {computer.name} <span aria-hidden="true">↓</span></button>
-				{:else}
-					<button type="button" class="btn btn-red get-btn" onclick={() => open('all', os === 'ios' ? 'dl-iphone' : '')} aria-haspopup="dialog">
-						{os === 'ios' ? 'Get Hive for iPhone' : 'Download Hive'} <span aria-hidden="true">↓</span>
-					</button>
-				{/if}
-				<!-- Small, like other sites' download rows. The stores are placeholders until Hive is listed there. -->
-				<div class="get-more">
-					<span class="store soon" title="Coming soon to the App Store" aria-label="App Store, coming soon">
-						<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.3 1.9-3.4 2-3.5a4.3 4.3 0 0 0-3.4-1.8c-1.4-.2-2.8.8-3.5.8s-1.8-.8-3-.8a4.5 4.5 0 0 0-3.8 2.3c-1.6 2.8-.4 7 1.2 9.2.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7 2-1.1 2.8-2.2a9.6 9.6 0 0 0 1.2-2.6 4 4 0 0 1-2.4-3.7ZM14.2 5.8a4 4 0 0 0 .9-2.9 4.1 4.1 0 0 0-2.7 1.4 3.8 3.8 0 0 0-.9 2.8 3.4 3.4 0 0 0 2.7-1.3Z" /></svg>
-						App Store <small>Soon</small>
-					</span>
-					<span class="store soon" title="Coming soon to Google Play" aria-label="Google Play, coming soon">
-						<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M4.6 2.8a1.3 1.3 0 0 0-.6 1.1v16.2a1.3 1.3 0 0 0 .6 1.1L13.4 12 4.6 2.8Zm9.9 10.3 2.4 2.4-10.5 6 8.1-8.4Zm3.8-4.7 2.9 1.7a1.1 1.1 0 0 1 0 1.9l-2.9 1.7-2.6-2.7 2.6-2.6ZM6.4 2.5l10.5 6-2.4 2.4-8.1-8.4Z" /></svg>
-						Google Play <small>Soon</small>
-					</span>
-					<a class="store" href={builds + extension} download title="Browser extension for Chrome, Edge and Brave">
-						<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4.5a2 2 0 1 1 4 0V6h3.5A1.5 1.5 0 0 1 18 7.5V11h1.5a2 2 0 1 1 0 4H18v3.5a1.5 1.5 0 0 1-1.5 1.5H13v-1.5a2 2 0 1 0-4 0V20H5.5A1.5 1.5 0 0 1 4 18.5V15h1.5a2 2 0 1 0 0-4H4V7.5A1.5 1.5 0 0 1 5.5 6H9V4.5Z" /></svg>
-						Extension
-					</a>
-					<button type="button" class="show-all" onclick={() => open('all')}>Show all</button>
-				</div>
-			</div>
 			</div>
 
-			<!-- How Hive fits together, at a glance: one always-on server, your devices around it. -->
-			<figure class="hero-visual" data-hero-after aria-label="Hive Server stays on all the time and connects to your laptop, phone and browser.">
-				<svg class="links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-					<line x1="50" y1="52" x2="15" y2="14" /><line x1="50" y1="52" x2="85" y2="14" /><line x1="50" y1="52" x2="50" y2="90" />
-				</svg>
-				<div class="node server" style="left: 50%; top: 52%">
-					<span class="node-icon">
-						<svg viewBox="0 0 24 24" width="38" height="38" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.8 19.5 7v8.6L12 19.8l-7.5-4.2V7L12 2.8Z" /><path d="M12 7.5 15.6 9.6v4.2L12 15.9l-3.6-2.1V9.6L12 7.5Z" /></svg>
-					</span>
-					<span class="node-name">Hive Server</span>
-					<span class="node-note"><span class="live" aria-hidden="true"></span>On 24/7 · agents run here</span>
+			<!-- Like most download pages: one centred column, the download right under the intro. -->
+			<div class="get-panel" data-hero-after>
+				<div class="get-hive">
+					{#if computer}
+						<button type="button" class="btn btn-red get-btn" onclick={() => open('pick')} aria-haspopup="dialog">Download for {computer.name} <span aria-hidden="true">↓</span></button>
+					{:else}
+						<button type="button" class="btn btn-red get-btn" onclick={() => open('all', os === 'ios' ? 'dl-iphone' : '')} aria-haspopup="dialog">
+							{os === 'ios' ? 'Get Hive for iPhone' : 'Download Hive'} <span aria-hidden="true">↓</span>
+						</button>
+					{/if}
+					<!-- Small, like other sites' download rows. The stores are placeholders until Hive is listed there. -->
+					<div class="get-more">
+						<span class="store soon" title="Coming soon to the App Store" aria-label="App Store, coming soon">
+							<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.3 1.9-3.4 2-3.5a4.3 4.3 0 0 0-3.4-1.8c-1.4-.2-2.8.8-3.5.8s-1.8-.8-3-.8a4.5 4.5 0 0 0-3.8 2.3c-1.6 2.8-.4 7 1.2 9.2.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7 2-1.1 2.8-2.2a9.6 9.6 0 0 0 1.2-2.6 4 4 0 0 1-2.4-3.7ZM14.2 5.8a4 4 0 0 0 .9-2.9 4.1 4.1 0 0 0-2.7 1.4 3.8 3.8 0 0 0-.9 2.8 3.4 3.4 0 0 0 2.7-1.3Z" /></svg>
+							App Store <small>Soon</small>
+						</span>
+						<span class="store soon" title="Coming soon to Google Play" aria-label="Google Play, coming soon">
+							<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M4.6 2.8a1.3 1.3 0 0 0-.6 1.1v16.2a1.3 1.3 0 0 0 .6 1.1L13.4 12 4.6 2.8Zm9.9 10.3 2.4 2.4-10.5 6 8.1-8.4Zm3.8-4.7 2.9 1.7a1.1 1.1 0 0 1 0 1.9l-2.9 1.7-2.6-2.7 2.6-2.6ZM6.4 2.5l10.5 6-2.4 2.4-8.1-8.4Z" /></svg>
+							Google Play <small>Soon</small>
+						</span>
+						<a class="store" href={builds + extension} download title="Browser extension for Chrome, Edge and Brave">
+							<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4.5a2 2 0 1 1 4 0V6h3.5A1.5 1.5 0 0 1 18 7.5V11h1.5a2 2 0 1 1 0 4H18v3.5a1.5 1.5 0 0 1-1.5 1.5H13v-1.5a2 2 0 1 0-4 0V20H5.5A1.5 1.5 0 0 1 4 18.5V15h1.5a2 2 0 1 0 0-4H4V7.5A1.5 1.5 0 0 1 5.5 6H9V4.5Z" /></svg>
+							Extension
+						</a>
+						<button type="button" class="show-all" onclick={() => open('all')}>Show all</button>
+					</div>
 				</div>
-				<div class="node" style="left: 15%; top: 14%">
-					<span class="node-icon"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="1.5" /><path d="M2.5 19h19" /></svg></span>
-					<span class="node-name">Your laptop</span>
-				</div>
-				<div class="node" style="left: 85%; top: 14%">
-					<span class="node-icon"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2" /><path d="M3 9h18M6.5 6.8h.01M9 6.8h.01" /></svg></span>
-					<span class="node-name">Your browser</span>
-				</div>
-				<div class="node" style="left: 50%; top: 90%">
-					<span class="node-icon"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5" /><path d="M10.5 18.5h3" /></svg></span>
-					<span class="node-name">Your phone</span>
-				</div>
-			</figure>
+			</div>
 		</div>
 	</header>
 
@@ -273,7 +250,7 @@
 
 	/* ---- slide 1 ---- */
 	.hive-hero { overflow: clip; }
-	.hero-inner { transform-origin: 30% 40%; }
+	.hero-inner { transform-origin: 50% 40%; }
 	.title {
 		margin-top: 0.25rem;
 		font-family: var(--font-sans);
@@ -285,7 +262,6 @@
 		color: var(--fg);
 	}
 	.word { display: inline-block; }
-	.title-dot { color: var(--accent); }
 	.goal {
 		margin-top: clamp(1rem, 3.5svh, 2rem);
 		max-width: 58rem;
@@ -297,35 +273,21 @@
 		color: var(--fg);
 	}
 	.goal :global(strong) { font-weight: 800; }
-	.why {
-		margin-top: clamp(0.9rem, 2.6svh, 1.5rem);
-		max-width: 46rem;
-		font-size: clamp(1rem, min(1.25vw, 2.3svh), 1.15rem);
-		line-height: 1.6;
-		color: var(--muted);
-	}
-	/* Text and download read as one unit on the left; on a wide screen, the picture of Hive fills the right. */
-	.hero-grid { display: grid; align-items: center; gap: clamp(2rem, 5vw, 4.5rem); }
-	.hero-copy { min-width: 0; }
-	.get-hive { display: flex; flex-direction: column; align-items: flex-start; gap: 0.8rem; margin-top: clamp(1.25rem, 3.6svh, 2.25rem); }
-	.hero-visual { display: none; }
-	@media (min-width: 960px) {
-		.hero-grid { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
-		.title { font-size: clamp(4.5rem, min(13vw, 24svh), 12rem); }
-		.goal { font-size: clamp(1.3rem, min(2.1vw, 4svh), 1.9rem); }
-		.hero-visual { display: block; position: relative; aspect-ratio: 1 / 0.95; margin: 0; }
-	}
-	.links { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-	.links line { stroke: var(--line-strong); stroke-width: 1.5; stroke-dasharray: 3 5; vector-effect: non-scaling-stroke; animation: flow 1.6s linear infinite; }
-	@keyframes flow { to { stroke-dashoffset: -16; } }
-	.node { position: absolute; translate: -50% -50%; display: flex; flex-direction: column; align-items: center; gap: 0.45rem; text-align: center; }
-	.node-icon { display: grid; place-items: center; width: 4.4rem; height: 4.4rem; border-radius: 1.3rem; border: 1px solid var(--line-strong); background: var(--surface); color: var(--fg); box-shadow: var(--shadow); }
-	.node-name { font-family: var(--font-sans); font-size: 1.05rem; font-weight: 700; color: var(--fg); white-space: nowrap; }
-	.server { gap: 0.55rem; }
-	.server .node-icon { width: 7rem; height: 7rem; border-radius: 2rem; border-color: var(--accent-border); background: linear-gradient(150deg, var(--accent-surface), var(--surface) 75%); color: var(--accent); box-shadow: 0 0 0 10px rgb(var(--glow) / 0.05), 0 0 60px -10px rgb(var(--glow) / 0.45), var(--shadow); }
-	.server .node-name { font-size: 1.4rem; font-weight: 900; letter-spacing: -0.02em; }
-	.node-note { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.9rem; color: var(--muted); white-space: nowrap; }
-	.live { width: 0.45rem; height: 0.45rem; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 3px rgb(124 196 136 / 0.18); }
+	/* One centred column, the way Raycast, Linear and Notion lay out their download pages: name, what it does,
+	   then the download right under it, with the other platforms small beneath. */
+	.hero-grid { display: flex; flex-direction: column; align-items: center; text-align: center; }
+	.hero-copy { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+	/* Even line lengths at every width, so the last line is never a few stray words. */
+	.hero-copy .goal { max-width: 50rem; text-wrap: balance; }
+	/* Name, line and download all fit above the scroll arrow, even on a short laptop screen. */
+	.hero-copy .title { display: flex; align-items: center; justify-content: center; gap: 0.12em; font-size: clamp(4rem, min(18vw, 22svh), 13rem); }
+	.hero-copy .goal { font-size: clamp(1.3rem, min(2.5vw, 3.6svh), 2.1rem); }
+	/* The icon is drawn with padding around its tile, so it sits a little taller than the letters. */
+	.hive-logo { width: 1em; height: 1em; flex: none; filter: drop-shadow(0 14px 28px rgb(240 180 58 / 0.18)); }
+	.title { transform-origin: 50% 50%; }
+	.get-panel { margin-top: clamp(1.5rem, 4.5svh, 2.75rem); }
+	.get-hive { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+	.get-hive .get-more { justify-content: center; }
 	.get-btn { min-height: 3.5rem; padding-inline: 1.9rem; font-size: 1.15rem; }
 	.get-more { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem; }
 	.store { display: inline-flex; align-items: center; gap: 0.4rem; height: 2.1rem; padding: 0 0.75rem; border-radius: 999px; border: 1.5px solid var(--line-strong); font-family: var(--font-sans); font-size: 0.85rem; font-weight: 700; color: var(--fg); transition: border-color 0.2s ease; }
@@ -380,6 +342,5 @@
 
 	@media (prefers-reduced-motion: reduce) {
 		.cue span { animation: none; }
-		.links line { animation: none; }
 	}
 </style>

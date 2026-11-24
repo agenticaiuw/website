@@ -221,7 +221,7 @@
 	"project": {
 		"eyebrow": "The club project",
 		"title": "Hive",
-		"goal": "Have agents that can do **all the tasks a person can do digitally**, with access to **all of their data** on **all their devices**, as if **another you** (or several of you) **is doing the work**.",
+		"goal": "Agents that help you **complete any digital task** across **all environments and devices**, as if **another you** were doing the work to save you time.",
 		"why": "Right now, each AI agent only reaches one corner of your digital life. One works in your files, another only in your browser, another on a server in the cloud. Hive brings them together, so your agents can use what’s on your laptop, phone and browser, and get work done on any of them.",
 		"summary": "Hive is the club’s main project: AI agents that can use your laptop, phone and browser and do the digital work you do. Every team builds a part of it, all in one open GitHub repository.",
 		"semesterLabel": "By the end of this semester",
