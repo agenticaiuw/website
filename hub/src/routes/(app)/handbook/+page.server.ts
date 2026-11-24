@@ -1,49 +1,48 @@
-import { error, redirect } from '@sveltejs/kit';
-import { all, first, run } from '$lib/server/db';
+import { redirect } from '@sveltejs/kit';
+import { all, run } from '$lib/server/db';
 import { id, readForm, str } from '$lib/server/form';
-import { isExec } from '$lib/perm';
+import { createPage, pagesFor, type Audience } from '$lib/server/knowledge';
+import { canRunBusiness, isExec } from '$lib/perm';
 import type { Actions, PageServerLoad } from './$types';
 
 /**
- * The handbook: the club's current goals, rules and how things run. Every member can read it;
- * execs edit it. Each save is a new version, and older versions stay readable.
+ * The Handbook: every page the club keeps (culture, expectations, how we work, each team,
+ * meetings, money, decisions), grouped by section. Execs add pages; each page has its own editor.
  */
-type Version = { id: number; body: string; edited_at: string; note: string; name: string | null };
-
-const VERSION_SELECT = `SELECT v.id, v.body, v.edited_at, v.note, m.name FROM handbook_versions v LEFT JOIN members m ON m.id = v.edited_by`;
-
-export const load: PageServerLoad = async ({ url, locals: { env, viewer: v } }) => {
-	const db = env.DB;
-	const latest = await first<Version>(db, `${VERSION_SELECT} ORDER BY v.id DESC LIMIT 1`);
-	const askedFor = id(url.searchParams.get('v'));
-	const shown = askedFor && askedFor !== latest?.id ? await first<Version>(db, `${VERSION_SELECT} WHERE v.id = ?`, askedFor) : latest;
-	if (askedFor && !shown) error(404, 'Not found');
-	const old = !!shown && shown.id !== latest?.id;
+export const load: PageServerLoad = async ({ locals: { env, viewer: v } }) => {
+	const pages = await pagesFor(env.DB, v);
+	const areas: { name: string; pages: typeof pages }[] = [];
+	for (const p of pages) {
+		const name = p.area || 'Other';
+		let area = areas.find((a) => a.name === name);
+		if (!area) areas.push((area = { name, pages: [] }));
+		area.pages.push(p);
+	}
 	const exec = isExec(v);
-	const history = exec ? await all<Omit<Version, 'body'>>(db, `SELECT v.id, v.edited_at, v.note, m.name FROM handbook_versions v LEFT JOIN members m ON m.id = v.edited_by ORDER BY v.id DESC LIMIT 50`) : [];
 	return {
 		title: 'Handbook',
 		active: 'handbook' as const,
 		zone: env.TIMEZONE,
-		shown,
-		old,
-		latestId: latest?.id ?? null,
-		// The editor starts from the newest text, and only execs get it.
-		latestBody: exec && !old ? (latest?.body ?? '') : '',
-		history
+		areas,
+		website: canRunBusiness(v),
+		removed: exec ? await all<{ id: number; title: string; removed_at: string }>(env.DB, `SELECT id, title, removed_at FROM kb_pages WHERE removed_at != '' ORDER BY removed_at DESC`) : []
 	};
 };
 
 export const actions: Actions = {
-	default: async ({ request, locals: { env, viewer: v } }) => {
+	create: async ({ request, locals: { env, viewer: v } }) => {
 		if (!isExec(v)) redirect(303, '/handbook?error=forbidden');
 		const form = await readForm(request);
-		const body = str(form.body, 50000).replace(/\r\n/g, '\n').trim();
-		if (!body) redirect(303, '/handbook?error=missing');
-		const latest = await first<{ id: number; body: string }>(env.DB, 'SELECT id, body FROM handbook_versions ORDER BY id DESC LIMIT 1');
-		if ((latest?.id ?? 0) !== (id(form.base) ?? 0)) redirect(303, '/handbook?error=stale');
-		if (latest?.body === body) redirect(303, '/handbook?ok=site-unchanged');
-		await run(env.DB, 'INSERT INTO handbook_versions (body, edited_by, note) VALUES (?, ?, ?)', body, v.id, str(form.note, 200));
-		redirect(303, '/handbook?ok=saved');
+		const title = str(form.title, 120).trim();
+		if (!title) redirect(303, '/handbook?error=missing');
+		const audience: Audience = form.audience === 'execs' ? 'execs' : 'members';
+		const slug = await createPage(env.DB, v, { title, area: str(form.area, 60).trim(), audience });
+		redirect(303, `/handbook/${slug}?edit`);
+	},
+	restore: async ({ request, locals: { env, viewer: v } }) => {
+		if (!isExec(v)) redirect(303, '/handbook?error=forbidden');
+		const page = id((await readForm(request)).id);
+		if (page) await run(env.DB, `UPDATE kb_pages SET removed_at = '' WHERE id = ?`, page);
+		redirect(303, '/handbook?ok=page-restored');
 	}
 };

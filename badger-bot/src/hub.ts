@@ -27,3 +27,21 @@ export async function hubMeetings(env: Env, message: DiscordMessage, exec: boole
 		return `The hub's meetings couldn't be loaded just now. Say you couldn't check, and point people to ${HUB}/meetings.`;
 	}
 }
+
+/**
+ * The club's Handbook, read live from the hub: how the club works, its teams, meetings, money and
+ * decisions, each written once and kept current there. Execs also get the exec-only pages.
+ */
+export async function hubHandbook(env: Env, exec: boolean): Promise<string> {
+	try {
+		const res = await fetch(`${HUB}/api/bot/knowledge?exec=${exec ? "1" : "0"}`, {
+			headers: { Authorization: `Bearer ${env.HUB_TOKEN}` },
+			signal: AbortSignal.timeout(TIMEOUT_MS),
+		});
+		if (!res.ok) throw new Error(`HTTP ${res.status}`);
+		return await res.text();
+	} catch (error) {
+		console.error("hub handbook unreachable", String(error));
+		return `The hub's Handbook couldn't be loaded just now. Say you couldn't check, and point people to ${HUB}/handbook.`;
+	}
+}

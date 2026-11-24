@@ -7,6 +7,8 @@ import { teamLibrary, teamRoster, teamSubteams } from './teams';
 import { canRunBusiness, isExec } from '../perm';
 import { contactsSection } from './outreach';
 import { teamSignups } from './signups';
+import { canEdit as canEditPage, latestVersion, teamPage } from './knowledge';
+import { sectionData } from './site/store';
 import type { Env, MeetingRow, TaskRow, Team, Viewer } from '../types';
 
 /** Everything the team page (and a subteam's view of it) shows. `subteamParam` is set on /teams/:id/subteams/:subteam. */
@@ -43,11 +45,11 @@ export async function loadTeamPage(env: Env, v: Viewer, url: URL, teamParam: str
 		// People who signed up for the team at /join, for its execs and leads.
 		!selected && manager && team.kind === 'project' ? teamSignups(db, team.id) : Promise.resolve([])
 	]);
+	const about = selected ? null : await teamAbout(db, v, team.id);
 	const canCreate = !team.archived && !selected?.archived && (isExec(v) || v.teamIds.has(team.id));
 	const resources = (
 		[
 			['Discord', team.discord_url],
-			['Drive', team.drive_url],
 			['GitHub', team.github_url]
 		] as [string, string | undefined][]
 	).filter((pair): pair is [string, string] => !!pair[1] && isHttpUrl(pair[1]));
@@ -58,7 +60,8 @@ export async function loadTeamPage(env: Env, v: Viewer, url: URL, teamParam: str
 		today,
 		root,
 		back,
-		team: { id: team.id, name: team.name, kind: team.kind, archived: team.archived, description: team.description, discord_url: team.discord_url ?? '', drive_url: team.drive_url ?? '', github_url: team.github_url ?? '', cal_url: team.cal_url ?? '' },
+		team: { id: team.id, name: team.name, kind: team.kind, archived: team.archived, discord_url: team.discord_url ?? '', github_url: team.github_url ?? '', cal_url: team.cal_url ?? '' },
+		about,
 		// Emails only go to people who pick team members (and need NetIDs to tell names apart).
 		members: editable || manager ? members : members.map((m) => ({ ...m, email: '' })),
 		subteams: visible,
@@ -80,6 +83,25 @@ export async function loadTeamPage(env: Env, v: Viewer, url: URL, teamParam: str
 		due: addDays(today, 7),
 		assignedPeople: new Set(!selectedIds.length && v.teamIds.has(team.id) ? [v.id] : []),
 		assignedSubteams: new Set(manager ? selectedIds : [])
+	};
+}
+
+/**
+ * What the team does, each part written once: the public line and goals come from the website
+ * text (edited under Website), and the team's own Handbook page holds the rest.
+ */
+async function teamAbout(db: D1Database, v: Viewer, teamId: number) {
+	const [{ data: site }, page] = await Promise.all([sectionData(db, 'teams'), teamPage(db, teamId)]);
+	const items = (Array.isArray(site.items) ? site.items : []) as { team?: unknown; line?: unknown; goals?: unknown }[];
+	const item = items.find((i) => Number(i.team) === teamId);
+	const latest = page ? await latestVersion(db, page.id) : null;
+	return {
+		line: typeof item?.line === 'string' ? item.line : '',
+		goals: Array.isArray(item?.goals) ? item.goals.filter((g): g is string => typeof g === 'string' && !!g.trim()) : [],
+		goalsLabel: typeof site.goalsLabel === 'string' && site.goalsLabel ? site.goalsLabel : 'Goals',
+		website: canRunBusiness(v),
+		page: page ? { slug: page.slug, title: page.title, body: latest?.body ?? '', edited_at: latest?.edited_at ?? null, editor: latest?.name ?? null } : null,
+		pageEditable: page ? await canEditPage(db, v, page) : isExec(v) || v.leadOf.has(teamId)
 	};
 }
 

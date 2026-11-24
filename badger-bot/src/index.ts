@@ -6,7 +6,6 @@ export { DiscordGateway } from "./gateway.ts";
 import { mentionPermissionStatus } from "./mention-permissions.ts";
 import { execRoleNames } from "./access.ts";
 import { chatgptPlan } from "./chatgpt-plan.ts";
-import { clubDrive } from "./club-drive.ts";
 import {
 	type DiscordMessage,
 	addReaction,
@@ -269,9 +268,6 @@ export default {
 
 		if (url.pathname === "/status" && request.method === "GET") {
 			const { status, connectedAt, reconnectAttempts, health } = await gateway(env).status();
-			const drive = await clubDrive(env)
-				.status()
-				.catch((error) => ({ error: String(error) }));
 			const execRoles = await execRoleNames(env).catch(() => null);
 			const quietChannels = await brain(env)
 				.quietChannels()
@@ -279,7 +275,7 @@ export default {
 				.catch(() => null);
 			const defaultReadChannels = await listeningChannels(env).catch(() => []);
 			const moderation = await mentionPermissionStatus(env).catch(() => ({ error: "Discord permission check failed" }));
-			return Response.json({ status, connectedAt, reconnectAttempts, health, drive, execRoles, quietChannels, moderation, defaultReadChannels, memberMessaging: { tool: "dm_members", access: "exec", maxRecipientsPerRequest: 20, deliveryReceipts: true, replyMentions: "explicit-users-only", memberNames: "server-nickname-first" } });
+			return Response.json({ status, connectedAt, reconnectAttempts, health, execRoles, quietChannels, moderation, defaultReadChannels, memberMessaging: { tool: "dm_members", access: "exec", maxRecipientsPerRequest: 20, deliveryReceipts: true, replyMentions: "explicit-users-only", memberNames: "server-nickname-first" } });
 		}
 
 		// Safe to expose: it only connects this bot, and does nothing when already connected.
@@ -303,11 +299,6 @@ export default {
 			activity(env)
 				.ensureScanned()
 				.catch((error) => console.error("activity scan check failed", error)),
-		);
-		ctx.waitUntil(
-			clubDrive(env)
-				.keepSyncing()
-				.catch((error) => console.error("drive sync check failed", error)),
 		);
 		ctx.waitUntil(
 			dailyReview(env)

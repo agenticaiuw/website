@@ -104,8 +104,8 @@
 	<Field label="Location" hint="Room, Discord channel or Zoom link">
 		<input name="location" maxlength={200} value={m?.location ?? ''} />
 	</Field>
-	<Field label="Meeting doc" hint="Optional link to the Google Doc">
-		<input type="url" name="doc_url" maxlength={500} value={m?.doc_url ?? ''} placeholder="https://docs.google.com/…" />
+	<Field label="Meeting doc" hint="Optional link, like a file on the Files page">
+		<input type="url" name="doc_url" maxlength={500} value={m?.doc_url ?? ''} />
 	</Field>
 	<Field label="Agenda" hint="Markdown works: - bullets, **bold**, links." wide>
 		<textarea name="agenda" rows={6} value={m?.agenda ?? ''}></textarea>

@@ -8,8 +8,7 @@ import { brain as brainStore } from "./brain.ts";
 import type { BrainSession } from "./brain-tools.ts";
 import { type ServerView, canSee, listChannels, readChannel, serverView } from "./channel-reader.ts";
 import { CLUB_INFO } from "./club-info.ts";
-import { clubDrive } from "./club-drive.ts";
-import { hubMeetings } from "./hub.ts";
+import { hubHandbook, hubMeetings } from "./hub.ts";
 import { isDiscordFileUrl, readAttachmentUrl } from "./documents.ts";
 import { MAX_OPENED_IMAGES, isImageLink, openImage } from "./media.ts";
 import { type DiscordMessage, fetchAllMembers } from "./discord.ts";
@@ -72,7 +71,7 @@ export function fileSystem(options: FileSystemOptions): FunctionTool[] {
 	/** Tools whose description (and rules) the bot has seen in this answer. */
 	const seen = new Set<string>();
 	const exec = options.access === "exec";
-	const hidden = (top: string) => !exec && (top === "drive" || top === "rules" || top === "vm" || top === "activity");
+	const hidden = (top: string) => !exec && (top === "rules" || top === "vm" || top === "activity");
 	let server: Promise<ServerView | null> | undefined;
 	const view = () => (server ??= message.guild_id ? serverView(env.DISCORD_BOT_TOKEN, message.guild_id).catch(() => null) : Promise.resolve(null));
 	/** Sessions from channels this person can see (and the one they're in). */
@@ -91,19 +90,13 @@ export function fileSystem(options: FileSystemOptions): FunctionTool[] {
 		"skills/  agent skills",
 		"tools/  actions you can run",
 		...(exec
-			? ["activity/  how active each member is", "drive/  the club's Google Drive", "rules/  standing rules from execs", `vm/  your Linux workspace (${WORKSPACE})`]
+			? ["activity/  how active each member is", "rules/  standing rules from execs", `vm/  your Linux workspace (${WORKSPACE})`]
 			: []),
 	].join("\n");
 
 	async function vmSandbox() {
 		if (!vm) throw new Error("only execs can use the VM");
 		return vm.open();
-	}
-
-	async function driveFile(rest: string[]) {
-		const wanted = rest.join("/");
-		const files = await clubDrive(env).files();
-		return files.find((f) => f.path === wanted || f.id === wanted);
 	}
 
 	async function ls(path: unknown, query: string): Promise<string> {
@@ -113,7 +106,7 @@ export function fileSystem(options: FileSystemOptions): FunctionTool[] {
 		const q = query.toLowerCase();
 		switch (top) {
 			case "club":
-				return "info.md  club facts from the website\nmeetings.md  meetings and events from the hub, the only place the schedule is kept: the next two weeks, or from=/to= dates (YYYY-MM-DD)\nhandbook.md  more from the club's working documents";
+				return "info.md  club facts from the website\nmeetings.md  meetings and events from the hub, the only place the schedule is kept: the next two weeks, or from=/to= dates (YYYY-MM-DD)\nhandbook.md  the club's Handbook, live from the hub: how the club works, meetings, money, plans and decisions (always right)";
 			case "channels":
 				return listChannels(env, message, query);
 			case "memory": {
@@ -168,16 +161,6 @@ export function fileSystem(options: FileSystemOptions): FunctionTool[] {
 			}
 			case "tools":
 				return actions.map((t) => `${t.name}  ${firstSentence(t.description)}`).join("\n") || "No tools.";
-			case "drive": {
-				const prefix = rest.length ? `${rest.join("/")}/` : "";
-				const files = (await clubDrive(env).files()).filter(
-					(f) => f.path.startsWith(prefix) && (!q || `${f.path} ${f.description ?? ""}`.toLowerCase().includes(q)),
-				);
-				const lines = files
-					.slice(0, MAX_LISTED)
-					.map((f) => `${f.path}  (${f.kind}, modified ${f.modified})${f.description ? ` ${f.description}` : ""}${f.readable ? "" : " [no text]"}`);
-				return lines.join("\n") || "No matching files.";
-			}
 			case "rules":
 				return (await brain.rules.list()).map((r) => `${r.name}.md  ${firstSentence(r.instructions)}`).join("\n") || "No rules yet.";
 			case "vm": {
@@ -214,7 +197,7 @@ export function fileSystem(options: FileSystemOptions): FunctionTool[] {
 			case "club":
 				if (/^info(\.md)?$/.test(name)) return CLUB_INFO;
 				if (/^meetings(\.md)?$/.test(name)) return hubMeetings(env, message, exec, args.from, args.to);
-				if (/^handbook(\.md)?$/.test(name)) return (await clubDrive(env).knowledge("member")).handbook || "The handbook hasn't been built yet.";
+				if (/^handbook(\.md)?$/.test(name)) return hubHandbook(env, exec);
 				return "Files here: info.md, meetings.md, handbook.md.";
 			case "channels":
 				if (!name) return "Read a channel, like /channels/general or /channels/here.";
@@ -257,10 +240,6 @@ export function fileSystem(options: FileSystemOptions): FunctionTool[] {
 				const tool = actions.find((t) => t.name === name);
 				if (tool) seen.add(tool.name);
 				return tool ? toolDoc(tool) : `No tool "${name}". ls /tools lists them.`;
-			}
-			case "drive": {
-				const file = await driveFile(rest);
-				return file ? clubDrive(env).readFile(file.id) : `No Drive file "${name}". ls /drive lists them.`;
 			}
 			case "rules": {
 				const rule = (await brain.rules.list()).find((r) => r.name === name.replace(/\.md$/, ""));

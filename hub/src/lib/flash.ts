@@ -34,7 +34,9 @@ export const FLASH: Record<string, string> = {
 	restored: 'Restored. That version is live again, and the text it replaced stays in the history.',
 	uploaded: 'Uploaded.',
 	'file-removed': 'Removed. Execs can put it back from Removed files.',
-	'file-restored': 'Put back.'
+	'file-restored': 'Put back.',
+	'page-removed': 'Page removed. Execs can put it back from Removed pages at the bottom of the Handbook.',
+	'page-restored': 'Page put back.'
 };
 
 export const ERRORS: Record<string, string> = {

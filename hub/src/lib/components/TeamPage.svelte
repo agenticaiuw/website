@@ -77,9 +77,29 @@
 	{#if selected}<p><a href={data.root}>← {team.name}</a></p>{/if}
 	{#if !selected}
 		<div class="team-overview">
-			<Markdown text={team.description} empty="No team description yet." />
+			<div class="team-about">
+				{#if data.about?.line}<p class="team-line">{data.about.line}</p>{/if}
+				{#if data.about?.goals.length}
+					<h2 class="team-about-label">{data.about.goalsLabel}</h2>
+					<ul class="team-goals">{#each data.about.goals as goal}<li>{goal}</li>{/each}</ul>
+				{/if}
+				{#if data.about?.website}<p class="hint"><a href="/site/teams">Edit on the website</a></p>{/if}
+			</div>
 			<RosterPanel id="team-{team.id}-members" name={team.name} members={data.members} grantPath={isExec(v) ? `${data.root}/page-admins` : undefined} team={isExec(v) ? team : undefined} />
 		</div>
+		{#if data.about?.page?.body.trim()}
+			<article class="card handbook team-handbook" id="about">
+				<header class="team-handbook-head">
+					<h2 class="section-title">{data.about.page.title}</h2>
+					{#if data.about.pageEditable}<a class="btn small" href="/handbook/{data.about.page.slug}?edit">Edit</a>{/if}
+				</header>
+				<Markdown text={data.about.page.body} />
+			</article>
+		{:else if data.about?.page && data.about.pageEditable}
+			<p><a class="btn small" href="/handbook/{data.about.page.slug}?edit">Write the team's page</a></p>
+		{:else if data.about && !data.about.page && data.about.pageEditable && !team.archived}
+			<form method="post" action="{data.root}/handbook"><button class="btn small">Write the team's page</button></form>
+		{/if}
 		{#if data.resources.length > 0}
 			<nav class="team-resource-links" aria-label="Team links">
 				{#each data.resources as [label, url]}
@@ -89,10 +109,6 @@
 								><path
 									d="M19.7 5.3A18 18 0 0 0 15.3 4l-.5 1a16.5 16.5 0 0 0-5.6 0l-.5-1a18 18 0 0 0-4.4 1.3C1.5 9.5.8 13.6 1.2 17.6a18 18 0 0 0 5.4 2.7l1.2-1.9-1.8-.9.4-.3a12.8 12.8 0 0 0 11.2 0l.4.3-1.8.9 1.2 1.9a18 18 0 0 0 5.4-2.7c.5-4.6-.8-8.7-3.1-12.3ZM8.5 15.2c-1.1 0-2-1-2-2.2s.9-2.2 2-2.2 2 1 2 2.2-.9 2.2-2 2.2Zm7 0c-1.1 0-2-1-2-2.2s.9-2.2 2-2.2 2 1 2 2.2-.9 2.2-2 2.2Z"
 								/></svg
-							>
-						{:else if label === 'Drive'}
-							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"
-								><path d="M8.5 3h7l7 12-3.5 6h-14L1.5 15 8.5 3Z" /><path d="m8.5 3 7 12m-11 6 7-12m-10 6h21" /></svg
 							>
 						{:else}
 							<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"
@@ -120,9 +136,7 @@
 						<form method="dialog"><button class="btn small">Close</button></form>
 					</header>
 					<form class="form-grid" method="post" action="{data.root}/profile">
-						<Field label="What the team is working on" wide><textarea name="description" rows={3} maxlength={5000} value={team.description}></textarea></Field>
 						<Field label="Discord"><input type="url" name="discord" value={team.discord_url} maxlength={2048} /></Field>
-						<Field label="Drive"><input type="url" name="drive" value={team.drive_url} maxlength={2048} /></Field>
 						<Field label="GitHub"><input type="url" name="github" value={team.github_url} maxlength={2048} /></Field>
 						<Field label="Exec Cal.com link"><input type="url" name="cal" value={team.cal_url} maxlength={2048} placeholder="https://cal.com/…" /></Field>
 						<div class="wide"><button class="btn small primary">Save team page</button></div>
@@ -213,6 +227,13 @@
 </div>
 
 <style>
+	.team-about { flex: 1; min-width: 0; }
+	.team-line { margin: 0; max-width: 46rem; line-height: 1.55; }
+	.team-about-label { margin: 14px 0 4px; font-size: 14px; font-weight: 700; }
+	.team-goals { margin: 0 0 8px; padding-left: 20px; max-width: 46rem; line-height: 1.5; }
+	.team-about .hint { margin: 6px 0 0; }
+	.team-handbook-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+	.team-handbook-head .section-title { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 	.team-signups { margin-bottom: 20px; }
 	.team-signup-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 	.team-signup-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; min-width: 0; }

@@ -192,7 +192,7 @@ export async function answerMention(message: DiscordMessage, botRoleId: string |
 	let heldIds: string[] = [message.id];
 	let answered = false;
 	let readFailed = false;
-	// Execs get the Drive, the VM and actions like posting; everyone else, general club information.
+	// Execs get the VM and actions like posting; everyone else, general club information.
 	const access = await accessFor(message, env);
 	const asker = displayName(message);
 	const memory = channelMemory(env, message.channel_id);
