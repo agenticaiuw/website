@@ -198,7 +198,7 @@ export const threadList = (db: D1Database, status: 'open' | 'done') =>
 				FROM inbox_messages m LEFT JOIN members mb ON mb.id = m.sent_by WHERE m.thread_id = t.id ORDER BY m.id DESC LIMIT 1) AS who,
 			(SELECT substr(m.text, 1, 400) FROM inbox_messages m WHERE m.thread_id = t.id ORDER BY m.id DESC LIMIT 1) AS preview,
 			(SELECT COUNT(*) FROM inbox_messages m WHERE m.thread_id = t.id) AS count
-		 FROM inbox_threads t WHERE t.status = ? ORDER BY t.last_at DESC LIMIT 200`,
+		 FROM inbox_threads t WHERE t.status = ? ORDER BY t.last_at DESC LIMIT 1000`,
 		status
 	);
 
