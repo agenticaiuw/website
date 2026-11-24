@@ -17,20 +17,27 @@
 	};
 	const extension = 'Hive-Browser.zip';
 	const ipa = 'Hive.ipa';
-	// Once GitHub signs Hive.ipa with the club's Apple team, the release also has manifest.plist, and this link installs
-	// Hive straight onto an iPhone the club has registered. Until then the link would fail, so it isn't shown.
-	const install = `itms-services://?action=download-manifest&url=${builds}manifest.plist`;
+	// Once GitHub signs Hive.ipa with the club's Apple team, Hive's GitHub Pages site has the signed build, its
+	// manifest.plist and phone.json, and this link installs Hive straight onto an iPhone the club has registered (iPhones
+	// can't install from release links, which redirect). Until then the link would fail, so it isn't shown.
+	const pages = 'https://agenticaiuw.github.io/hive/';
+	let install = $state(`itms-services://?action=download-manifest&url=${pages}manifest.plist`);
 	// Developer Mode shows up in Settings only once the iPhone has been paired with a Mac: plugging it into the Hive Mac app does that.
 	const DEV_MODE = 'Plug your iPhone into your Mac with Hive open, and tap Trust on the iPhone. Then on the iPhone open Settings > Privacy & Security > Developer Mode, turn it on, and tap Restart. After it restarts, tap Turn On and enter your passcode.';
 	let signed = $state(false);
 	let checked = false;
-	// GitHub's API lists the release's files; its download links can't be checked from a browser.
+	// phone.json is there only once a build is signed, and it carries the install link.
 	function checkSigned() {
 		if (checked) return;
 		checked = true;
-		fetch('https://api.github.com/repos/agenticaiuw/hive/releases/tags/latest')
+		fetch(pages + 'phone.json')
 			.then((r) => (r.ok ? r.json() : null))
-			.then((release) => (signed = !!release?.assets?.some((a: { name: string }) => a.name === 'manifest.plist')))
+			.then((p) => {
+				if (typeof p?.install === 'string' && p.install.startsWith('itms-services://')) {
+					install = p.install;
+					signed = true;
+				}
+			})
 			.catch(() => {});
 	}
 	// A cloud server has no browser: this one command fetches the Linux build for its processor.
