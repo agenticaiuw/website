@@ -789,14 +789,242 @@ export function siteForm(form) {
 	return { destroy: () => window.removeEventListener('beforeunload', leave) };
 }
 
-/** A saved email on its Email history page grows to its full height instead of scrolling in a box. */
-export function fitFrame(frame) {
-	const fit = () => {
-		const body = frame.contentDocument?.body;
-		if (body) frame.style.height = `${body.scrollHeight}px`;
+// ---------- an email in a frame ----------
+
+const SVG = 'http://www.w3.org/2000/svg';
+
+/** [r, g, b, a] from a computed color like "rgb(0, 0, 0)" or "rgba(0 0 0 / 0.5)"; null for anything else. */
+function parseColor(value) {
+	const m = /^rgba?\(([^)]+)\)$/.exec(value);
+	if (!m) return null;
+	const p = m[1].split(/[\s,/]+/).filter(Boolean).map(Number);
+	return p.length >= 3 && p.every((n) => !Number.isNaN(n)) ? [p[0], p[1], p[2], p[3] ?? 1] : null;
+}
+
+// OKLab, so lightness can flip while the hue stays the same.
+const toLinear = (c) => ((c /= 255) <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+const toGamma = (c) => 255 * (c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055);
+function oklab([r, g, b]) {
+	[r, g, b] = [toLinear(r), toLinear(g), toLinear(b)];
+	const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+	const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+	const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+	return { L: 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s, a: 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s, b: 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s };
+}
+function cssColor({ L, a, b }, alpha = 1) {
+	const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3;
+	const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3;
+	const s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3;
+	const [r, g, bl] = [4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s, -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s].map(
+		(c) => Math.round(toGamma(Math.min(1, Math.max(0, c))))
+	);
+	return alpha < 1 ? `rgba(${r}, ${g}, ${bl}, ${alpha})` : `rgb(${r}, ${g}, ${bl})`;
+}
+const chroma = (c) => Math.hypot(c.a, c.b);
+
+/** A light background turned dark, the way Outlook's dark mode does: white becomes the card, other colors keep their hue. */
+function darkBackground(c, paper) {
+	if (c.L < 0.5) return c;
+	const L = paper.L + (1 - c.L) * 0.6;
+	if (chroma(c) < 0.03) return { L, a: paper.a, b: paper.b };
+	const k = Math.min(0.8, (L / c.L) * 1.3);
+	return { L, a: c.a * k, b: c.b * k };
+}
+
+/** Dark text turned light; any text kept readable on the background it now sits on. */
+function lightText(c, ink, behind) {
+	let { L, a, b } = c;
+	if (L < 0.62) {
+		L = ink.L - L * ((ink.L - 0.62) / 0.62);
+		if (chroma(c) < 0.03) ({ a, b } = ink);
+	}
+	if (L - behind < 0.4) L = Math.min(ink.L, behind + 0.45);
+	return { L, a, b };
+}
+
+/** A line color: light rules go dark like backgrounds, dark ones go light. */
+const lineColor = (c, paper) => (c.L >= 0.5 ? { ...darkBackground(c, paper), L: darkBackground(c, paper).L + 0.06 } : { ...c, L: 0.75 - c.L * 0.3 });
+
+/**
+ * Turns an email's colors dark like Outlook and Gmail do in dark mode: light backgrounds go dark and
+ * dark text goes light, keeping each color's hue. Pictures, and anything drawn over a background
+ * picture, stay as they are.
+ */
+function darken(doc, frame) {
+	const view = doc.defaultView;
+	let paperRgb = null;
+	for (let el = frame.parentElement; el && !paperRgb; el = el.parentElement) {
+		const c = parseColor(getComputedStyle(el).backgroundColor);
+		if (c && c[3] > 0.5) paperRgb = c;
+	}
+	const paper = oklab(paperRgb ?? [28, 25, 22]);
+	const ink = oklab(parseColor(getComputedStyle(frame).color) ?? [246, 241, 230]);
+	doc.documentElement.style.setProperty('background-color', cssColor(paper), 'important');
+	doc.documentElement.style.setProperty('color', cssColor(ink), 'important');
+
+	const behind = new Map([[doc.documentElement, paper.L]]);
+	const left = new Set();
+	const changes = [];
+	for (const el of [doc.body, ...doc.body.querySelectorAll('*')]) {
+		const parent = el.parentElement;
+		if (left.has(parent) || (el.namespaceURI === SVG && el.localName !== 'svg')) {
+			left.add(el);
+			continue;
+		}
+		const cs = view.getComputedStyle(el);
+		if (cs.backgroundImage !== 'none') {
+			left.add(el);
+			continue;
+		}
+		const set = [];
+		let under = behind.get(parent) ?? paper.L;
+		const bg = parseColor(cs.backgroundColor);
+		if (bg && bg[3] > 0) {
+			const dark = darkBackground(oklab(bg), paper);
+			set.push(['background-color', cssColor(dark, bg[3])]);
+			if (bg[3] > 0.5) under = dark.L;
+		}
+		behind.set(el, under);
+		const fg = parseColor(cs.color);
+		if (fg) set.push(['color', cssColor(lightText(oklab(fg), ink, under), fg[3])]);
+		for (const side of ['top', 'right', 'bottom', 'left']) {
+			if (cs.getPropertyValue(`border-${side}-style`) === 'none' || !parseFloat(cs.getPropertyValue(`border-${side}-width`))) continue;
+			const line = parseColor(cs.getPropertyValue(`border-${side}-color`));
+			if (line && line[3] > 0) set.push([`border-${side}-color`, cssColor(lineColor(oklab(line), paper), line[3])]);
+		}
+		changes.push([el, set]);
+	}
+	// All read first, then all written, so the page lays out once.
+	for (const [el, set] of changes) for (const [prop, value] of set) el.style.setProperty(prop, value, 'important');
+}
+
+const QUOTE_STARTS = '.gmail_quote, blockquote[type="cite"], .moz-cite-prefix, .yahoo_quoted, [id^="yahoo_quoted"], .protonmail_quote, blockquote';
+// Outlook's reply header ("From: … Sent: …"): everything after it is the earlier email.
+const OUTLOOK_STARTS = '#appendonsend, #divRplyFwdMsg, [id^="mail-editor-reference-message"]';
+
+/** Where Outlook's quoted email starts: its reply header, a "----- Original Message -----" line, or a bold "From:" over "Sent:". */
+function outlookStart(doc) {
+	const body = doc.body;
+	const found = [
+		body.querySelector(OUTLOOK_STARTS),
+		[...body.querySelectorAll('div[style*="border-top"]')].find((d) => /^\s*From:/.test(d.textContent) && /\b(Sent|Date):/.test(d.textContent))
+	];
+	const walk = doc.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+	for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+		if (/^\s*-{2,}\s*Original Message\s*-{2,}\s*$/i.test(n.textContent)) {
+			found.push(n);
+			break;
+		}
+	}
+	const after = doc.createRange();
+	found.push(
+		[...body.querySelectorAll('b, strong')].find((b) => {
+			if (b.textContent.trim() !== 'From:') return false;
+			after.setStartAfter(b);
+			after.setEnd(body, body.childNodes.length);
+			return /\b(Sent|Date):/.test(after.toString().slice(0, 400));
+		})
+	);
+	// The first one in the email.
+	return found.filter(Boolean).sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1))[0] ?? null;
+}
+
+/**
+ * Folds the earlier emails a reply quotes at its end behind a "•••" button, like Gmail and Outlook.
+ * Quotes with writing after them (answers between the lines) and forwarded emails stay open.
+ */
+function foldQuotes(doc) {
+	const body = doc.body;
+	const range = doc.createRange();
+	const shows = (r) => r.toString().trim() !== '' || !!r.cloneContents().querySelector('img');
+	const attribution = (el) => {
+		let prev = el.previousSibling;
+		while (prev && ((prev.nodeType === 3 && !prev.textContent.trim()) || prev.nodeName === 'BR')) prev = prev.previousSibling;
+		return prev && prev.textContent.length < 400 && /\bwrote:\s*$/i.test(prev.textContent.trim()) ? prev : null;
 	};
-	frame.addEventListener('load', fit);
+
+	let start = null;
+	let last = null;
+	let toEnd = false;
+	for (const el of body.querySelectorAll(QUOTE_STARTS)) {
+		const head = attribution(el);
+		// A plain blockquote is a quote only under an "On … wrote:" line; newsletters use them for layout.
+		if (el.localName === 'blockquote' && el.getAttribute('type') !== 'cite' && !head) continue;
+		start = head ?? el;
+		last = el.classList.contains('moz-cite-prefix') ? (el.nextElementSibling ?? el) : el;
+		break;
+	}
+	const outlook = outlookStart(doc);
+	if (outlook && (!start || outlook.compareDocumentPosition(start) & Node.DOCUMENT_POSITION_FOLLOWING)) {
+		start = outlook.previousElementSibling?.localName === 'hr' ? outlook.previousElementSibling : outlook;
+		toEnd = true;
+	}
+	if (!start || /forwarded message/i.test(start.textContent.slice(0, 200))) return;
+
+	// Only the end of the email folds, and only when the email has its own words above it.
+	range.setStart(body, 0);
+	range.setEndBefore(start);
+	if (!shows(range) || /forwarded message:?$/i.test(range.toString().trim())) return;
+	if (!toEnd) {
+		range.setStartAfter(last);
+		range.setEnd(body, body.childNodes.length);
+		if (shows(range)) return;
+	}
+	range.setStartBefore(start);
+	range.setEnd(body, body.childNodes.length);
+	const details = doc.createElement('details');
+	details.className = 'hub-quote';
+	const summary = doc.createElement('summary');
+	summary.textContent = '•••';
+	summary.title = 'Show quoted text';
+	details.append(summary, range.extractContents());
+	body.append(details);
+	const style = doc.createElement('style');
+	style.textContent =
+		'.hub-quote>summary{display:inline-block;list-style:none;margin:10px 0 4px;padding:0 10px;border-radius:6px;background:#2f2a25;color:#f6f1e6;font:700 12px/20px system-ui,sans-serif;letter-spacing:2px;cursor:pointer}.hub-quote>summary::-webkit-details-marker{display:none}.hub-quote>summary:hover{background:#48413a}';
+	(doc.head ?? body).append(style);
+}
+
+/**
+ * An email shown in a sandboxed frame, the way Outlook shows one in dark mode: its colors turned dark,
+ * the earlier emails a reply quotes folded behind "•••" (fold: false leaves them), and the frame as
+ * tall as the email instead of scrolling in a box. Nothing runs inside the frame; the page does this.
+ */
+export function mailFrame(frame, opts = {}) {
+	let ready = null;
+	let observer = null;
+	const fit = () => {
+		const doc = frame.contentDocument;
+		if (!doc?.documentElement || !doc.body) return;
+		const height = doc.compatMode === 'CSS1Compat' ? doc.documentElement.getBoundingClientRect().height : doc.body.scrollHeight;
+		frame.style.height = `${Math.ceil(height)}px`;
+	};
+	const setup = () => {
+		const doc = frame.contentDocument;
+		if (!doc?.body || doc === ready) return;
+		ready = doc;
+		try {
+			if (opts.fold !== false) foldQuotes(doc);
+			darken(doc, frame);
+		} catch (e) {
+			console.error(e);
+		}
+		frame.style.visibility = 'visible';
+		observer?.disconnect();
+		observer = new ResizeObserver(fit);
+		observer.observe(doc.documentElement);
+		// Opening "•••" and pictures arriving change the height.
+		doc.addEventListener('toggle', () => setTimeout(fit), true);
+		doc.addEventListener('load', fit, true);
+		fit();
+	};
+	frame.addEventListener('load', setup);
 	addEventListener('resize', fit);
-	fit();
-	return { destroy: () => removeEventListener('resize', fit) };
+	if (frame.contentDocument?.readyState === 'complete' && frame.contentDocument.URL === 'about:srcdoc') setup();
+	return {
+		destroy: () => {
+			observer?.disconnect();
+			removeEventListener('resize', fit);
+		}
+	};
 }

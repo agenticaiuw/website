@@ -5,7 +5,7 @@
 import PostalMime, { type Address, type Attachment } from 'postal-mime';
 import { all, first, run } from './db.ts';
 import { sendMail } from './mail.ts';
-import type { Env, Viewer } from '../types.ts';
+import type { Env } from '../types.ts';
 
 const MiB = 1024 * 1024;
 /** Replies' files together. Cloudflare takes 25 MiB a message, and base64 makes them a third bigger. */
@@ -23,6 +23,8 @@ export type InboxThread = {
 	who: string;
 	preview: string;
 	count: number;
+	/** Files across its emails, not counting pictures in their bodies. */
+	files: number;
 };
 
 export type InboxAttachment = { id: number; message_id: number; name: string; media_type: string; size: number; content_id: string; inline: number };
@@ -38,6 +40,7 @@ export type InboxMessage = {
 	reply_to: string;
 	to_emails: string;
 	cc_emails: string;
+	bcc_emails: string;
 	subject: string;
 	text: string;
 	html: string;
@@ -190,17 +193,49 @@ export async function receiveEmail(env: Pick<Env, 'DB' | 'MAIL'>, raw: ArrayBuff
 
 // ---------- the Inbox page ----------
 
-export const threadList = (db: D1Database, status: 'open' | 'done') =>
-	all<InboxThread>(
+export async function threadList(db: D1Database, status: 'open' | 'done') {
+	const rows = await all<InboxThread>(
 		db,
 		`SELECT t.id, t.subject, t.status, t.unread, t.last_at,
 			(SELECT CASE WHEN m.direction = 'out' THEN COALESCE(mb.name, 'Someone') || ' replied' ELSE COALESCE(NULLIF(m.from_name, ''), m.from_email) END
 				FROM inbox_messages m LEFT JOIN members mb ON mb.id = m.sent_by WHERE m.thread_id = t.id ORDER BY m.id DESC LIMIT 1) AS who,
-			(SELECT substr(m.text, 1, 400) FROM inbox_messages m WHERE m.thread_id = t.id ORDER BY m.id DESC LIMIT 1) AS preview,
-			(SELECT COUNT(*) FROM inbox_messages m WHERE m.thread_id = t.id) AS count
-		 FROM inbox_threads t WHERE t.status = ? ORDER BY t.last_at DESC LIMIT 1000`,
+			(SELECT substr(m.text, 1, 1500) FROM inbox_messages m WHERE m.thread_id = t.id ORDER BY m.id DESC LIMIT 1) AS preview,
+			(SELECT COUNT(*) FROM inbox_messages m WHERE m.thread_id = t.id) AS count,
+			(SELECT COUNT(*) FROM inbox_attachments a JOIN inbox_messages m ON m.id = a.message_id WHERE m.thread_id = t.id AND a.inline = 0) AS files
+		 FROM inbox_threads t WHERE t.status = ? ORDER BY t.last_at DESC, t.id DESC LIMIT 1000`,
 		status
 	);
+	// The preview shows what they wrote, not the earlier emails quoted under it.
+	return rows.map((t) => ({ ...t, preview: splitQuote(t.preview ?? '').text.replace(/\s+/g, ' ').trim().slice(0, 300) }));
+}
+
+/** True for a forward, whose quoted email is the point of it and stays unfolded. */
+export const isForward = (subject: string) => /^\s*(fwd?|fw)\s*:/i.test(subject);
+
+/**
+ * An email's own words, and apart from them the earlier emails it quotes underneath ("On … wrote:",
+ * Outlook's "From: … Sent: …" block, or trailing "> " lines), which the Inbox folds behind "•••" the
+ * way Gmail and Outlook do. A forward, or an email that is all quote, keeps everything as its text.
+ */
+export function splitQuote(text: string): { text: string; quote: string } {
+	const lines = text.split('\n');
+	const at = (i: number) => lines[i]?.trim() ?? '';
+	for (let i = 0; i < lines.length; i++) {
+		const l = at(i);
+		if (/forwarded message/i.test(l)) break;
+		const wrote = /^On\b.{0,250}\bwrote:$/i.test(l) || (/^On\b/.test(l) && l.length < 250 && /\bwrote:$/i.test(at(i + 1)));
+		const outlook =
+			/^-{2,}\s*Original Message\s*-{2,}$/i.test(l) ||
+			(/^_{8,}$/.test(l) && /^From:\s/i.test(at(i + 1))) ||
+			(/^From:\s/i.test(l) && at(i - 1) === '' && [1, 2, 3, 4].some((k) => /^(Sent|Date):\s/i.test(at(i + k))));
+		// Only a last block of "> " lines; answers written between quoted lines stay whole.
+		const cited = l.startsWith('>') && lines.slice(i).every((x) => !x.trim() || x.trim().startsWith('>')) && !lines.slice(0, i).some((x) => x.trim().startsWith('>'));
+		if (!wrote && !outlook && !cited) continue;
+		const head = lines.slice(0, i).join('\n').trim();
+		return head ? { text: head, quote: lines.slice(i).join('\n').trim() } : { text, quote: '' };
+	}
+	return { text, quote: '' };
+}
 
 export const unreadCount = async (db: D1Database) =>
 	(await first<{ n: number }>(db, "SELECT COUNT(*) AS n FROM inbox_threads WHERE unread = 1 AND status = 'open'"))?.n ?? 0;
@@ -242,7 +277,8 @@ export function frameHtml(html: string, files: Pick<InboxAttachment, 'id' | 'con
 		return id ? `/inbox/file/${id}` : whole;
 	});
 	const csp = "default-src 'none'; img-src 'self' https: http: data:; style-src 'unsafe-inline' https:; font-src https: data:";
-	return `<meta http-equiv="Content-Security-Policy" content="${csp}"><base target="_blank"><style>body{margin:0;padding:12px 14px;font-family:system-ui,sans-serif;overflow-wrap:anywhere}img{max-width:100%;height:auto}</style>${body}`;
+	// Standards mode, as Gmail and Outlook show email; dark from the first paint (the page turns the email's own colors dark once it loads).
+	return `<!doctype html><meta http-equiv="Content-Security-Policy" content="${csp}"><base target="_blank"><style>:root{color-scheme:dark;background:#1c1916;color:#f6f1e6}body{margin:0;padding:12px 14px;font-family:system-ui,sans-serif;overflow-wrap:anywhere}img{max-width:100%;height:auto}</style>${body}`;
 }
 
 // ---------- replying ----------
@@ -276,29 +312,65 @@ const toBase64 = (bytes: ArrayBuffer) => {
 	return btoa(s);
 };
 
-export type ReplyInput = { to: string[]; cc: string[]; text: string; files: { name: string; type: string; bytes: ArrayBuffer }[] };
+/** What sendMessage sends: a reply to one email in the thread, or that email forwarded. */
+export type SendInput = {
+	mode: 'reply' | 'forward';
+	/** The email answered or forwarded; the newest one if it's gone. */
+	of: number | null;
+	to: string[];
+	cc: string[];
+	bcc: string[];
+	text: string;
+	files: { name: string; type: string; bytes: ArrayBuffer }[];
+};
 
-/** Sends a reply in this thread from the club address and keeps it in the thread, sent or not. */
-export async function sendReply(env: Env, viewer: Viewer, threadId: number, input: ReplyInput, zone: string) {
+const list = (s: string) => s.split(', ').filter(Boolean);
+
+/** Who wrote an email, the way a quote names them. */
+const author = (env: Env, m: InboxMessage) =>
+	m.direction === 'in' ? (m.from_name ? `${m.from_name} <${m.from_email}>` : m.from_email) : `${env.MAIL_FROM_NAME} <${env.MAIL_FROM}>`;
+
+/**
+ * Sends a reply or a forward in this thread from the club address and keeps it in the thread, sent or
+ * not. A reply quotes the email it answers and carries the headers that keep it threaded; a forward
+ * carries that email's text and files.
+ */
+export async function sendMessage(env: Env, senderId: number | null, threadId: number, input: SendInput, zone: string) {
 	const thread = await threadById(env.DB, threadId);
 	if (!thread) return { ok: false, error: 'Thread not found.' };
 	const messages = await threadMessages(env.DB, threadId);
-	const last = messages[messages.length - 1];
-	const refs = last ? [...last.refs.split(' ').filter(Boolean), last.message_id].filter(Boolean).slice(-20) : [];
-	const subject = /^re:/i.test(thread.subject) ? thread.subject : `Re: ${thread.subject}`;
+	const of = messages.find((m) => m.id === input.of) ?? messages[messages.length - 1];
+	const forward = input.mode === 'forward';
+	const refs = of && !forward ? [...of.refs.split(' ').filter(Boolean), of.message_id].filter(Boolean).slice(-20) : [];
+	const subject = forward
+		? /^\s*(fwd?|fw)\s*:/i.test(thread.subject) ? thread.subject : `Fwd: ${thread.subject}`
+		: /^\s*re\s*:/i.test(thread.subject) ? thread.subject : `Re: ${thread.subject}`;
 
-	// The newest email, quoted under the reply the way mail programs do.
+	// The email answered, quoted under the reply the way mail programs do; a forward carries it whole.
 	let quoteText = '';
 	let quoteHtml = '';
-	if (last) {
-		const who = last.direction === 'in' ? (last.from_name ? `${last.from_name} <${last.from_email}>` : last.from_email) : env.MAIL_FROM_NAME;
-		const when = new Date(last.created_at).toLocaleString('en-US', { timeZone: zone, dateStyle: 'medium', timeStyle: 'short' });
-		const quoted = last.text.trim();
-		quoteText = `\n\nOn ${when}, ${who} wrote:\n${quoted.split('\n').map((l) => `> ${l}`).join('\n')}`;
-		quoteHtml = `<p style="color:#666">On ${escape(when)}, ${escape(who)} wrote:</p><blockquote style="margin:0 0 0 .8ex;border-left:1px solid #ccc;padding-left:1ex">${escape(quoted).replace(/\n/g, '<br>')}</blockquote>`;
+	let forwarded: { key: string; name: string; media_type: string; size: number }[] = [];
+	if (of) {
+		const when = new Date(of.created_at).toLocaleString('en-US', { timeZone: zone, dateStyle: 'medium', timeStyle: 'short' });
+		const quoted = of.text.trim();
+		if (forward) {
+			const head = [`From: ${author(env, of)}`, `Date: ${when}`, `Subject: ${of.subject}`, `To: ${of.to_emails}`, ...(of.cc_emails ? [`Cc: ${of.cc_emails}`] : [])];
+			quoteText = `\n\n---------- Forwarded message ---------\n${head.join('\n')}\n\n${quoted}`;
+			quoteHtml = `<div style="margin-top:16px">---------- Forwarded message ---------<br>${head.map(escape).join('<br>')}<br><br>${escape(quoted).replace(/\n/g, '<br>')}</div>`;
+			forwarded = await all(env.DB, 'SELECT key, name, media_type, size FROM inbox_attachments WHERE message_id = ? AND inline = 0 ORDER BY id', of.id);
+		} else {
+			quoteText = `\n\nOn ${when}, ${author(env, of)} wrote:\n${quoted.split('\n').map((l) => `> ${l}`).join('\n')}`;
+			quoteHtml = `<p style="color:#666">On ${escape(when)}, ${escape(author(env, of))} wrote:</p><blockquote type="cite" style="margin:0 0 0 .8ex;border-left:1px solid #ccc;padding-left:1ex">${escape(quoted).replace(/\n/g, '<br>')}</blockquote>`;
+		}
 	}
+	if (forwarded.reduce((n, f) => n + f.size, 0) + input.files.reduce((n, f) => n + f.bytes.byteLength, 0) > REPLY_FILES_LIMIT)
+		return { ok: false, error: 'The files together have to be under 18 MB.' };
+	const carried = (await Promise.all(forwarded.map(async (f) => ({ ...f, bytes: await (await env.MAIL.get(f.key))?.arrayBuffer() })))).filter(
+		(f): f is typeof f & { bytes: ArrayBuffer } => !!f.bytes
+	);
 	const bodyHtml = input.text
 		.split(/\n{2,}/)
+		.filter((p) => p.trim())
 		.map((p) => `<p>${escape(p).replace(/\n/g, '<br>')}</p>`)
 		.join('');
 
@@ -306,44 +378,146 @@ export async function sendReply(env: Env, viewer: Viewer, threadId: number, inpu
 	const result = await sendMail(env, {
 		to: { name: '', email: to },
 		cc: [...alsoTo, ...input.cc].map((email) => ({ name: '', email })),
+		bcc: input.bcc.map((email) => ({ name: '', email })),
 		subject,
 		text: input.text + quoteText,
 		html: `<div style="font-family:system-ui,sans-serif">${bodyHtml}${quoteHtml}</div>`,
 		kind: 'inbox',
 		headers: {
-			...(last?.message_id ? { 'In-Reply-To': `<${last.message_id}>` } : {}),
+			...(!forward && of?.message_id ? { 'In-Reply-To': `<${of.message_id}>` } : {}),
 			...(refs.length ? { References: refs.map((r) => `<${r}>`).join(' ') } : {})
 		},
-		attachments: input.files.map((f) => ({ filename: cleanName(f.name), content: toBase64(f.bytes), mimeType: f.type }))
+		attachments: [
+			...carried.map((f) => ({ filename: cleanName(f.name), content: toBase64(f.bytes), mimeType: f.media_type })),
+			...input.files.map((f) => ({ filename: cleanName(f.name), content: toBase64(f.bytes), mimeType: f.type }))
+		]
 	});
 
 	const row = await first<{ id: number }>(
 		env.DB,
-		`INSERT INTO inbox_messages (thread_id, direction, message_id, in_reply_to, refs, from_name, from_email, to_emails, cc_emails, subject, text, sent_by, error)
-		 VALUES (?, 'out', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+		`INSERT INTO inbox_messages (thread_id, direction, message_id, in_reply_to, refs, from_name, from_email, to_emails, cc_emails, bcc_emails, subject, text, sent_by, error)
+		 VALUES (?, 'out', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
 		threadId,
 		// Cloudflare picks the Message-ID; their reply's In-Reply-To names it.
 		result.messageId ?? '',
-		last?.message_id ?? '',
+		!forward ? (of?.message_id ?? '') : '',
 		refs.join(' '),
 		env.MAIL_FROM_NAME,
 		env.MAIL_FROM,
 		input.to.join(', '),
 		input.cc.join(', '),
+		input.bcc.join(', '),
 		subject,
-		input.text,
-		viewer.id,
+		input.text + (forward ? quoteText : ''),
+		senderId,
 		result.ok ? '' : (result.error ?? 'Not sent.')
 	);
-	if (input.files.length) {
-		const keys = input.files.map(() => `att/${crypto.randomUUID()}`);
-		await Promise.all(input.files.map((f, i) => env.MAIL.put(keys[i], f.bytes, { httpMetadata: { contentType: f.type } })));
-		await env.DB.batch(
-			input.files.map((f, i) =>
-				env.DB.prepare('INSERT INTO inbox_attachments (message_id, key, name, media_type, size) VALUES (?, ?, ?, ?, ?)').bind(row!.id, keys[i], cleanName(f.name), f.type, f.bytes.byteLength)
-			)
-		);
-	}
+	const keys = input.files.map(() => `att/${crypto.randomUUID()}`);
+	await Promise.all(input.files.map((f, i) => env.MAIL.put(keys[i], f.bytes, { httpMetadata: { contentType: f.type } })));
+	const kept = [
+		// A forward's files are the same objects as the original's.
+		...carried.map((f) => [f.key, f.name, f.media_type, f.size] as const),
+		...input.files.map((f, i) => [keys[i], cleanName(f.name), f.type, f.bytes.byteLength] as const)
+	];
+	if (kept.length)
+		await env.DB.batch(kept.map((k) => env.DB.prepare('INSERT INTO inbox_attachments (message_id, key, name, media_type, size) VALUES (?, ?, ?, ?, ?)').bind(row!.id, ...k)));
 	if (result.ok) await run(env.DB, "UPDATE inbox_threads SET last_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), unread = 0 WHERE id = ?", threadId);
 	return result;
+}
+
+// ---------- sending later ----------
+
+export type InboxScheduled = {
+	id: number;
+	thread_id: number;
+	mode: 'reply' | 'forward';
+	of_message: number | null;
+	to_emails: string;
+	cc_emails: string;
+	bcc_emails: string;
+	text: string;
+	files: string;
+	send_at: string;
+	created_by: number | null;
+	sender?: string | null;
+};
+
+type WaitingFile = { key: string; name: string; type: string; size: number };
+
+const waitingFiles = (s: Pick<InboxScheduled, 'files'>): WaitingFile[] => {
+	try {
+		return JSON.parse(s.files);
+	} catch {
+		return [];
+	}
+};
+
+/** Keeps an email to send at sendAt (a UTC time in ms). Its files wait in MAIL under sched/. */
+export async function scheduleMessage(env: Env, senderId: number, threadId: number, input: SendInput, sendAt: number) {
+	const files: WaitingFile[] = input.files.map((f) => ({ key: `sched/${crypto.randomUUID()}`, name: cleanName(f.name), type: f.type, size: f.bytes.byteLength }));
+	await Promise.all(input.files.map((f, i) => env.MAIL.put(files[i].key, f.bytes, { httpMetadata: { contentType: f.type } })));
+	await run(
+		env.DB,
+		'INSERT INTO inbox_scheduled (thread_id, mode, of_message, to_emails, cc_emails, bcc_emails, text, files, send_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+		threadId,
+		input.mode,
+		input.of,
+		input.to.join(', '),
+		input.cc.join(', '),
+		input.bcc.join(', '),
+		input.text,
+		JSON.stringify(files),
+		new Date(sendAt).toISOString(),
+		senderId
+	);
+}
+
+/** A thread's emails waiting to send, soonest first, with their files' names. */
+export async function scheduledIn(db: D1Database, threadId: number) {
+	const rows = await all<InboxScheduled>(
+		db,
+		'SELECT s.*, mb.name AS sender FROM inbox_scheduled s LEFT JOIN members mb ON mb.id = s.created_by WHERE s.thread_id = ? ORDER BY s.send_at, s.id',
+		threadId
+	);
+	return rows.map(({ files, ...s }) => ({ ...s, files: waitingFiles({ files }).map((f) => ({ name: f.name, size: f.size })) }));
+}
+
+/** Cancels an email set to send later and lets go of its waiting files. */
+export async function cancelScheduled(env: Env, threadId: number, id: number) {
+	const row = await first<InboxScheduled>(env.DB, 'DELETE FROM inbox_scheduled WHERE id = ? AND thread_id = ? RETURNING *', id, threadId);
+	if (row) await Promise.all(waitingFiles(row).map((f) => env.MAIL.delete(f.key)));
+	return !!row;
+}
+
+/**
+ * The cron's part: sends each email whose time has come, as the exec who set it. One that fails stays
+ * in its thread with the reason, and the thread comes back to Open as unread.
+ */
+export async function sendDueScheduled(env: Env, now = new Date()) {
+	const due = await all<InboxScheduled>(env.DB, 'SELECT * FROM inbox_scheduled WHERE send_at <= ? ORDER BY send_at LIMIT 20', now.toISOString());
+	let sent = 0;
+	let failed = 0;
+	for (const s of due) {
+		// Taken off the list first, so an overlapping run can't send it twice.
+		if (!(await first(env.DB, 'DELETE FROM inbox_scheduled WHERE id = ? RETURNING id', s.id))) continue;
+		const files = waitingFiles(s);
+		const bodies = await Promise.all(files.map(async (f) => (await env.MAIL.get(f.key))?.arrayBuffer() ?? null));
+		const input: SendInput = {
+			mode: s.mode === 'forward' ? 'forward' : 'reply',
+			of: s.of_message,
+			to: list(s.to_emails),
+			cc: list(s.cc_emails),
+			bcc: list(s.bcc_emails),
+			text: s.text,
+			files: files.flatMap((f, i) => (bodies[i] ? [{ name: f.name, type: f.type, bytes: bodies[i] }] : []))
+		};
+		const result = await sendMessage(env, s.created_by, s.thread_id, input, env.TIMEZONE);
+		if (result.ok) sent++;
+		else {
+			failed++;
+			await run(env.DB, "UPDATE inbox_threads SET status = 'open', unread = 1 WHERE id = ?", s.thread_id);
+		}
+		await Promise.all(files.map((f) => env.MAIL.delete(f.key)));
+	}
+	return { sent, failed };
 }

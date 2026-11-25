@@ -3,6 +3,7 @@ import { boardTaskHref, type BoardTask } from './board';
 import { addDays, clubTime, daysBetween, hourIn, isTime, todayIn, weekday } from '../dates.ts';
 import { all, first, getMeta, logTask, MEETING_EXPECTED, MEETING_SELECT, MEETING_TEAMS_JSON, meetingTeams, setMeta, TASK_SELECT, teamNames } from './db';
 import { andList, assignedEmail, canceledEmail, digestEmail, dueChangedEmail, taskNoticeEmail, taskReminderEmail, meetingEmail, reminderEmail, teamAddedEmail, urgentEmail, type DigestData, type EmailTask, type MeetingChanges, type ReminderGroups } from './emails';
+import { sendDueScheduled } from './inbox.ts';
 import { sendMail } from './mail';
 import { MEETING_SOON_HOURS, reminderFor, remindKey, SEND_HOUR, shouldEscalate, SOON_DAYS, TASK_SOON_HOURS, timedReminderFor, urgentReminderFor, type ReminderKind, type TimedKind } from './schedule';
 import type { Env, Member, MeetingRow, TaskRow, Team } from '../types.ts';
@@ -394,6 +395,9 @@ export async function scheduled(env: Env, now = new Date()) {
 	if (meetings.sent || meetings.failed) console.log(`[meetings] ${now.toISOString()}: ${meetings.sent} sent, ${meetings.failed} failed`);
 	const timed = await runTimedTaskReminders(env, now);
 	if (timed.sent || timed.failed) console.log(`[timed] ${now.toISOString()}: ${timed.sent} sent, ${timed.failed} failed`);
+	// Inbox emails set to send later go out on the first run at or after their time.
+	const later = await sendDueScheduled(env, now);
+	if (later.sent || later.failed) console.log(`[inbox] ${now.toISOString()}: ${later.sent} scheduled sent, ${later.failed} failed`);
 }
 
 /** Emails each assignee once about the tasks just given to them (not ones they gave themselves). */

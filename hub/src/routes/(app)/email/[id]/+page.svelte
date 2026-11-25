@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { fitFrame } from '$lib/actions.js';
+	import { mailFrame } from '$lib/actions.js';
 	import Empty from '$lib/components/Empty.svelte';
 	import PageHead from '$lib/components/PageHead.svelte';
 	import { formatTimestamp } from '$lib/dates';
@@ -31,7 +31,7 @@
 </dl>
 {#if r.html}
 	<!-- No scripts run inside; links open in a new tab. -->
-	<iframe class="email-preview" title={r.subject} sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" srcdoc={r.html} use:fitFrame></iframe>
+	<iframe class="email-preview" title={r.subject} sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" srcdoc={r.html} use:mailFrame={{ fold: false }}></iframe>
 {:else}
 	<Empty>Sent before the hub kept copies of emails, so only the subject was saved.</Empty>
 {/if}
