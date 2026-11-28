@@ -9,7 +9,7 @@ export const trailingSlash = 'never';
 const page = (href: string) => `${siteUrl}${href.replace(/\/?$/, '/')}`;
 
 export async function GET() {
-	const { club, vision, stats, team, project, work, join, contact, social, nav, faq, memberHub, press, events } = loadSite();
+	const { club, vision, stats, team, project, work, join, contact, social, nav, memberHub, press, events } = loadSite();
 	const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(new Date());
 	const upcoming = events.items.filter((e) => (e.dateEnd ?? e.date) >= today);
 	const past = events.items.filter((e) => (e.dateEnd ?? e.date) < today).reverse();
@@ -51,12 +51,7 @@ ${[`${events.upcomingLabel}:`, upcoming.length ? upcoming.map(event).join('\n') 
 
 ${nav.map((n) => `- [${n.label}](${page(n.href)}): ${n.blurb}`).join('\n')}
 - [Join](${siteUrl}/join/): ${join.discordTitle}, then ${join.officeHoursHeading.charAt(0).toLowerCase()}${join.officeHoursHeading.slice(1)}
-- [FAQ](${siteUrl}/faq/): ${faq.lede}
 - [${memberHub.label}](${memberHub.href}): ${memberHub.blurb}
-
-## FAQ
-
-${faq.items.map((f) => `### ${f.q}\n\n${f.a}`).join('\n\n')}
 `;
 
 	return new Response(body, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });

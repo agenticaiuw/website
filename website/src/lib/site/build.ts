@@ -8,7 +8,6 @@ import fallback from './content.json';
 
 export type Sections = typeof fallback;
 
-type Link = { label: string; href: string };
 export type Run = { t: string; strong?: boolean; cite?: boolean };
 export type ClubEvent = { date: string; dateEnd?: string; time?: string; kind: string; name: string; location?: string; body: string };
 /** A team's people come from the hub's own team: its head (the exec on it) and its leads. */
@@ -151,7 +150,6 @@ export function buildContent(input: Partial<Sections>) {
 		events: { ...s.events, items: s.events.items.map((e): ClubEvent => ({ date: e.date, dateEnd: opt(e.dateEnd), time: opt(e.time), kind: e.kind, name: e.name, location: opt(e.location), body: e.body })) },
 		join: { ...s.join, discordLabel: s.join.discordLabel ?? '', discordHref: safeHref(s.join.discordHref) },
 		partners: s.partners,
-		faq: { ...s.faq, items: s.faq.items.map((f) => ({ q: f.q, a: f.a, links: f.links.length ? f.links.map((l): Link => ({ label: l.label, href: safeHref(l.href) })) : undefined })) },
 		social,
 		contact: { heading: s.links.contactHeading, lede: s.links.contactLede, email: s.links.email },
 		newsletter: { heading: s.links.newsletterHeading, placeholder: s.links.newsletterPlaceholder, button: s.links.newsletterButton, done: s.links.newsletterDone, error: s.links.newsletterError },

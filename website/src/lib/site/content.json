@@ -147,74 +147,74 @@
 		"heading": "Meet the founding board",
 		"members": [
 			{
-				"name": "Evan Liu",
 				"title": "Founder and President",
-				"leads": "Hardware",
-				"subteam": "hardware",
 				"linkedin": "https://www.linkedin.com/in/evan1liu/",
 				"officeHours": "https://cal.com/evan-liu-u8mnsi/evan-s-office-hours?overlayCalendar=true",
 				"photo": "",
-				"blurb": ""
+				"blurb": "",
+				"name": "Evan Liu",
+				"leads": "Hardware",
+				"subteam": "hardware"
 			},
 			{
-				"name": "Joslyn DeGuzman",
 				"title": "Vice President",
-				"leads": "Product Design",
-				"subteam": "design",
 				"linkedin": "https://www.linkedin.com/in/joslyn-deguzman/",
 				"officeHours": "https://cal.com/joslyn-deguzman-thpsg1/15min?overlayCalendar=true&date=2026-09-23",
 				"photo": "",
-				"blurb": ""
+				"blurb": "",
+				"name": "Joslyn DeGuzman",
+				"leads": "Design / Product",
+				"subteam": "design"
 			},
 			{
-				"name": "Ryan Khalili",
 				"title": "Founding Member",
-				"leads": "Research",
-				"subteam": "research",
 				"linkedin": "https://www.linkedin.com/in/ryan-khalili/",
 				"officeHours": "https://cal.com/ryan-khalili2/30min?overlayCalendar=true",
 				"photo": "",
-				"blurb": ""
+				"blurb": "",
+				"name": "Ryan Khalili",
+				"leads": "Research",
+				"subteam": "research"
 			},
 			{
-				"name": "Anand Indukuri",
 				"title": "Founding Member",
-				"leads": "Cloud",
-				"subteam": "cloud",
 				"linkedin": "https://www.linkedin.com/in/anandindukuri/",
 				"officeHours": "https://cal.com/anand-indukuri-rbwhoj/cloud-team-office-hours?overlayCalendar=true",
 				"photo": "",
-				"blurb": ""
+				"blurb": "",
+				"name": "Anand Indukuri",
+				"leads": "Cloud",
+				"subteam": "cloud"
 			},
 			{
-				"name": "Ife Solarin",
 				"title": "Founding Member",
-				"leads": "Automation",
-				"subteam": "automation",
 				"linkedin": "https://www.linkedin.com/in/ifesol/",
 				"officeHours": "https://cal.com/ife-solarin-j1xfse/office-hours?overlayCalendar=true",
 				"photo": "",
-				"blurb": ""
+				"blurb": "",
+				"name": "Ife Solarin",
+				"leads": "Automation",
+				"subteam": "automation"
 			},
 			{
-				"name": "Bala Shukla",
 				"title": "Founding Member",
-				"leads": "Automation",
-				"subteam": "automation",
 				"linkedin": "https://www.linkedin.com/in/bala-shukla/",
 				"officeHours": "https://cal.com/bala-shukla-z5su5x/15min?overlayCalendar=true",
 				"photo": "",
-				"blurb": ""
+				"blurb": "",
+				"name": "Bala Shukla",
+				"leads": "Automation",
+				"subteam": "automation"
 			},
 			{
-				"name": "Zahra Moosani",
 				"title": "Founding Member",
-				"leads": "Business",
-				"subteam": "business",
 				"linkedin": "https://www.linkedin.com/in/zahramoosani/",
 				"officeHours": "https://calendly.com/zahrazmoosani/30min",
 				"photo": "",
-				"blurb": ""
+				"blurb": "",
+				"name": "Zahra Moosani",
+				"leads": "Business",
+				"subteam": "business"
 			}
 		]
 	},
@@ -346,8 +346,8 @@
 			},
 			{
 				"k": "design",
-				"name": "Product Design Team",
-				"short": "Design",
+				"name": "Design / Product Team",
+				"short": "Design / Product",
 				"team": 7,
 				"line": "Design how people use every part of Hive, and test it on real work.",
 				"goals": [
@@ -422,14 +422,15 @@
 	},
 	"join": {
 		"heading": "Join any time of year.",
-		"lede": "Start with our Discord, then book office hours with the head of the team you want to join. There’s no application, no cutoff and no recruiting season, and every major and every level is welcome.",
+		"lede": "Start with our Discord, then book office hours with the head of the team you want to join. There’s no application, no cutoff and no recruiting season. Every major and experience level is welcome. You can join without prior AI experience.",
 		"officeHoursHeading": "Book office hours with a team head",
 		"officeHoursCta": "Book office hours",
 		"discordLabel": "Our official channel of communication",
 		"discordTitle": "Join our Discord",
 		"discordBody": "Meetings, events and club news are shared on Discord, and it’s where members talk and ask questions every day.",
 		"discordCta": "Join Discord",
-		"discordHref": "{{social:Discord}}"
+		"discordHref": "{{social:Discord}}",
+		"eligibility": "Every major and experience level is welcome. You can join without prior AI experience."
 	},
 	"partners": {
 		"heading": "Partner with us",
@@ -453,126 +454,5 @@
 			}
 		],
 		"contactTitle": "Email us and we’ll get back to you"
-	},
-	"faq": {
-		"heading": "Questions, answered.",
-		"lede": "The short version of what the club is, what we build and how to get involved.",
-		"items": [
-			{
-				"q": "What is Agentic AI UW?",
-				"a": "{{club}} is the flagship AI club at the {{university}}, founded in {{founded}}. We build agentic AI products that make a difference in everyday life. We are a community of builders, learners, entrepreneurs and techno optimists, open to every major.",
-				"links": []
-			},
-			{
-				"q": "How big is Agentic AI UW?",
-				"a": "{{club}} has {{stats_sentence}}.",
-				"links": []
-			},
-			{
-				"q": "Why does the club exist?",
-				"a": "{{vision}}",
-				"links": []
-			},
-			{
-				"q": "What is agentic AI?",
-				"a": "An AI agent doesn’t just answer; it does the work. Ask a chatbot to clean up your files and it will explain how. An agent opens the folder, does it, then checks that it worked. The model underneath can be the same. The difference is the tools and systems it is connected to.",
-				"links": []
-			},
-			{
-				"q": "What is the club building?",
-				"a": "Hive: AI agents that can use your laptop, phone and browser and do the digital work you do. Every team builds a part of it, all in one open GitHub repository.",
-				"links": [
-					{
-						"label": "See the project",
-						"href": "/hive/"
-					},
-					{
-						"label": "Code on GitHub",
-						"href": "https://github.com/agenticaiuw/hive"
-					}
-				]
-			},
-			{
-				"q": "What are the project teams?",
-				"a": "The teams building Hive are {{teams_sentence}}. Members can contribute across teams as they learn.",
-				"links": [
-					{
-						"label": "Book office hours with a team",
-						"href": "/join/#office-hours"
-					}
-				]
-			},
-			{
-				"q": "Who runs Agentic AI UW?",
-				"a": "A seven-person founding board: {{board_sentence}}. Each board member heads a project team and holds office hours.",
-				"links": [
-					{
-						"label": "Meet the founding board",
-						"href": "/#team"
-					}
-				]
-			},
-			{
-				"q": "Do I need to be a computer science major or have AI experience?",
-				"a": "No. Every major and every level is welcome, and no prior AI experience is needed. Business and design teams build alongside engineers.",
-				"links": []
-			},
-			{
-				"q": "How do I join Agentic AI UW?",
-				"a": "Join our Discord, the club’s official channel of communication, then book office hours with the head of the team you want to join. You can join any time of year; there is no application, no cutoff and no recruiting season.",
-				"links": [
-					{
-						"label": "Discord",
-						"href": "{{social:Discord}}"
-					},
-					{
-						"label": "Book office hours",
-						"href": "/join/#office-hours"
-					}
-				]
-			},
-			{
-				"q": "How can a company, professor or researcher work with the club?",
-				"a": "Email {{email}}. We welcome sponsors, companies with a problem worth solving, faculty with an idea and anyone curious about what we build.",
-				"links": [
-					{
-						"label": "Partner with us",
-						"href": "/partners/"
-					}
-				]
-			},
-			{
-				"q": "Has Agentic AI UW been in the news?",
-				"a": "Yes. The Daily Cardinal, UW–Madison’s student newspaper, covered the club on September 3, 2026.",
-				"links": [
-					{
-						"label": "Read the article",
-						"href": "https://www.dailycardinal.com/article/2026/09/agentic-ai-uw-brings-next-step-in-artificial-intelligence-to-uw-madison"
-					}
-				]
-			},
-			{
-				"q": "Where can I follow Agentic AI UW?",
-				"a": "On Instagram (@agenticaiuw), LinkedIn (Agentic AI UW) and X (@AgenticAIUW). Day-to-day discussion happens in the club Discord.",
-				"links": [
-					{
-						"label": "Discord",
-						"href": "{{social:Discord}}"
-					},
-					{
-						"label": "Instagram",
-						"href": "{{social:Instagram}}"
-					},
-					{
-						"label": "LinkedIn",
-						"href": "{{social:LinkedIn}}"
-					},
-					{
-						"label": "X",
-						"href": "{{social:X}}"
-					}
-				]
-			}
-		]
 	}
 }

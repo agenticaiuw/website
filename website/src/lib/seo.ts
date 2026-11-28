@@ -11,7 +11,7 @@ const OG_DESIGN = 3;
 export type OgCard = { path: string; heading: Run[]; text: Run[] };
 
 /** Every page's card, by the name its image is saved under (/og/<name>.png). */
-export function ogCards({ vision, project, work, events, partners, join, faq }: Site): Record<string, OgCard> {
+export function ogCards({ vision, project, work, events, partners, join }: Site): Record<string, OgCard> {
 	const card = (path: string, heading: string, text: string): OgCard => ({ path, heading: visionRuns(heading), text: visionRuns(text) });
 	return {
 		home: { path: '/', heading: vision.labelRuns, text: vision.runs },
@@ -20,8 +20,7 @@ export function ogCards({ vision, project, work, events, partners, join, faq }: 
 		...Object.fromEntries(work.subteams.items.map((t) => [`team-${t.k}`, card(`/teams/${t.k}`, t.name, t.line)])),
 		events: card('/events', events.heading, events.lede),
 		partners: card('/partners', partners.heading, partners.lede),
-		join: card('/join', join.heading, join.lede),
-		faq: card('/faq', faq.heading, faq.lede)
+		join: card('/join', join.heading, join.lede)
 	};
 }
 

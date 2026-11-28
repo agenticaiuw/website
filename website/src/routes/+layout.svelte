@@ -110,7 +110,6 @@
 
 		<div class="f-bottom">
 			<span>© {new Date().getFullYear()} {club.name}. Founded {club.founded}.</span>
-			<a href="/faq/">Frequently asked questions</a>
 		</div>
 	</div>
 </footer>
@@ -141,7 +140,6 @@
 	.f-email { display: inline-block; margin-top: 0.6rem; color: var(--accent); }
 	.f-badge { position: absolute; right: clamp(0.5rem, 2vw, 1.75rem); bottom: -0.5rem; transform: rotate(6deg); }
 	.f-bottom { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem 1.5rem; margin-top: 1.25rem; padding-inline: 0.5rem; font-size: 0.9rem; color: var(--muted); }
-	.f-bottom a:hover { color: var(--fg); text-decoration: underline; text-underline-offset: 3px; }
 	@media (max-width: 860px) {
 		.footer-card { grid-template-columns: minmax(0, 1fr); padding-right: clamp(1.75rem, 4vw, 2.75rem); padding-bottom: 8.5rem; }
 		.f-badge :global(svg) { width: 118px !important; }
